@@ -58,6 +58,7 @@ class ResortCollector(Collector):
         elif self.extract_fn and url:
             data = self.extract_fn(url)
         else:
+            # No HTML extractor wired — unavailable, never invent terrain zeros.
             return [
                 Observation(
                     signal_key="resort.terrain_open_pct",

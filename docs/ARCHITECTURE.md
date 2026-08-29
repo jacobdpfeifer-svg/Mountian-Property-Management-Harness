@@ -17,7 +17,8 @@ v3 (optional): Length-of-stay optimization; min-stay as a decision variable.
 **Drought reframing.** Last season's ~$482 Christmas was correct pricing under a
 60%-of-normal snowpack (Berthoud Summit SNOTEL), not a mistake. The stationarity
 assumption in raw-history ceilings is retired. See `config/policies/conditions.yaml`
-and `docs/PFEIFER_OPTIMIZATION_RUNBOOK.md` (SQI kill switch).
+and `docs/SIGNAL_FOUNDRY_RUNBOOK.md` /
+`docs/PFEIFER_OPTIMIZATION_RUNBOOK.md` (SQI kill switch).
 
 **Sequencing note.** The binding constraint at 4 doors is data capture, not model
 sophistication. `pacing_snapshots` must accumulate from day one — it is the only path

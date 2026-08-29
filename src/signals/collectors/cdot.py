@@ -40,6 +40,7 @@ class CdotCollector(Collector):
             # Berthoud primarily affects Grand County home/valley.
             return []
         if not self.fixture_path:
+            # Live CoTrip parser not wired — unavailable, never invent 0/closed.
             return [
                 Observation(
                     signal_key="cdot.access_risk",

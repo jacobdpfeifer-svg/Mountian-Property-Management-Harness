@@ -2,7 +2,8 @@
 # One season cannot fit f(SQI). Wide bands feed ceiling confidence → autonomy.
 #
 # Kill switch: set sqi.enabled to false to revert to the pre–Pfeifer Optimization
-# stationary engine in one line (see docs/PFEIFER_OPTIMIZATION_RUNBOOK.md).
+# stationary engine in one line (see docs/SIGNAL_FOUNDRY_RUNBOOK.md /
+# docs/PFEIFER_OPTIMIZATION_RUNBOOK.md).
 
 sqi:
   enabled: true

@@ -1,7 +1,8 @@
 """Calendar intelligence (WP-09) — school calendars, events, WP Express.
 
 Replaces hand-maintained events.yaml as the sourced table of demand windows.
-Keeps demand_signals read-compat shim populated for WP-05 demand_tier.
+After each run, upserts ok `calendars.demand_strength` rows into the legacy
+`demand_signals` table so WP-05 `demand_tier` / ceiling keep working.
 """
 
 from __future__ import annotations
@@ -11,7 +12,13 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from src.signals.collector import Collector, CollectorSchema, FieldSpec, register_collector
+from src.signals.collector import (
+    Collector,
+    CollectorResult,
+    CollectorSchema,
+    FieldSpec,
+    register_collector,
+)
 from src.signals.store import Observation, QUALITY_OK
 
 
@@ -31,6 +38,63 @@ class CalendarsCollector(Collector):
     def __init__(self, store, *, fixture_path: Path | None = None, sleep=None):
         super().__init__(store, sleep=sleep or (lambda _s: None))
         self.fixture_path = fixture_path
+
+    def run(
+        self,
+        as_of: date,
+        market_id: str,
+        *,
+        retries: int = 2,
+        backoff_s: float = 0.5,
+    ) -> CollectorResult:
+        result = super().run(as_of, market_id, retries=retries, backoff_s=backoff_s)
+        if result.status != "failed":
+            self._sync_demand_signals(result.run_id, market_id)
+        return result
+
+    def _sync_demand_signals(self, run_id: str, market_id: str) -> None:
+        """Keep demand_signals read-compat shim populated for ceiling demand_tier."""
+        rows = self.store.conn.execute(
+            """
+            SELECT effective_date, value, meta_json
+            FROM signal_observations
+            WHERE run_id = ?
+              AND signal_key = 'calendars.demand_strength'
+              AND quality = 'ok'
+              AND value IS NOT NULL
+            """,
+            (run_id,),
+        ).fetchall()
+        # Home market maps to the legacy region key used by sample CSV / engine.
+        region = "winter_park" if market_id == "grand_home" else market_id
+        for row in rows:
+            meta: dict[str, Any] = {}
+            raw = row["meta_json"]
+            if raw:
+                try:
+                    meta = json.loads(raw) if isinstance(raw, str) else dict(raw)
+                except (TypeError, json.JSONDecodeError):
+                    meta = {}
+            event = str(meta.get("event") or "calendar")
+            self.store.conn.execute(
+                """
+                INSERT INTO demand_signals (
+                    signal_date, region, event_name, signal_strength, source
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(signal_date, region, event_name) DO UPDATE SET
+                    signal_strength=excluded.signal_strength,
+                    source=excluded.source
+                """,
+                (
+                    row["effective_date"],
+                    region,
+                    event,
+                    float(row["value"]),
+                    "calendars",
+                ),
+            )
+        if rows:
+            self.store.conn.commit()
 
     def fetch(self, as_of: date, market_id: str) -> list[Observation]:
         path = self.fixture_path or (

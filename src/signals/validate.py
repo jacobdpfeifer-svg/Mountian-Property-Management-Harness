@@ -7,6 +7,10 @@ from typing import Any
 
 from src.signals.store import Observation, QUALITIES
 
+# Float noise at FieldSpec bounds (e.g. swe_pct 3.0000000000000004 vs max 3.0).
+# Values within EPS of a bound are accepted as-is — never rewritten/clamped.
+BOUND_EPS = 1e-9
+
 
 @dataclass
 class ValidationResult:
@@ -34,11 +38,11 @@ def validate_observation(
     if obs.value is None:
         return ValidationResult(False, None, "ok observation missing value")
 
-    if value_min is not None and obs.value < value_min:
+    if value_min is not None and obs.value < value_min - BOUND_EPS:
         return ValidationResult(
             False, None, f"value {obs.value} below min {value_min} (rejected, not clamped)"
         )
-    if value_max is not None and obs.value > value_max:
+    if value_max is not None and obs.value > value_max + BOUND_EPS:
         return ValidationResult(
             False, None, f"value {obs.value} above max {value_max} (rejected, not clamped)"
         )

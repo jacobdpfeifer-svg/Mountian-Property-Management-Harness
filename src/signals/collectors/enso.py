@@ -20,7 +20,15 @@ ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
 
 
 def parse_oni_ascii(text: str) -> list[tuple[int, str, float]]:
-    """Parse CPC ONI ascii into (year, season_code, oni)."""
+    """Parse CPC ONI ascii into (year, season_code, oni).
+
+    Current NOAA CPC layout (oni.ascii.txt)::
+
+        SEAS  YR   TOTAL   ANOM
+         DJF 1950  25.01  -1.32
+
+    Also accepts a legacy year-first layout: ``YR SEAS ANOM`` (or ``YR SEAS TOTAL ANOM``).
+    """
     rows: list[tuple[int, str, float]] = []
     for line in text.splitlines():
         line = line.strip()
@@ -30,9 +38,16 @@ def parse_oni_ascii(text: str) -> list[tuple[int, str, float]]:
         if len(parts) < 3:
             continue
         try:
-            year = int(parts[0])
-            seas = parts[1]
-            oni = float(parts[2])
+            if parts[0].lstrip("-").isdigit():
+                # Legacy: YR SEAS [TOT] ANOM
+                year = int(parts[0])
+                seas = parts[1]
+                oni = float(parts[-1] if len(parts) >= 4 else parts[2])
+            else:
+                # Current CPC: SEAS YR TOTAL ANOM
+                seas = parts[0]
+                year = int(parts[1])
+                oni = float(parts[-1])
         except ValueError:
             continue
         rows.append((year, seas, oni))

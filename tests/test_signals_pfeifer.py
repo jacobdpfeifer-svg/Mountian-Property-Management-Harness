@@ -248,3 +248,66 @@ def test_collectors_registered():
     ids = list_collectors()
     for needed in ("snotel", "weather", "enso", "resort", "cdot", "calendars", "regulatory"):
         assert needed in ids
+
+
+def test_oni_ascii_parses_current_cpc_layout():
+    from src.signals.collectors.enso import parse_oni_ascii, oni_for_as_of
+
+    text = (
+        " SEAS  YR   TOTAL   ANOM\n"
+        "  DJF 1950  25.01  -1.32\n"
+        "  JFM 2025  26.50  -0.45\n"
+        "  FMA 2025  27.00  -0.30\n"
+    )
+    rows = parse_oni_ascii(text)
+    assert rows[0] == (1950, "DJF", -1.32)
+    assert rows[-1] == (2025, "FMA", -0.30)
+    got = oni_for_as_of(rows, date(2025, 10, 15))
+    assert got is not None
+    assert got[1] == -0.30
+
+
+def test_oni_ascii_parses_legacy_year_first():
+    from src.signals.collectors.enso import parse_oni_ascii
+
+    text = "YEAR SEAS ANOM\n2024 DJF -1.0\n2024 JFM -0.8\n"
+    rows = parse_oni_ascii(text)
+    assert rows == [(2024, "DJF", -1.0), (2024, "JFM", -0.8)]
+
+
+def test_validate_accepts_float_noise_at_max_bound():
+    from src.signals.store import Observation
+    from src.signals.validate import validate_observation
+
+    obs = Observation(
+        signal_key="snotel.swe_pct_normal",
+        market_id="grand_home",
+        observed_at="2026-05-01",
+        effective_date="2026-05-01",
+        value=3.0000000000000004,
+        quality="ok",
+    )
+    result = validate_observation(obs, value_min=0.0, value_max=3.0)
+    assert result.ok
+    assert result.observation is not None
+    assert result.observation.value == 3.0000000000000004
+
+
+def test_calendars_syncs_demand_signals_shim(store: SignalStore):
+    import src.signals.collectors  # noqa: F401
+
+    before = store.conn.execute("SELECT COUNT(*) n FROM demand_signals").fetchone()["n"]
+    coll = get_collector("calendars")(store, sleep=lambda _s: None)
+    result = coll.run(date(2025, 12, 1), "grand_home")
+    assert result.status == "ok"
+    after = store.conn.execute("SELECT COUNT(*) n FROM demand_signals").fetchone()["n"]
+    assert after > before
+    row = store.conn.execute(
+        """
+        SELECT region, source, signal_strength FROM demand_signals
+        WHERE source = 'calendars' LIMIT 1
+        """
+    ).fetchone()
+    assert row is not None
+    assert row["region"] == "winter_park"
+    assert 0.0 <= float(row["signal_strength"]) <= 1.0
