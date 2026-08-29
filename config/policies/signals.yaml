@@ -1,0 +1,17 @@
+# Signal promotion ladder thresholds (WP-13). Applies to signals only — NOT SQI.
+ladder:
+  experimental_to_shadow:
+    min_observations: 30
+  shadow_to_active:
+    min_sample_size: 40
+    min_information_coefficient: 0.05
+    min_hit_rate: 0.52
+  active_to_deprecated:
+    max_information_coefficient: -0.02
+    break_on_source_failure: true
+
+freshness:
+  snotel_max_age_days: 3
+  weather_max_age_days: 2
+  resort_max_age_days: 2
+  cdot_max_age_hours: 6

@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wp-str-pricing"
+version = "0.1.0"
+description = "Winter Park STR Pricing & Optimization Engine — rules-first RevPAN optimizer"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "pandas>=2.2",
+  "numpy>=1.26",
+  "pyyaml>=6.0",
+  "icalendar>=6.0",
+  "python-dateutil>=2.9",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+# Comp scraping. Kept optional so the engine still imports and runs advisory-only
+# on a machine without it.
+scrape = ["pyairbnb>=2.2.2"]
+
+[project.scripts]
+wp-price = "src.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

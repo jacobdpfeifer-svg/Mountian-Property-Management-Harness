@@ -1,0 +1,73 @@
+{
+ "sweeps": {
+  "2026-12-01": [
+   {
+    "room_id": "25025719",
+    "nightly_price": 420.0,
+    "name": "comp 25025719"
+   },
+   {
+    "room_id": "28034852",
+    "nightly_price": 560.0,
+    "name": "comp 28034852"
+   },
+   {
+    "room_id": "3113520",
+    "nightly_price": 380.0,
+    "name": "comp 3113520"
+   }
+  ],
+  "2026-12-04": [
+   {
+    "room_id": "25025719",
+    "nightly_price": 567.0,
+    "name": "comp 25025719"
+   },
+   {
+    "room_id": "28034852",
+    "nightly_price": 756.0,
+    "name": "comp 28034852"
+   },
+   {
+    "room_id": "3113520",
+    "nightly_price": 513.0,
+    "name": "comp 3113520"
+   }
+  ],
+  "2026-12-08": [
+   {
+    "room_id": "25025719",
+    "nightly_price": 420.0,
+    "name": "comp 25025719"
+   },
+   {
+    "room_id": "28034852",
+    "nightly_price": 560.0,
+    "name": "comp 28034852"
+   },
+   {
+    "room_id": "3113520",
+    "nightly_price": 380.0,
+    "name": "comp 3113520"
+   }
+  ],
+  "2026-12-11": [
+   {
+    "room_id": "25025719",
+    "nightly_price": 567.0,
+    "name": "comp 25025719"
+   },
+   {
+    "room_id": "28034852",
+    "nightly_price": 756.0,
+    "name": "comp 28034852"
+   },
+   {
+    "room_id": "3113520",
+    "nightly_price": 513.0,
+    "name": "comp 3113520"
+   }
+  ]
+ },
+ "calendars": {}
+}

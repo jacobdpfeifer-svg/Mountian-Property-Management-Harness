@@ -1,0 +1,194 @@
+rule_version: "2026.08.2"
+model_version: "rules_v2_revpan"
+
+# ---------------------------------------------------------------- global clamps
+global:
+  min_price: 150
+  max_price: 5000
+  round_to: 5
+
+# ------------------------------------------------------------- price composition
+# Previously hardcoded in src/compose.py. Doctrine requires engine numbers live here.
+compose:
+  # E[RevPAN] search grid over [floor, ceiling]
+  candidate_steps: 40
+  # Anchor blend used only when history is too thin to trust (confidence < 1.0).
+  base_ceiling_anchor_ratio: 0.85
+  # DEFERENCE TO THE INCUMBENT PRICE.
+  # The operator's current listed price is itself evidence — they set it deliberately
+  # and with context the model does not have. When our own confidence is low, the model
+  # must not override that judgement wholesale.
+  # Measured motivation: last Christmas these listings averaged an earlier seasonal level; this
+  # Christmas they average a higher seasonal level and converted at a private realized price. A model fitted on that history
+  # wanted a -35% cut on the strongest nights of the year — i.e. to restore last
+  # season's underpricing. Deference makes low-confidence recommendations advisory
+  # nudges rather than confident reversals.
+  deference:
+    enabled: true
+    below_confidence: 0.80
+    # weight on the model = ceiling confidence; remainder sits on the listed price
+    min_model_weight: 0.25
+
+dow_multipliers:
+  0: 0.92
+  1: 0.92
+  2: 0.95
+  3: 0.98
+  4: 1.08
+  5: 1.12
+  6: 1.00
+
+lead_time_curves:
+  - {min_days: 0,   max_days: 7,    multiplier: 0.90}
+  - {min_days: 8,   max_days: 21,   multiplier: 0.97}
+  - {min_days: 22,  max_days: 60,   multiplier: 1.00}
+  - {min_days: 61,  max_days: 120,  multiplier: 1.03}
+  - {min_days: 121, max_days: 9999, multiplier: 1.05}
+
+seasons:
+  peak_ski:        {start: "12-15", end: "03-31", base_multiplier: 1.15}
+  shoulder_spring: {start: "04-01", end: "05-31", base_multiplier: 0.85}
+  summer:          {start: "06-01", end: "09-15", base_multiplier: 1.05}
+  shoulder_fall:   {start: "09-16", end: "11-20", base_multiplier: 0.88}
+  early_winter:    {start: "11-21", end: "12-14", base_multiplier: 1.00}
+
+# ------------------------------------------------------------------- ceiling
+# A ceiling built from the wrong season is the most dangerous number in the system:
+# it silently licenses large moves on nights that cannot support them.
+ceiling:
+  percentile: 0.90
+  min_history_nights: 5
+  # Cross-season fallback is FORBIDDEN. With 6-12mo of history, whole-history
+  # percentiles are ~98% peak-ski and produced +22% median recommendations on
+  # shoulder nights in the v1 build. Fall back to the seasonal anchor instead.
+  allow_cross_season_fallback: false
+  # Confidence by which method produced the ceiling. Drives blending toward the
+  # seasonal anchor and caps how far guardrails will let a price move.
+  confidence:
+    season_dow: 1.00
+    season: 0.80
+    seasonal_anchor: 0.45
+  # Seasonal anchor is taken from the property's own listed prices for that season
+  # rather than a configured base rate. See src/ceiling.seasonal_anchor.
+  anchor_listed_percentile: 0.75
+  anchor_min_listed_nights: 20
+  # Within a season, anchor on nights of the same demand tier. peak_ski runs
+  # 15 Dec - 31 Mar; without this, Christmas anchors to a mid-January price.
+  anchor_min_tier_nights: 8
+  demand_tiers:
+    high: 0.80
+    mid: 0.45
+  # Market blend: how much curated/scraped comp evidence moves the ceiling.
+  # Applied only when comp coverage passes data_health thresholds.
+  comp_blend_weight: 0.30
+  comp_percentile: 0.75
+
+# --------------------------------------------------------------- booking model
+# Pooled, transparent booking-probability model. p(P) = p_ref * (P / P_ref) ** beta
+# beta is elasticity BY SEASON: luxury peak inventory is inelastic, shoulder is not.
+# This is what makes RevPAN a real objective instead of a label.
+booking_probability:
+  # Portfolio prior booking rate, used when a bucket has too little data.
+  prior_book_rate: 0.55
+  # Shrinkage strength toward the prior (pseudo-observations).
+  shrinkage_k: 12
+  min_bucket_nights: 8
+  # Elasticity by season. |beta| < 1 => revenue rises with price => optimum is the
+  # ceiling, which is honest for inelastic peak inventory. Shoulder must be elastic
+  # or the optimizer degenerates to "always charge the ceiling".
+  elasticity_by_season:
+    peak_ski:        -0.65
+    early_winter:    -1.35
+    shoulder_spring: -1.70
+    shoulder_fall:   -1.70
+    summer:          -1.10
+    default:         -1.20
+  # Pacing feedback: if a night is filling slower than the reference curve,
+  # treat demand as more elastic (multiply |beta|).
+  pacing_elasticity_scale: 1.30
+  pacing_behind_threshold: 0.70
+
+# --------------------------------------------------------------------- leakage
+leakage:
+  peak_underprice:
+    min_demand_strength: 0.65
+    underprice_ratio: 0.85
+  shoulder_over_discount:
+    max_demand_strength: 0.35
+    floor_ratio: 0.95
+  orphan_gap:
+    max_gap_nights: 2
+    discount_multiplier: 0.88
+    # The real orphan-gap lever is min-stay, not price. Flag it for the operator.
+    suggest_min_stay_relaxation: true
+
+# ---------------------------------------------------------------------- scrape
+# Comp acquisition. Operator chose scraper-first (docs/LOCKED_INPUTS.md).
+scrape:
+  provider: "airbnb_sweep"
+  window_nights: 2
+  horizon_days: 120
+  zoom: 14
+  timeout_s: 60
+  # Politeness is load-bearing: an aggressive sweep gets blocked and the whole comp
+  # layer degrades to advisory. One market-wide sweep covers every comp at once.
+  min_request_delay_s: 4.0
+  max_request_delay_s: 8.0
+  # Winter Park / Fraser Valley bounding box.
+  bbox:
+    ne_lat: 39.95
+    ne_lng: -105.70
+    sw_lat: 39.85
+    sw_lng: -105.82
+  # Comp evidence is consumed at the season x day-of-week level, so an observation
+  # may stand in for a nearby night of the same weekday class.
+  match:
+    max_day_distance: 10
+    require_same_dow_class: true
+  # A broken parser returns plausible garbage, not exceptions. These reject a sweep
+  # that looks like a failure rather than a market.
+  validation:
+    min_listings_per_sweep: 25
+    min_parse_rate: 0.70
+    max_identical_share: 0.60
+    min_plausible_price: 20
+    max_plausible_price: 20000
+    max_change_ratio: 5.0
+    min_window_success_rate: 0.70
+    min_comp_match_rate: 0.60
+  discover:
+    min_price: 400
+    limit: 40
+
+# ------------------------------------------------------------------ guardrails
+# Hard invariants. NO autonomy level may override these.
+guardrails:
+  max_increase_pct: 0.12
+  max_decrease_pct: 0.15
+  # Absolute ceiling on movement regardless of percentage, per night, per run.
+  max_abs_move: 250
+  # Nights whose price may never be changed automatically, at any autonomy level.
+  auto_push_blackout_demand_strength: 0.85
+  # Cap on how much of the calendar one run may move.
+  max_nights_changed_per_run: 40
+  max_pct_of_open_nights_per_run: 0.35
+  # A price below this fraction of the seasonal anchor is treated as a bug, not a bid.
+  sanity_min_ratio_to_anchor: 0.40
+
+# ------------------------------------------------------------------ data health
+# Autonomy is DERIVED from these. See docs/rules/AUTONOMY.md.
+data_health:
+  pms_max_staleness_hours: 24
+  comp_max_staleness_hours: 48
+  comp_min_coverage: 0.60       # fraction of comp set with a usable snapshot
+  comp_min_members: 3
+  pacing_min_snapshot_days: 14  # days of pacing history before pacing signals are trusted
+
+autonomy:
+  # Ladder: watch < suggest < handle < escalate
+  # 'handle' is the only level that writes rates.
+  max_level: "handle"
+  require_ceiling_confidence: 0.80   # below this -> suggest only
+
+explain:
+  max_reasons: 3

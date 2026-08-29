@@ -1,0 +1,6 @@
+comp_id,name,bedrooms,bathrooms,amenities,notes,source_url,airbnb_room_id,platform,for_properties,as_of,stay_date,listed_price,available,source
+wp_comp_001,Slopeside Luxury Chalet,4,3.5,hot tub|ski storage|fireplace,Base area ski-in,https://www.airbnb.com/rooms/25025719,25025719,airbnb,aspen_glow|cabin_ridge|idlewild_loft,,,,,
+wp_comp_002,Fraser Valley Modern Lodge,5,4.0,hot tub|game room|fireplace,Large group luxury,https://www.airbnb.com/rooms/28034852,28034852,airbnb,aspen_glow|cabin_ridge|fraser_view,,,,,
+wp_comp_003,Winter Park Village Retreat,3,2.5,hot tub|walk to lifts,Village walkable,https://www.airbnb.com/rooms/3113520,3113520,airbnb,fraser_view|idlewild_loft|cabin_ridge,,,,,
+wp_comp_004,Rendezvous Ridge House,4,3.0,hot tub|mountain views,Rendezvous neighborhood,https://www.airbnb.com/rooms/38425742,38425742,airbnb,aspen_glow|fraser_view|idlewild_loft,,,,,
+wp_comp_005,Old Town Fraser Cabin,3,2.0,fireplace|pet friendly,Value luxury tier,https://www.airbnb.com/rooms/1026751424661674679,1026751424661674679,airbnb,idlewild_loft,,,,,

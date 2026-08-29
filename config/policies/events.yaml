@@ -1,0 +1,45 @@
+# Recurring / dated demand signals for Winter Park region.
+# signal_strength: 0.0–1.0
+
+signals:
+  - event_name: "Christmas / New Year holiday peak"
+    start: "2025-12-20"
+    end: "2026-01-04"
+    signal_strength: 0.95
+    source: "calendar"
+
+  - event_name: "MLK weekend"
+    start: "2026-01-16"
+    end: "2026-01-19"
+    signal_strength: 0.75
+    source: "calendar"
+
+  - event_name: "Presidents Day weekend"
+    start: "2026-02-13"
+    end: "2026-02-16"
+    signal_strength: 0.80
+    source: "calendar"
+
+  - event_name: "Spring Break peak"
+    start: "2026-03-07"
+    end: "2026-03-22"
+    signal_strength: 0.85
+    source: "calendar"
+
+  - event_name: "Ski season opener window"
+    start: "2025-11-21"
+    end: "2025-12-14"
+    signal_strength: 0.55
+    source: "calendar"
+
+  - event_name: "Summer festival / trail season"
+    start: "2026-07-01"
+    end: "2026-08-15"
+    signal_strength: 0.60
+    source: "calendar"
+
+  - event_name: "Christmas / New Year holiday peak"
+    start: "2026-12-20"
+    end: "2027-01-04"
+    signal_strength: 0.95
+    source: "calendar"

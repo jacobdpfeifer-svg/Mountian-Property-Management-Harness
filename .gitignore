@@ -1,0 +1,18 @@
+data/*.db
+data/exports/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.DS_Store
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+data/.guesty_token.json
+**/*token*.json
+**/*credentials*

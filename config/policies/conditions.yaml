@@ -1,0 +1,37 @@
+# Season Quality Index policy — declared PRIOR, not a fitted finding.
+# One season cannot fit f(SQI). Wide bands feed ceiling confidence → autonomy.
+#
+# Kill switch: set sqi.enabled to false to revert to the pre–Pfeifer Optimization
+# stationary engine in one line (see docs/PFEIFER_OPTIMIZATION_RUNBOOK.md).
+
+sqi:
+  enabled: true
+  builder_version: "1"
+  # Component weights — renormalised at read time over AVAILABLE components only.
+  # Never zero-fill a missing component (that would drag SQI down artificially).
+  weights:
+    swe_pct_normal: 0.55
+    terrain_open_pct: 0.25   # dropped + renormalised until resort collector lands
+    powder_days_7: 0.10
+    enso_prior: 0.10         # season-ahead when snowpack thin / far horizon
+  # Historical mean used only in tests / documentation — not as a zero-fill.
+  terrain_historical_mean_pct: 70.0
+  powder_lookback_days: 7
+  # When horizon_days to target exceeds this and SWE is thin, lean on ENSO prior.
+  season_ahead_horizon_days: 45
+  # Confidence penalty per missing weight fraction.
+  missing_confidence_scale: 0.85
+
+# f(SQI) → price multiplier. Must be able to flatten to 1.0 (falsifiable).
+# Points are (sqi, multiplier). Linear interpolation between knots.
+price_multiplier_curve:
+  - {sqi: 0.50, mult: 0.72}
+  - {sqi: 0.62, mult: 0.78}   # ~2025-26 drought Christmas
+  - {sqi: 0.80, mult: 0.90}
+  - {sqi: 1.00, mult: 1.00}
+  - {sqi: 1.20, mult: 1.12}
+  - {sqi: 1.30, mult: 1.18}
+
+# Wide bands: reported confidence on f is low until real n accumulates.
+curve_confidence: 0.35
+default_sqi: 1.0

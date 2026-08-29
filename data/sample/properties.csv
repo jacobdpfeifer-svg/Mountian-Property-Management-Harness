@@ -1,0 +1,5 @@
+property_id,name,bedrooms,bathrooms,amenities,base_ceiling_rate,min_floor_rate,max_ceiling_rate,luxury_tier,target_alos,timezone
+cabin_ridge,Cabin Ridge Estate,5,4.5,Hot Tub|Ski-in/Ski-out|Fireplace|Garage,950,425,1800,luxury,4,America/Denver
+aspen_glow,Aspen Glow Chalet,4,3.5,Hot Tub|Mountain View|Fireplace|Game Room,825,375,1500,luxury,3.5,America/Denver
+fraser_view,Fraser River View,3,2.5,Hot Tub|River View|Fireplace,650,295,1200,luxury,3,America/Denver
+idlewild_loft,Idlewild Loft,3,2,Downtown|Hot Tub|Parking,575,250,1100,luxury,3,America/Denver

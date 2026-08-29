@@ -1,0 +1,5613 @@
+{
+ "sweeps": {
+  "2026-12-01": [
+   {
+    "room_id": "25025719",
+    "nightly_price": 199.0,
+    "name": "comp 25025719"
+   },
+   {
+    "room_id": "28034852",
+    "nightly_price": 199.0,
+    "name": "comp 28034852"
+   },
+   {
+    "room_id": "3113520",
+    "nightly_price": 199.0,
+    "name": "comp 3113520"
+   },
+   {
+    "room_id": "38425742",
+    "nightly_price": 199.0,
+    "name": "comp 38425742"
+   },
+   {
+    "room_id": "1026751424661674679",
+    "nightly_price": 199.0,
+    "name": "comp 1026751424661674679"
+   },
+   {
+    "room_id": "mkt0",
+    "nightly_price": 199.0,
+    "name": "market listing 0"
+   },
+   {
+    "room_id": "mkt1",
+    "nightly_price": 199.0,
+    "name": "market listing 1"
+   },
+   {
+    "room_id": "mkt2",
+    "nightly_price": 199.0,
+    "name": "market listing 2"
+   },
+   {
+    "room_id": "mkt3",
+    "nightly_price": 199.0,
+    "name": "market listing 3"
+   },
+   {
+    "room_id": "mkt4",
+    "nightly_price": 199.0,
+    "name": "market listing 4"
+   },
+   {
+    "room_id": "mkt5",
+    "nightly_price": 199.0,
+    "name": "market listing 5"
+   },
+   {
+    "room_id": "mkt6",
+    "nightly_price": 199.0,
+    "name": "market listing 6"
+   },
+   {
+    "room_id": "mkt7",
+    "nightly_price": 199.0,
+    "name": "market listing 7"
+   },
+   {
+    "room_id": "mkt8",
+    "nightly_price": 199.0,
+    "name": "market listing 8"
+   },
+   {
+    "room_id": "mkt9",
+    "nightly_price": 199.0,
+    "name": "market listing 9"
+   },
+   {
+    "room_id": "mkt10",
+    "nightly_price": 199.0,
+    "name": "market listing 10"
+   },
+   {
+    "room_id": "mkt11",
+    "nightly_price": 199.0,
+    "name": "market listing 11"
+   },
+   {
+    "room_id": "mkt12",
+    "nightly_price": 199.0,
+    "name": "market listing 12"
+   },
+   {
+    "room_id": "mkt13",
+    "nightly_price": 199.0,
+    "name": "market listing 13"
+   },
+   {
+    "room_id": "mkt14",
+    "nightly_price": 199.0,
+    "name": "market listing 14"
+   },
+   {
+    "room_id": "mkt15",
+    "nightly_price": 199.0,
+    "name": "market listing 15"
+   },
+   {
+    "room_id": "mkt16",
+    "nightly_price": 199.0,
+    "name": "market listing 16"
+   },
+   {
+    "room_id": "mkt17",
+    "nightly_price": 199.0,
+    "name": "market listing 17"
+   },
+   {
+    "room_id": "mkt18",
+    "nightly_price": 199.0,
+    "name": "market listing 18"
+   },
+   {
+    "room_id": "mkt19",
+    "nightly_price": 199.0,
+    "name": "market listing 19"
+   },
+   {
+    "room_id": "mkt20",
+    "nightly_price": 199.0,
+    "name": "market listing 20"
+   },
+   {
+    "room_id": "mkt21",
+    "nightly_price": 199.0,
+    "name": "market listing 21"
+   },
+   {
+    "room_id": "mkt22",
+    "nightly_price": 199.0,
+    "name": "market listing 22"
+   },
+   {
+    "room_id": "mkt23",
+    "nightly_price": 199.0,
+    "name": "market listing 23"
+   },
+   {
+    "room_id": "mkt24",
+    "nightly_price": 199.0,
+    "name": "market listing 24"
+   },
+   {
+    "room_id": "mkt25",
+    "nightly_price": 199.0,
+    "name": "market listing 25"
+   },
+   {
+    "room_id": "mkt26",
+    "nightly_price": 199.0,
+    "name": "market listing 26"
+   },
+   {
+    "room_id": "mkt27",
+    "nightly_price": 199.0,
+    "name": "market listing 27"
+   },
+   {
+    "room_id": "mkt28",
+    "nightly_price": 199.0,
+    "name": "market listing 28"
+   },
+   {
+    "room_id": "mkt29",
+    "nightly_price": 199.0,
+    "name": "market listing 29"
+   },
+   {
+    "room_id": "mkt30",
+    "nightly_price": 199.0,
+    "name": "market listing 30"
+   },
+   {
+    "room_id": "mkt31",
+    "nightly_price": 199.0,
+    "name": "market listing 31"
+   },
+   {
+    "room_id": "mkt32",
+    "nightly_price": 199.0,
+    "name": "market listing 32"
+   },
+   {
+    "room_id": "mkt33",
+    "nightly_price": 199.0,
+    "name": "market listing 33"
+   },
+   {
+    "room_id": "mkt34",
+    "nightly_price": 199.0,
+    "name": "market listing 34"
+   },
+   {
+    "room_id": "mkt35",
+    "nightly_price": 199.0,
+    "name": "market listing 35"
+   },
+   {
+    "room_id": "mkt36",
+    "nightly_price": 199.0,
+    "name": "market listing 36"
+   },
+   {
+    "room_id": "mkt37",
+    "nightly_price": 199.0,
+    "name": "market listing 37"
+   },
+   {
+    "room_id": "mkt38",
+    "nightly_price": 199.0,
+    "name": "market listing 38"
+   },
+   {
+    "room_id": "mkt39",
+    "nightly_price": 199.0,
+    "name": "market listing 39"
+   },
+   {
+    "room_id": "mkt40",
+    "nightly_price": 199.0,
+    "name": "market listing 40"
+   },
+   {
+    "room_id": "mkt41",
+    "nightly_price": 199.0,
+    "name": "market listing 41"
+   },
+   {
+    "room_id": "mkt42",
+    "nightly_price": 199.0,
+    "name": "market listing 42"
+   },
+   {
+    "room_id": "mkt43",
+    "nightly_price": 199.0,
+    "name": "market listing 43"
+   },
+   {
+    "room_id": "mkt44",
+    "nightly_price": 199.0,
+    "name": "market listing 44"
+   },
+   {
+    "room_id": "mkt45",
+    "nightly_price": 199.0,
+    "name": "market listing 45"
+   },
+   {
+    "room_id": "mkt46",
+    "nightly_price": 199.0,
+    "name": "market listing 46"
+   },
+   {
+    "room_id": "mkt47",
+    "nightly_price": 199.0,
+    "name": "market listing 47"
+   },
+   {
+    "room_id": "mkt48",
+    "nightly_price": 199.0,
+    "name": "market listing 48"
+   },
+   {
+    "room_id": "mkt49",
+    "nightly_price": 199.0,
+    "name": "market listing 49"
+   },
+   {
+    "room_id": "mkt50",
+    "nightly_price": 199.0,
+    "name": "market listing 50"
+   },
+   {
+    "room_id": "mkt51",
+    "nightly_price": 199.0,
+    "name": "market listing 51"
+   },
+   {
+    "room_id": "mkt52",
+    "nightly_price": 199.0,
+    "name": "market listing 52"
+   },
+   {
+    "room_id": "mkt53",
+    "nightly_price": 199.0,
+    "name": "market listing 53"
+   },
+   {
+    "room_id": "mkt54",
+    "nightly_price": 199.0,
+    "name": "market listing 54"
+   },
+   {
+    "room_id": "mkt55",
+    "nightly_price": 199.0,
+    "name": "market listing 55"
+   },
+   {
+    "room_id": "mkt56",
+    "nightly_price": 199.0,
+    "name": "market listing 56"
+   },
+   {
+    "room_id": "mkt57",
+    "nightly_price": 199.0,
+    "name": "market listing 57"
+   },
+   {
+    "room_id": "mkt58",
+    "nightly_price": 199.0,
+    "name": "market listing 58"
+   },
+   {
+    "room_id": "mkt59",
+    "nightly_price": 199.0,
+    "name": "market listing 59"
+   },
+   {
+    "room_id": "mkt60",
+    "nightly_price": 199.0,
+    "name": "market listing 60"
+   },
+   {
+    "room_id": "mkt61",
+    "nightly_price": 199.0,
+    "name": "market listing 61"
+   },
+   {
+    "room_id": "mkt62",
+    "nightly_price": 199.0,
+    "name": "market listing 62"
+   },
+   {
+    "room_id": "mkt63",
+    "nightly_price": 199.0,
+    "name": "market listing 63"
+   },
+   {
+    "room_id": "mkt64",
+    "nightly_price": 199.0,
+    "name": "market listing 64"
+   },
+   {
+    "room_id": "mkt65",
+    "nightly_price": 199.0,
+    "name": "market listing 65"
+   },
+   {
+    "room_id": "mkt66",
+    "nightly_price": 199.0,
+    "name": "market listing 66"
+   },
+   {
+    "room_id": "mkt67",
+    "nightly_price": 199.0,
+    "name": "market listing 67"
+   },
+   {
+    "room_id": "mkt68",
+    "nightly_price": 199.0,
+    "name": "market listing 68"
+   },
+   {
+    "room_id": "mkt69",
+    "nightly_price": 199.0,
+    "name": "market listing 69"
+   },
+   {
+    "room_id": "mkt70",
+    "nightly_price": 199.0,
+    "name": "market listing 70"
+   },
+   {
+    "room_id": "mkt71",
+    "nightly_price": 199.0,
+    "name": "market listing 71"
+   },
+   {
+    "room_id": "mkt72",
+    "nightly_price": 199.0,
+    "name": "market listing 72"
+   },
+   {
+    "room_id": "mkt73",
+    "nightly_price": 199.0,
+    "name": "market listing 73"
+   },
+   {
+    "room_id": "mkt74",
+    "nightly_price": 199.0,
+    "name": "market listing 74"
+   },
+   {
+    "room_id": "mkt75",
+    "nightly_price": 199.0,
+    "name": "market listing 75"
+   },
+   {
+    "room_id": "mkt76",
+    "nightly_price": 199.0,
+    "name": "market listing 76"
+   },
+   {
+    "room_id": "mkt77",
+    "nightly_price": 199.0,
+    "name": "market listing 77"
+   },
+   {
+    "room_id": "mkt78",
+    "nightly_price": 199.0,
+    "name": "market listing 78"
+   },
+   {
+    "room_id": "mkt79",
+    "nightly_price": 199.0,
+    "name": "market listing 79"
+   },
+   {
+    "room_id": "mkt80",
+    "nightly_price": 199.0,
+    "name": "market listing 80"
+   },
+   {
+    "room_id": "mkt81",
+    "nightly_price": 199.0,
+    "name": "market listing 81"
+   },
+   {
+    "room_id": "mkt82",
+    "nightly_price": 199.0,
+    "name": "market listing 82"
+   },
+   {
+    "room_id": "mkt83",
+    "nightly_price": 199.0,
+    "name": "market listing 83"
+   },
+   {
+    "room_id": "mkt84",
+    "nightly_price": 199.0,
+    "name": "market listing 84"
+   },
+   {
+    "room_id": "mkt85",
+    "nightly_price": 199.0,
+    "name": "market listing 85"
+   },
+   {
+    "room_id": "mkt86",
+    "nightly_price": 199.0,
+    "name": "market listing 86"
+   },
+   {
+    "room_id": "mkt87",
+    "nightly_price": 199.0,
+    "name": "market listing 87"
+   },
+   {
+    "room_id": "mkt88",
+    "nightly_price": 199.0,
+    "name": "market listing 88"
+   },
+   {
+    "room_id": "mkt89",
+    "nightly_price": 199.0,
+    "name": "market listing 89"
+   },
+   {
+    "room_id": "mkt90",
+    "nightly_price": 199.0,
+    "name": "market listing 90"
+   },
+   {
+    "room_id": "mkt91",
+    "nightly_price": 199.0,
+    "name": "market listing 91"
+   },
+   {
+    "room_id": "mkt92",
+    "nightly_price": 199.0,
+    "name": "market listing 92"
+   },
+   {
+    "room_id": "mkt93",
+    "nightly_price": 199.0,
+    "name": "market listing 93"
+   },
+   {
+    "room_id": "mkt94",
+    "nightly_price": 199.0,
+    "name": "market listing 94"
+   },
+   {
+    "room_id": "mkt95",
+    "nightly_price": 199.0,
+    "name": "market listing 95"
+   },
+   {
+    "room_id": "mkt96",
+    "nightly_price": 199.0,
+    "name": "market listing 96"
+   },
+   {
+    "room_id": "mkt97",
+    "nightly_price": 199.0,
+    "name": "market listing 97"
+   },
+   {
+    "room_id": "mkt98",
+    "nightly_price": 199.0,
+    "name": "market listing 98"
+   },
+   {
+    "room_id": "mkt99",
+    "nightly_price": 199.0,
+    "name": "market listing 99"
+   },
+   {
+    "room_id": "mkt100",
+    "nightly_price": 199.0,
+    "name": "market listing 100"
+   },
+   {
+    "room_id": "mkt101",
+    "nightly_price": 199.0,
+    "name": "market listing 101"
+   },
+   {
+    "room_id": "mkt102",
+    "nightly_price": 199.0,
+    "name": "market listing 102"
+   },
+   {
+    "room_id": "mkt103",
+    "nightly_price": 199.0,
+    "name": "market listing 103"
+   },
+   {
+    "room_id": "mkt104",
+    "nightly_price": 199.0,
+    "name": "market listing 104"
+   },
+   {
+    "room_id": "mkt105",
+    "nightly_price": 199.0,
+    "name": "market listing 105"
+   },
+   {
+    "room_id": "mkt106",
+    "nightly_price": 199.0,
+    "name": "market listing 106"
+   },
+   {
+    "room_id": "mkt107",
+    "nightly_price": 199.0,
+    "name": "market listing 107"
+   },
+   {
+    "room_id": "mkt108",
+    "nightly_price": 199.0,
+    "name": "market listing 108"
+   },
+   {
+    "room_id": "mkt109",
+    "nightly_price": 199.0,
+    "name": "market listing 109"
+   },
+   {
+    "room_id": "mkt110",
+    "nightly_price": 199.0,
+    "name": "market listing 110"
+   },
+   {
+    "room_id": "mkt111",
+    "nightly_price": 199.0,
+    "name": "market listing 111"
+   },
+   {
+    "room_id": "mkt112",
+    "nightly_price": 199.0,
+    "name": "market listing 112"
+   },
+   {
+    "room_id": "mkt113",
+    "nightly_price": 199.0,
+    "name": "market listing 113"
+   },
+   {
+    "room_id": "mkt114",
+    "nightly_price": 199.0,
+    "name": "market listing 114"
+   },
+   {
+    "room_id": "mkt115",
+    "nightly_price": 199.0,
+    "name": "market listing 115"
+   },
+   {
+    "room_id": "mkt116",
+    "nightly_price": 199.0,
+    "name": "market listing 116"
+   },
+   {
+    "room_id": "mkt117",
+    "nightly_price": 199.0,
+    "name": "market listing 117"
+   },
+   {
+    "room_id": "mkt118",
+    "nightly_price": 199.0,
+    "name": "market listing 118"
+   },
+   {
+    "room_id": "mkt119",
+    "nightly_price": 199.0,
+    "name": "market listing 119"
+   },
+   {
+    "room_id": "mkt120",
+    "nightly_price": 199.0,
+    "name": "market listing 120"
+   },
+   {
+    "room_id": "mkt121",
+    "nightly_price": 199.0,
+    "name": "market listing 121"
+   },
+   {
+    "room_id": "mkt122",
+    "nightly_price": 199.0,
+    "name": "market listing 122"
+   },
+   {
+    "room_id": "mkt123",
+    "nightly_price": 199.0,
+    "name": "market listing 123"
+   },
+   {
+    "room_id": "mkt124",
+    "nightly_price": 199.0,
+    "name": "market listing 124"
+   },
+   {
+    "room_id": "mkt125",
+    "nightly_price": 199.0,
+    "name": "market listing 125"
+   },
+   {
+    "room_id": "mkt126",
+    "nightly_price": 199.0,
+    "name": "market listing 126"
+   },
+   {
+    "room_id": "mkt127",
+    "nightly_price": 199.0,
+    "name": "market listing 127"
+   },
+   {
+    "room_id": "mkt128",
+    "nightly_price": 199.0,
+    "name": "market listing 128"
+   },
+   {
+    "room_id": "mkt129",
+    "nightly_price": 199.0,
+    "name": "market listing 129"
+   },
+   {
+    "room_id": "mkt130",
+    "nightly_price": 199.0,
+    "name": "market listing 130"
+   },
+   {
+    "room_id": "mkt131",
+    "nightly_price": 199.0,
+    "name": "market listing 131"
+   },
+   {
+    "room_id": "mkt132",
+    "nightly_price": 199.0,
+    "name": "market listing 132"
+   },
+   {
+    "room_id": "mkt133",
+    "nightly_price": 199.0,
+    "name": "market listing 133"
+   },
+   {
+    "room_id": "mkt134",
+    "nightly_price": 199.0,
+    "name": "market listing 134"
+   },
+   {
+    "room_id": "mkt135",
+    "nightly_price": 199.0,
+    "name": "market listing 135"
+   },
+   {
+    "room_id": "mkt136",
+    "nightly_price": 199.0,
+    "name": "market listing 136"
+   },
+   {
+    "room_id": "mkt137",
+    "nightly_price": 199.0,
+    "name": "market listing 137"
+   },
+   {
+    "room_id": "mkt138",
+    "nightly_price": 199.0,
+    "name": "market listing 138"
+   },
+   {
+    "room_id": "mkt139",
+    "nightly_price": 199.0,
+    "name": "market listing 139"
+   },
+   {
+    "room_id": "mkt140",
+    "nightly_price": 199.0,
+    "name": "market listing 140"
+   },
+   {
+    "room_id": "mkt141",
+    "nightly_price": 199.0,
+    "name": "market listing 141"
+   },
+   {
+    "room_id": "mkt142",
+    "nightly_price": 199.0,
+    "name": "market listing 142"
+   },
+   {
+    "room_id": "mkt143",
+    "nightly_price": 199.0,
+    "name": "market listing 143"
+   },
+   {
+    "room_id": "mkt144",
+    "nightly_price": 199.0,
+    "name": "market listing 144"
+   },
+   {
+    "room_id": "mkt145",
+    "nightly_price": 199.0,
+    "name": "market listing 145"
+   },
+   {
+    "room_id": "mkt146",
+    "nightly_price": 199.0,
+    "name": "market listing 146"
+   },
+   {
+    "room_id": "mkt147",
+    "nightly_price": 199.0,
+    "name": "market listing 147"
+   },
+   {
+    "room_id": "mkt148",
+    "nightly_price": 199.0,
+    "name": "market listing 148"
+   },
+   {
+    "room_id": "mkt149",
+    "nightly_price": 199.0,
+    "name": "market listing 149"
+   },
+   {
+    "room_id": "mkt150",
+    "nightly_price": 199.0,
+    "name": "market listing 150"
+   },
+   {
+    "room_id": "mkt151",
+    "nightly_price": 199.0,
+    "name": "market listing 151"
+   },
+   {
+    "room_id": "mkt152",
+    "nightly_price": 199.0,
+    "name": "market listing 152"
+   },
+   {
+    "room_id": "mkt153",
+    "nightly_price": 199.0,
+    "name": "market listing 153"
+   },
+   {
+    "room_id": "mkt154",
+    "nightly_price": 199.0,
+    "name": "market listing 154"
+   },
+   {
+    "room_id": "mkt155",
+    "nightly_price": 199.0,
+    "name": "market listing 155"
+   },
+   {
+    "room_id": "mkt156",
+    "nightly_price": 199.0,
+    "name": "market listing 156"
+   },
+   {
+    "room_id": "mkt157",
+    "nightly_price": 199.0,
+    "name": "market listing 157"
+   },
+   {
+    "room_id": "mkt158",
+    "nightly_price": 199.0,
+    "name": "market listing 158"
+   },
+   {
+    "room_id": "mkt159",
+    "nightly_price": 199.0,
+    "name": "market listing 159"
+   },
+   {
+    "room_id": "mkt160",
+    "nightly_price": 199.0,
+    "name": "market listing 160"
+   },
+   {
+    "room_id": "mkt161",
+    "nightly_price": 199.0,
+    "name": "market listing 161"
+   },
+   {
+    "room_id": "mkt162",
+    "nightly_price": 199.0,
+    "name": "market listing 162"
+   },
+   {
+    "room_id": "mkt163",
+    "nightly_price": 199.0,
+    "name": "market listing 163"
+   },
+   {
+    "room_id": "mkt164",
+    "nightly_price": 199.0,
+    "name": "market listing 164"
+   },
+   {
+    "room_id": "mkt165",
+    "nightly_price": 199.0,
+    "name": "market listing 165"
+   },
+   {
+    "room_id": "mkt166",
+    "nightly_price": 199.0,
+    "name": "market listing 166"
+   },
+   {
+    "room_id": "mkt167",
+    "nightly_price": 199.0,
+    "name": "market listing 167"
+   },
+   {
+    "room_id": "mkt168",
+    "nightly_price": 199.0,
+    "name": "market listing 168"
+   },
+   {
+    "room_id": "mkt169",
+    "nightly_price": 199.0,
+    "name": "market listing 169"
+   },
+   {
+    "room_id": "mkt170",
+    "nightly_price": 199.0,
+    "name": "market listing 170"
+   },
+   {
+    "room_id": "mkt171",
+    "nightly_price": 199.0,
+    "name": "market listing 171"
+   },
+   {
+    "room_id": "mkt172",
+    "nightly_price": 199.0,
+    "name": "market listing 172"
+   },
+   {
+    "room_id": "mkt173",
+    "nightly_price": 199.0,
+    "name": "market listing 173"
+   },
+   {
+    "room_id": "mkt174",
+    "nightly_price": 199.0,
+    "name": "market listing 174"
+   },
+   {
+    "room_id": "mkt175",
+    "nightly_price": 199.0,
+    "name": "market listing 175"
+   },
+   {
+    "room_id": "mkt176",
+    "nightly_price": 199.0,
+    "name": "market listing 176"
+   },
+   {
+    "room_id": "mkt177",
+    "nightly_price": 199.0,
+    "name": "market listing 177"
+   },
+   {
+    "room_id": "mkt178",
+    "nightly_price": 199.0,
+    "name": "market listing 178"
+   },
+   {
+    "room_id": "mkt179",
+    "nightly_price": 199.0,
+    "name": "market listing 179"
+   },
+   {
+    "room_id": "mkt180",
+    "nightly_price": 199.0,
+    "name": "market listing 180"
+   },
+   {
+    "room_id": "mkt181",
+    "nightly_price": 199.0,
+    "name": "market listing 181"
+   },
+   {
+    "room_id": "mkt182",
+    "nightly_price": 199.0,
+    "name": "market listing 182"
+   },
+   {
+    "room_id": "mkt183",
+    "nightly_price": 199.0,
+    "name": "market listing 183"
+   },
+   {
+    "room_id": "mkt184",
+    "nightly_price": 199.0,
+    "name": "market listing 184"
+   },
+   {
+    "room_id": "mkt185",
+    "nightly_price": 199.0,
+    "name": "market listing 185"
+   },
+   {
+    "room_id": "mkt186",
+    "nightly_price": 199.0,
+    "name": "market listing 186"
+   },
+   {
+    "room_id": "mkt187",
+    "nightly_price": 199.0,
+    "name": "market listing 187"
+   },
+   {
+    "room_id": "mkt188",
+    "nightly_price": 199.0,
+    "name": "market listing 188"
+   },
+   {
+    "room_id": "mkt189",
+    "nightly_price": 199.0,
+    "name": "market listing 189"
+   },
+   {
+    "room_id": "mkt190",
+    "nightly_price": 199.0,
+    "name": "market listing 190"
+   },
+   {
+    "room_id": "mkt191",
+    "nightly_price": 199.0,
+    "name": "market listing 191"
+   },
+   {
+    "room_id": "mkt192",
+    "nightly_price": 199.0,
+    "name": "market listing 192"
+   },
+   {
+    "room_id": "mkt193",
+    "nightly_price": 199.0,
+    "name": "market listing 193"
+   },
+   {
+    "room_id": "mkt194",
+    "nightly_price": 199.0,
+    "name": "market listing 194"
+   },
+   {
+    "room_id": "mkt195",
+    "nightly_price": 199.0,
+    "name": "market listing 195"
+   },
+   {
+    "room_id": "mkt196",
+    "nightly_price": 199.0,
+    "name": "market listing 196"
+   },
+   {
+    "room_id": "mkt197",
+    "nightly_price": 199.0,
+    "name": "market listing 197"
+   },
+   {
+    "room_id": "mkt198",
+    "nightly_price": 199.0,
+    "name": "market listing 198"
+   },
+   {
+    "room_id": "mkt199",
+    "nightly_price": 199.0,
+    "name": "market listing 199"
+   },
+   {
+    "room_id": "mkt200",
+    "nightly_price": 199.0,
+    "name": "market listing 200"
+   },
+   {
+    "room_id": "mkt201",
+    "nightly_price": 199.0,
+    "name": "market listing 201"
+   },
+   {
+    "room_id": "mkt202",
+    "nightly_price": 199.0,
+    "name": "market listing 202"
+   },
+   {
+    "room_id": "mkt203",
+    "nightly_price": 199.0,
+    "name": "market listing 203"
+   },
+   {
+    "room_id": "mkt204",
+    "nightly_price": 199.0,
+    "name": "market listing 204"
+   },
+   {
+    "room_id": "mkt205",
+    "nightly_price": 199.0,
+    "name": "market listing 205"
+   },
+   {
+    "room_id": "mkt206",
+    "nightly_price": 199.0,
+    "name": "market listing 206"
+   },
+   {
+    "room_id": "mkt207",
+    "nightly_price": 199.0,
+    "name": "market listing 207"
+   },
+   {
+    "room_id": "mkt208",
+    "nightly_price": 199.0,
+    "name": "market listing 208"
+   },
+   {
+    "room_id": "mkt209",
+    "nightly_price": 199.0,
+    "name": "market listing 209"
+   },
+   {
+    "room_id": "mkt210",
+    "nightly_price": 199.0,
+    "name": "market listing 210"
+   },
+   {
+    "room_id": "mkt211",
+    "nightly_price": 199.0,
+    "name": "market listing 211"
+   },
+   {
+    "room_id": "mkt212",
+    "nightly_price": 199.0,
+    "name": "market listing 212"
+   },
+   {
+    "room_id": "mkt213",
+    "nightly_price": 199.0,
+    "name": "market listing 213"
+   },
+   {
+    "room_id": "mkt214",
+    "nightly_price": 199.0,
+    "name": "market listing 214"
+   },
+   {
+    "room_id": "mkt215",
+    "nightly_price": 199.0,
+    "name": "market listing 215"
+   },
+   {
+    "room_id": "mkt216",
+    "nightly_price": 199.0,
+    "name": "market listing 216"
+   },
+   {
+    "room_id": "mkt217",
+    "nightly_price": 199.0,
+    "name": "market listing 217"
+   },
+   {
+    "room_id": "mkt218",
+    "nightly_price": 199.0,
+    "name": "market listing 218"
+   },
+   {
+    "room_id": "mkt219",
+    "nightly_price": 199.0,
+    "name": "market listing 219"
+   },
+   {
+    "room_id": "mkt220",
+    "nightly_price": 199.0,
+    "name": "market listing 220"
+   },
+   {
+    "room_id": "mkt221",
+    "nightly_price": 199.0,
+    "name": "market listing 221"
+   },
+   {
+    "room_id": "mkt222",
+    "nightly_price": 199.0,
+    "name": "market listing 222"
+   },
+   {
+    "room_id": "mkt223",
+    "nightly_price": 199.0,
+    "name": "market listing 223"
+   },
+   {
+    "room_id": "mkt224",
+    "nightly_price": 199.0,
+    "name": "market listing 224"
+   },
+   {
+    "room_id": "mkt225",
+    "nightly_price": 199.0,
+    "name": "market listing 225"
+   },
+   {
+    "room_id": "mkt226",
+    "nightly_price": 199.0,
+    "name": "market listing 226"
+   },
+   {
+    "room_id": "mkt227",
+    "nightly_price": 199.0,
+    "name": "market listing 227"
+   },
+   {
+    "room_id": "mkt228",
+    "nightly_price": 199.0,
+    "name": "market listing 228"
+   },
+   {
+    "room_id": "mkt229",
+    "nightly_price": 199.0,
+    "name": "market listing 229"
+   },
+   {
+    "room_id": "mkt230",
+    "nightly_price": 199.0,
+    "name": "market listing 230"
+   },
+   {
+    "room_id": "mkt231",
+    "nightly_price": 199.0,
+    "name": "market listing 231"
+   },
+   {
+    "room_id": "mkt232",
+    "nightly_price": 199.0,
+    "name": "market listing 232"
+   },
+   {
+    "room_id": "mkt233",
+    "nightly_price": 199.0,
+    "name": "market listing 233"
+   },
+   {
+    "room_id": "mkt234",
+    "nightly_price": 199.0,
+    "name": "market listing 234"
+   },
+   {
+    "room_id": "mkt235",
+    "nightly_price": 199.0,
+    "name": "market listing 235"
+   },
+   {
+    "room_id": "mkt236",
+    "nightly_price": 199.0,
+    "name": "market listing 236"
+   },
+   {
+    "room_id": "mkt237",
+    "nightly_price": 199.0,
+    "name": "market listing 237"
+   },
+   {
+    "room_id": "mkt238",
+    "nightly_price": 199.0,
+    "name": "market listing 238"
+   },
+   {
+    "room_id": "mkt239",
+    "nightly_price": 199.0,
+    "name": "market listing 239"
+   },
+   {
+    "room_id": "mkt240",
+    "nightly_price": 199.0,
+    "name": "market listing 240"
+   },
+   {
+    "room_id": "mkt241",
+    "nightly_price": 199.0,
+    "name": "market listing 241"
+   },
+   {
+    "room_id": "mkt242",
+    "nightly_price": 199.0,
+    "name": "market listing 242"
+   },
+   {
+    "room_id": "mkt243",
+    "nightly_price": 199.0,
+    "name": "market listing 243"
+   },
+   {
+    "room_id": "mkt244",
+    "nightly_price": 199.0,
+    "name": "market listing 244"
+   },
+   {
+    "room_id": "mkt245",
+    "nightly_price": 199.0,
+    "name": "market listing 245"
+   },
+   {
+    "room_id": "mkt246",
+    "nightly_price": 199.0,
+    "name": "market listing 246"
+   },
+   {
+    "room_id": "mkt247",
+    "nightly_price": 199.0,
+    "name": "market listing 247"
+   },
+   {
+    "room_id": "mkt248",
+    "nightly_price": 199.0,
+    "name": "market listing 248"
+   },
+   {
+    "room_id": "mkt249",
+    "nightly_price": 199.0,
+    "name": "market listing 249"
+   },
+   {
+    "room_id": "mkt250",
+    "nightly_price": 199.0,
+    "name": "market listing 250"
+   },
+   {
+    "room_id": "mkt251",
+    "nightly_price": 199.0,
+    "name": "market listing 251"
+   },
+   {
+    "room_id": "mkt252",
+    "nightly_price": 199.0,
+    "name": "market listing 252"
+   },
+   {
+    "room_id": "mkt253",
+    "nightly_price": 199.0,
+    "name": "market listing 253"
+   },
+   {
+    "room_id": "mkt254",
+    "nightly_price": 199.0,
+    "name": "market listing 254"
+   },
+   {
+    "room_id": "mkt255",
+    "nightly_price": 199.0,
+    "name": "market listing 255"
+   },
+   {
+    "room_id": "mkt256",
+    "nightly_price": 199.0,
+    "name": "market listing 256"
+   },
+   {
+    "room_id": "mkt257",
+    "nightly_price": 199.0,
+    "name": "market listing 257"
+   },
+   {
+    "room_id": "mkt258",
+    "nightly_price": 199.0,
+    "name": "market listing 258"
+   },
+   {
+    "room_id": "mkt259",
+    "nightly_price": 199.0,
+    "name": "market listing 259"
+   },
+   {
+    "room_id": "mkt260",
+    "nightly_price": 199.0,
+    "name": "market listing 260"
+   },
+   {
+    "room_id": "mkt261",
+    "nightly_price": 199.0,
+    "name": "market listing 261"
+   },
+   {
+    "room_id": "mkt262",
+    "nightly_price": 199.0,
+    "name": "market listing 262"
+   },
+   {
+    "room_id": "mkt263",
+    "nightly_price": 199.0,
+    "name": "market listing 263"
+   },
+   {
+    "room_id": "mkt264",
+    "nightly_price": 199.0,
+    "name": "market listing 264"
+   },
+   {
+    "room_id": "mkt265",
+    "nightly_price": 199.0,
+    "name": "market listing 265"
+   },
+   {
+    "room_id": "mkt266",
+    "nightly_price": 199.0,
+    "name": "market listing 266"
+   },
+   {
+    "room_id": "mkt267",
+    "nightly_price": 199.0,
+    "name": "market listing 267"
+   },
+   {
+    "room_id": "mkt268",
+    "nightly_price": 199.0,
+    "name": "market listing 268"
+   },
+   {
+    "room_id": "mkt269",
+    "nightly_price": 199.0,
+    "name": "market listing 269"
+   },
+   {
+    "room_id": "mkt270",
+    "nightly_price": 199.0,
+    "name": "market listing 270"
+   },
+   {
+    "room_id": "mkt271",
+    "nightly_price": 199.0,
+    "name": "market listing 271"
+   },
+   {
+    "room_id": "mkt272",
+    "nightly_price": 199.0,
+    "name": "market listing 272"
+   },
+   {
+    "room_id": "mkt273",
+    "nightly_price": 199.0,
+    "name": "market listing 273"
+   },
+   {
+    "room_id": "mkt274",
+    "nightly_price": 199.0,
+    "name": "market listing 274"
+   }
+  ],
+  "2026-12-04": [
+   {
+    "room_id": "25025719",
+    "nightly_price": 199.0,
+    "name": "comp 25025719"
+   },
+   {
+    "room_id": "28034852",
+    "nightly_price": 199.0,
+    "name": "comp 28034852"
+   },
+   {
+    "room_id": "3113520",
+    "nightly_price": 199.0,
+    "name": "comp 3113520"
+   },
+   {
+    "room_id": "38425742",
+    "nightly_price": 199.0,
+    "name": "comp 38425742"
+   },
+   {
+    "room_id": "1026751424661674679",
+    "nightly_price": 199.0,
+    "name": "comp 1026751424661674679"
+   },
+   {
+    "room_id": "mkt0",
+    "nightly_price": 199.0,
+    "name": "market listing 0"
+   },
+   {
+    "room_id": "mkt1",
+    "nightly_price": 199.0,
+    "name": "market listing 1"
+   },
+   {
+    "room_id": "mkt2",
+    "nightly_price": 199.0,
+    "name": "market listing 2"
+   },
+   {
+    "room_id": "mkt3",
+    "nightly_price": 199.0,
+    "name": "market listing 3"
+   },
+   {
+    "room_id": "mkt4",
+    "nightly_price": 199.0,
+    "name": "market listing 4"
+   },
+   {
+    "room_id": "mkt5",
+    "nightly_price": 199.0,
+    "name": "market listing 5"
+   },
+   {
+    "room_id": "mkt6",
+    "nightly_price": 199.0,
+    "name": "market listing 6"
+   },
+   {
+    "room_id": "mkt7",
+    "nightly_price": 199.0,
+    "name": "market listing 7"
+   },
+   {
+    "room_id": "mkt8",
+    "nightly_price": 199.0,
+    "name": "market listing 8"
+   },
+   {
+    "room_id": "mkt9",
+    "nightly_price": 199.0,
+    "name": "market listing 9"
+   },
+   {
+    "room_id": "mkt10",
+    "nightly_price": 199.0,
+    "name": "market listing 10"
+   },
+   {
+    "room_id": "mkt11",
+    "nightly_price": 199.0,
+    "name": "market listing 11"
+   },
+   {
+    "room_id": "mkt12",
+    "nightly_price": 199.0,
+    "name": "market listing 12"
+   },
+   {
+    "room_id": "mkt13",
+    "nightly_price": 199.0,
+    "name": "market listing 13"
+   },
+   {
+    "room_id": "mkt14",
+    "nightly_price": 199.0,
+    "name": "market listing 14"
+   },
+   {
+    "room_id": "mkt15",
+    "nightly_price": 199.0,
+    "name": "market listing 15"
+   },
+   {
+    "room_id": "mkt16",
+    "nightly_price": 199.0,
+    "name": "market listing 16"
+   },
+   {
+    "room_id": "mkt17",
+    "nightly_price": 199.0,
+    "name": "market listing 17"
+   },
+   {
+    "room_id": "mkt18",
+    "nightly_price": 199.0,
+    "name": "market listing 18"
+   },
+   {
+    "room_id": "mkt19",
+    "nightly_price": 199.0,
+    "name": "market listing 19"
+   },
+   {
+    "room_id": "mkt20",
+    "nightly_price": 199.0,
+    "name": "market listing 20"
+   },
+   {
+    "room_id": "mkt21",
+    "nightly_price": 199.0,
+    "name": "market listing 21"
+   },
+   {
+    "room_id": "mkt22",
+    "nightly_price": 199.0,
+    "name": "market listing 22"
+   },
+   {
+    "room_id": "mkt23",
+    "nightly_price": 199.0,
+    "name": "market listing 23"
+   },
+   {
+    "room_id": "mkt24",
+    "nightly_price": 199.0,
+    "name": "market listing 24"
+   },
+   {
+    "room_id": "mkt25",
+    "nightly_price": 199.0,
+    "name": "market listing 25"
+   },
+   {
+    "room_id": "mkt26",
+    "nightly_price": 199.0,
+    "name": "market listing 26"
+   },
+   {
+    "room_id": "mkt27",
+    "nightly_price": 199.0,
+    "name": "market listing 27"
+   },
+   {
+    "room_id": "mkt28",
+    "nightly_price": 199.0,
+    "name": "market listing 28"
+   },
+   {
+    "room_id": "mkt29",
+    "nightly_price": 199.0,
+    "name": "market listing 29"
+   },
+   {
+    "room_id": "mkt30",
+    "nightly_price": 199.0,
+    "name": "market listing 30"
+   },
+   {
+    "room_id": "mkt31",
+    "nightly_price": 199.0,
+    "name": "market listing 31"
+   },
+   {
+    "room_id": "mkt32",
+    "nightly_price": 199.0,
+    "name": "market listing 32"
+   },
+   {
+    "room_id": "mkt33",
+    "nightly_price": 199.0,
+    "name": "market listing 33"
+   },
+   {
+    "room_id": "mkt34",
+    "nightly_price": 199.0,
+    "name": "market listing 34"
+   },
+   {
+    "room_id": "mkt35",
+    "nightly_price": 199.0,
+    "name": "market listing 35"
+   },
+   {
+    "room_id": "mkt36",
+    "nightly_price": 199.0,
+    "name": "market listing 36"
+   },
+   {
+    "room_id": "mkt37",
+    "nightly_price": 199.0,
+    "name": "market listing 37"
+   },
+   {
+    "room_id": "mkt38",
+    "nightly_price": 199.0,
+    "name": "market listing 38"
+   },
+   {
+    "room_id": "mkt39",
+    "nightly_price": 199.0,
+    "name": "market listing 39"
+   },
+   {
+    "room_id": "mkt40",
+    "nightly_price": 199.0,
+    "name": "market listing 40"
+   },
+   {
+    "room_id": "mkt41",
+    "nightly_price": 199.0,
+    "name": "market listing 41"
+   },
+   {
+    "room_id": "mkt42",
+    "nightly_price": 199.0,
+    "name": "market listing 42"
+   },
+   {
+    "room_id": "mkt43",
+    "nightly_price": 199.0,
+    "name": "market listing 43"
+   },
+   {
+    "room_id": "mkt44",
+    "nightly_price": 199.0,
+    "name": "market listing 44"
+   },
+   {
+    "room_id": "mkt45",
+    "nightly_price": 199.0,
+    "name": "market listing 45"
+   },
+   {
+    "room_id": "mkt46",
+    "nightly_price": 199.0,
+    "name": "market listing 46"
+   },
+   {
+    "room_id": "mkt47",
+    "nightly_price": 199.0,
+    "name": "market listing 47"
+   },
+   {
+    "room_id": "mkt48",
+    "nightly_price": 199.0,
+    "name": "market listing 48"
+   },
+   {
+    "room_id": "mkt49",
+    "nightly_price": 199.0,
+    "name": "market listing 49"
+   },
+   {
+    "room_id": "mkt50",
+    "nightly_price": 199.0,
+    "name": "market listing 50"
+   },
+   {
+    "room_id": "mkt51",
+    "nightly_price": 199.0,
+    "name": "market listing 51"
+   },
+   {
+    "room_id": "mkt52",
+    "nightly_price": 199.0,
+    "name": "market listing 52"
+   },
+   {
+    "room_id": "mkt53",
+    "nightly_price": 199.0,
+    "name": "market listing 53"
+   },
+   {
+    "room_id": "mkt54",
+    "nightly_price": 199.0,
+    "name": "market listing 54"
+   },
+   {
+    "room_id": "mkt55",
+    "nightly_price": 199.0,
+    "name": "market listing 55"
+   },
+   {
+    "room_id": "mkt56",
+    "nightly_price": 199.0,
+    "name": "market listing 56"
+   },
+   {
+    "room_id": "mkt57",
+    "nightly_price": 199.0,
+    "name": "market listing 57"
+   },
+   {
+    "room_id": "mkt58",
+    "nightly_price": 199.0,
+    "name": "market listing 58"
+   },
+   {
+    "room_id": "mkt59",
+    "nightly_price": 199.0,
+    "name": "market listing 59"
+   },
+   {
+    "room_id": "mkt60",
+    "nightly_price": 199.0,
+    "name": "market listing 60"
+   },
+   {
+    "room_id": "mkt61",
+    "nightly_price": 199.0,
+    "name": "market listing 61"
+   },
+   {
+    "room_id": "mkt62",
+    "nightly_price": 199.0,
+    "name": "market listing 62"
+   },
+   {
+    "room_id": "mkt63",
+    "nightly_price": 199.0,
+    "name": "market listing 63"
+   },
+   {
+    "room_id": "mkt64",
+    "nightly_price": 199.0,
+    "name": "market listing 64"
+   },
+   {
+    "room_id": "mkt65",
+    "nightly_price": 199.0,
+    "name": "market listing 65"
+   },
+   {
+    "room_id": "mkt66",
+    "nightly_price": 199.0,
+    "name": "market listing 66"
+   },
+   {
+    "room_id": "mkt67",
+    "nightly_price": 199.0,
+    "name": "market listing 67"
+   },
+   {
+    "room_id": "mkt68",
+    "nightly_price": 199.0,
+    "name": "market listing 68"
+   },
+   {
+    "room_id": "mkt69",
+    "nightly_price": 199.0,
+    "name": "market listing 69"
+   },
+   {
+    "room_id": "mkt70",
+    "nightly_price": 199.0,
+    "name": "market listing 70"
+   },
+   {
+    "room_id": "mkt71",
+    "nightly_price": 199.0,
+    "name": "market listing 71"
+   },
+   {
+    "room_id": "mkt72",
+    "nightly_price": 199.0,
+    "name": "market listing 72"
+   },
+   {
+    "room_id": "mkt73",
+    "nightly_price": 199.0,
+    "name": "market listing 73"
+   },
+   {
+    "room_id": "mkt74",
+    "nightly_price": 199.0,
+    "name": "market listing 74"
+   },
+   {
+    "room_id": "mkt75",
+    "nightly_price": 199.0,
+    "name": "market listing 75"
+   },
+   {
+    "room_id": "mkt76",
+    "nightly_price": 199.0,
+    "name": "market listing 76"
+   },
+   {
+    "room_id": "mkt77",
+    "nightly_price": 199.0,
+    "name": "market listing 77"
+   },
+   {
+    "room_id": "mkt78",
+    "nightly_price": 199.0,
+    "name": "market listing 78"
+   },
+   {
+    "room_id": "mkt79",
+    "nightly_price": 199.0,
+    "name": "market listing 79"
+   },
+   {
+    "room_id": "mkt80",
+    "nightly_price": 199.0,
+    "name": "market listing 80"
+   },
+   {
+    "room_id": "mkt81",
+    "nightly_price": 199.0,
+    "name": "market listing 81"
+   },
+   {
+    "room_id": "mkt82",
+    "nightly_price": 199.0,
+    "name": "market listing 82"
+   },
+   {
+    "room_id": "mkt83",
+    "nightly_price": 199.0,
+    "name": "market listing 83"
+   },
+   {
+    "room_id": "mkt84",
+    "nightly_price": 199.0,
+    "name": "market listing 84"
+   },
+   {
+    "room_id": "mkt85",
+    "nightly_price": 199.0,
+    "name": "market listing 85"
+   },
+   {
+    "room_id": "mkt86",
+    "nightly_price": 199.0,
+    "name": "market listing 86"
+   },
+   {
+    "room_id": "mkt87",
+    "nightly_price": 199.0,
+    "name": "market listing 87"
+   },
+   {
+    "room_id": "mkt88",
+    "nightly_price": 199.0,
+    "name": "market listing 88"
+   },
+   {
+    "room_id": "mkt89",
+    "nightly_price": 199.0,
+    "name": "market listing 89"
+   },
+   {
+    "room_id": "mkt90",
+    "nightly_price": 199.0,
+    "name": "market listing 90"
+   },
+   {
+    "room_id": "mkt91",
+    "nightly_price": 199.0,
+    "name": "market listing 91"
+   },
+   {
+    "room_id": "mkt92",
+    "nightly_price": 199.0,
+    "name": "market listing 92"
+   },
+   {
+    "room_id": "mkt93",
+    "nightly_price": 199.0,
+    "name": "market listing 93"
+   },
+   {
+    "room_id": "mkt94",
+    "nightly_price": 199.0,
+    "name": "market listing 94"
+   },
+   {
+    "room_id": "mkt95",
+    "nightly_price": 199.0,
+    "name": "market listing 95"
+   },
+   {
+    "room_id": "mkt96",
+    "nightly_price": 199.0,
+    "name": "market listing 96"
+   },
+   {
+    "room_id": "mkt97",
+    "nightly_price": 199.0,
+    "name": "market listing 97"
+   },
+   {
+    "room_id": "mkt98",
+    "nightly_price": 199.0,
+    "name": "market listing 98"
+   },
+   {
+    "room_id": "mkt99",
+    "nightly_price": 199.0,
+    "name": "market listing 99"
+   },
+   {
+    "room_id": "mkt100",
+    "nightly_price": 199.0,
+    "name": "market listing 100"
+   },
+   {
+    "room_id": "mkt101",
+    "nightly_price": 199.0,
+    "name": "market listing 101"
+   },
+   {
+    "room_id": "mkt102",
+    "nightly_price": 199.0,
+    "name": "market listing 102"
+   },
+   {
+    "room_id": "mkt103",
+    "nightly_price": 199.0,
+    "name": "market listing 103"
+   },
+   {
+    "room_id": "mkt104",
+    "nightly_price": 199.0,
+    "name": "market listing 104"
+   },
+   {
+    "room_id": "mkt105",
+    "nightly_price": 199.0,
+    "name": "market listing 105"
+   },
+   {
+    "room_id": "mkt106",
+    "nightly_price": 199.0,
+    "name": "market listing 106"
+   },
+   {
+    "room_id": "mkt107",
+    "nightly_price": 199.0,
+    "name": "market listing 107"
+   },
+   {
+    "room_id": "mkt108",
+    "nightly_price": 199.0,
+    "name": "market listing 108"
+   },
+   {
+    "room_id": "mkt109",
+    "nightly_price": 199.0,
+    "name": "market listing 109"
+   },
+   {
+    "room_id": "mkt110",
+    "nightly_price": 199.0,
+    "name": "market listing 110"
+   },
+   {
+    "room_id": "mkt111",
+    "nightly_price": 199.0,
+    "name": "market listing 111"
+   },
+   {
+    "room_id": "mkt112",
+    "nightly_price": 199.0,
+    "name": "market listing 112"
+   },
+   {
+    "room_id": "mkt113",
+    "nightly_price": 199.0,
+    "name": "market listing 113"
+   },
+   {
+    "room_id": "mkt114",
+    "nightly_price": 199.0,
+    "name": "market listing 114"
+   },
+   {
+    "room_id": "mkt115",
+    "nightly_price": 199.0,
+    "name": "market listing 115"
+   },
+   {
+    "room_id": "mkt116",
+    "nightly_price": 199.0,
+    "name": "market listing 116"
+   },
+   {
+    "room_id": "mkt117",
+    "nightly_price": 199.0,
+    "name": "market listing 117"
+   },
+   {
+    "room_id": "mkt118",
+    "nightly_price": 199.0,
+    "name": "market listing 118"
+   },
+   {
+    "room_id": "mkt119",
+    "nightly_price": 199.0,
+    "name": "market listing 119"
+   },
+   {
+    "room_id": "mkt120",
+    "nightly_price": 199.0,
+    "name": "market listing 120"
+   },
+   {
+    "room_id": "mkt121",
+    "nightly_price": 199.0,
+    "name": "market listing 121"
+   },
+   {
+    "room_id": "mkt122",
+    "nightly_price": 199.0,
+    "name": "market listing 122"
+   },
+   {
+    "room_id": "mkt123",
+    "nightly_price": 199.0,
+    "name": "market listing 123"
+   },
+   {
+    "room_id": "mkt124",
+    "nightly_price": 199.0,
+    "name": "market listing 124"
+   },
+   {
+    "room_id": "mkt125",
+    "nightly_price": 199.0,
+    "name": "market listing 125"
+   },
+   {
+    "room_id": "mkt126",
+    "nightly_price": 199.0,
+    "name": "market listing 126"
+   },
+   {
+    "room_id": "mkt127",
+    "nightly_price": 199.0,
+    "name": "market listing 127"
+   },
+   {
+    "room_id": "mkt128",
+    "nightly_price": 199.0,
+    "name": "market listing 128"
+   },
+   {
+    "room_id": "mkt129",
+    "nightly_price": 199.0,
+    "name": "market listing 129"
+   },
+   {
+    "room_id": "mkt130",
+    "nightly_price": 199.0,
+    "name": "market listing 130"
+   },
+   {
+    "room_id": "mkt131",
+    "nightly_price": 199.0,
+    "name": "market listing 131"
+   },
+   {
+    "room_id": "mkt132",
+    "nightly_price": 199.0,
+    "name": "market listing 132"
+   },
+   {
+    "room_id": "mkt133",
+    "nightly_price": 199.0,
+    "name": "market listing 133"
+   },
+   {
+    "room_id": "mkt134",
+    "nightly_price": 199.0,
+    "name": "market listing 134"
+   },
+   {
+    "room_id": "mkt135",
+    "nightly_price": 199.0,
+    "name": "market listing 135"
+   },
+   {
+    "room_id": "mkt136",
+    "nightly_price": 199.0,
+    "name": "market listing 136"
+   },
+   {
+    "room_id": "mkt137",
+    "nightly_price": 199.0,
+    "name": "market listing 137"
+   },
+   {
+    "room_id": "mkt138",
+    "nightly_price": 199.0,
+    "name": "market listing 138"
+   },
+   {
+    "room_id": "mkt139",
+    "nightly_price": 199.0,
+    "name": "market listing 139"
+   },
+   {
+    "room_id": "mkt140",
+    "nightly_price": 199.0,
+    "name": "market listing 140"
+   },
+   {
+    "room_id": "mkt141",
+    "nightly_price": 199.0,
+    "name": "market listing 141"
+   },
+   {
+    "room_id": "mkt142",
+    "nightly_price": 199.0,
+    "name": "market listing 142"
+   },
+   {
+    "room_id": "mkt143",
+    "nightly_price": 199.0,
+    "name": "market listing 143"
+   },
+   {
+    "room_id": "mkt144",
+    "nightly_price": 199.0,
+    "name": "market listing 144"
+   },
+   {
+    "room_id": "mkt145",
+    "nightly_price": 199.0,
+    "name": "market listing 145"
+   },
+   {
+    "room_id": "mkt146",
+    "nightly_price": 199.0,
+    "name": "market listing 146"
+   },
+   {
+    "room_id": "mkt147",
+    "nightly_price": 199.0,
+    "name": "market listing 147"
+   },
+   {
+    "room_id": "mkt148",
+    "nightly_price": 199.0,
+    "name": "market listing 148"
+   },
+   {
+    "room_id": "mkt149",
+    "nightly_price": 199.0,
+    "name": "market listing 149"
+   },
+   {
+    "room_id": "mkt150",
+    "nightly_price": 199.0,
+    "name": "market listing 150"
+   },
+   {
+    "room_id": "mkt151",
+    "nightly_price": 199.0,
+    "name": "market listing 151"
+   },
+   {
+    "room_id": "mkt152",
+    "nightly_price": 199.0,
+    "name": "market listing 152"
+   },
+   {
+    "room_id": "mkt153",
+    "nightly_price": 199.0,
+    "name": "market listing 153"
+   },
+   {
+    "room_id": "mkt154",
+    "nightly_price": 199.0,
+    "name": "market listing 154"
+   },
+   {
+    "room_id": "mkt155",
+    "nightly_price": 199.0,
+    "name": "market listing 155"
+   },
+   {
+    "room_id": "mkt156",
+    "nightly_price": 199.0,
+    "name": "market listing 156"
+   },
+   {
+    "room_id": "mkt157",
+    "nightly_price": 199.0,
+    "name": "market listing 157"
+   },
+   {
+    "room_id": "mkt158",
+    "nightly_price": 199.0,
+    "name": "market listing 158"
+   },
+   {
+    "room_id": "mkt159",
+    "nightly_price": 199.0,
+    "name": "market listing 159"
+   },
+   {
+    "room_id": "mkt160",
+    "nightly_price": 199.0,
+    "name": "market listing 160"
+   },
+   {
+    "room_id": "mkt161",
+    "nightly_price": 199.0,
+    "name": "market listing 161"
+   },
+   {
+    "room_id": "mkt162",
+    "nightly_price": 199.0,
+    "name": "market listing 162"
+   },
+   {
+    "room_id": "mkt163",
+    "nightly_price": 199.0,
+    "name": "market listing 163"
+   },
+   {
+    "room_id": "mkt164",
+    "nightly_price": 199.0,
+    "name": "market listing 164"
+   },
+   {
+    "room_id": "mkt165",
+    "nightly_price": 199.0,
+    "name": "market listing 165"
+   },
+   {
+    "room_id": "mkt166",
+    "nightly_price": 199.0,
+    "name": "market listing 166"
+   },
+   {
+    "room_id": "mkt167",
+    "nightly_price": 199.0,
+    "name": "market listing 167"
+   },
+   {
+    "room_id": "mkt168",
+    "nightly_price": 199.0,
+    "name": "market listing 168"
+   },
+   {
+    "room_id": "mkt169",
+    "nightly_price": 199.0,
+    "name": "market listing 169"
+   },
+   {
+    "room_id": "mkt170",
+    "nightly_price": 199.0,
+    "name": "market listing 170"
+   },
+   {
+    "room_id": "mkt171",
+    "nightly_price": 199.0,
+    "name": "market listing 171"
+   },
+   {
+    "room_id": "mkt172",
+    "nightly_price": 199.0,
+    "name": "market listing 172"
+   },
+   {
+    "room_id": "mkt173",
+    "nightly_price": 199.0,
+    "name": "market listing 173"
+   },
+   {
+    "room_id": "mkt174",
+    "nightly_price": 199.0,
+    "name": "market listing 174"
+   },
+   {
+    "room_id": "mkt175",
+    "nightly_price": 199.0,
+    "name": "market listing 175"
+   },
+   {
+    "room_id": "mkt176",
+    "nightly_price": 199.0,
+    "name": "market listing 176"
+   },
+   {
+    "room_id": "mkt177",
+    "nightly_price": 199.0,
+    "name": "market listing 177"
+   },
+   {
+    "room_id": "mkt178",
+    "nightly_price": 199.0,
+    "name": "market listing 178"
+   },
+   {
+    "room_id": "mkt179",
+    "nightly_price": 199.0,
+    "name": "market listing 179"
+   },
+   {
+    "room_id": "mkt180",
+    "nightly_price": 199.0,
+    "name": "market listing 180"
+   },
+   {
+    "room_id": "mkt181",
+    "nightly_price": 199.0,
+    "name": "market listing 181"
+   },
+   {
+    "room_id": "mkt182",
+    "nightly_price": 199.0,
+    "name": "market listing 182"
+   },
+   {
+    "room_id": "mkt183",
+    "nightly_price": 199.0,
+    "name": "market listing 183"
+   },
+   {
+    "room_id": "mkt184",
+    "nightly_price": 199.0,
+    "name": "market listing 184"
+   },
+   {
+    "room_id": "mkt185",
+    "nightly_price": 199.0,
+    "name": "market listing 185"
+   },
+   {
+    "room_id": "mkt186",
+    "nightly_price": 199.0,
+    "name": "market listing 186"
+   },
+   {
+    "room_id": "mkt187",
+    "nightly_price": 199.0,
+    "name": "market listing 187"
+   },
+   {
+    "room_id": "mkt188",
+    "nightly_price": 199.0,
+    "name": "market listing 188"
+   },
+   {
+    "room_id": "mkt189",
+    "nightly_price": 199.0,
+    "name": "market listing 189"
+   },
+   {
+    "room_id": "mkt190",
+    "nightly_price": 199.0,
+    "name": "market listing 190"
+   },
+   {
+    "room_id": "mkt191",
+    "nightly_price": 199.0,
+    "name": "market listing 191"
+   },
+   {
+    "room_id": "mkt192",
+    "nightly_price": 199.0,
+    "name": "market listing 192"
+   },
+   {
+    "room_id": "mkt193",
+    "nightly_price": 199.0,
+    "name": "market listing 193"
+   },
+   {
+    "room_id": "mkt194",
+    "nightly_price": 199.0,
+    "name": "market listing 194"
+   },
+   {
+    "room_id": "mkt195",
+    "nightly_price": 199.0,
+    "name": "market listing 195"
+   },
+   {
+    "room_id": "mkt196",
+    "nightly_price": 199.0,
+    "name": "market listing 196"
+   },
+   {
+    "room_id": "mkt197",
+    "nightly_price": 199.0,
+    "name": "market listing 197"
+   },
+   {
+    "room_id": "mkt198",
+    "nightly_price": 199.0,
+    "name": "market listing 198"
+   },
+   {
+    "room_id": "mkt199",
+    "nightly_price": 199.0,
+    "name": "market listing 199"
+   },
+   {
+    "room_id": "mkt200",
+    "nightly_price": 199.0,
+    "name": "market listing 200"
+   },
+   {
+    "room_id": "mkt201",
+    "nightly_price": 199.0,
+    "name": "market listing 201"
+   },
+   {
+    "room_id": "mkt202",
+    "nightly_price": 199.0,
+    "name": "market listing 202"
+   },
+   {
+    "room_id": "mkt203",
+    "nightly_price": 199.0,
+    "name": "market listing 203"
+   },
+   {
+    "room_id": "mkt204",
+    "nightly_price": 199.0,
+    "name": "market listing 204"
+   },
+   {
+    "room_id": "mkt205",
+    "nightly_price": 199.0,
+    "name": "market listing 205"
+   },
+   {
+    "room_id": "mkt206",
+    "nightly_price": 199.0,
+    "name": "market listing 206"
+   },
+   {
+    "room_id": "mkt207",
+    "nightly_price": 199.0,
+    "name": "market listing 207"
+   },
+   {
+    "room_id": "mkt208",
+    "nightly_price": 199.0,
+    "name": "market listing 208"
+   },
+   {
+    "room_id": "mkt209",
+    "nightly_price": 199.0,
+    "name": "market listing 209"
+   },
+   {
+    "room_id": "mkt210",
+    "nightly_price": 199.0,
+    "name": "market listing 210"
+   },
+   {
+    "room_id": "mkt211",
+    "nightly_price": 199.0,
+    "name": "market listing 211"
+   },
+   {
+    "room_id": "mkt212",
+    "nightly_price": 199.0,
+    "name": "market listing 212"
+   },
+   {
+    "room_id": "mkt213",
+    "nightly_price": 199.0,
+    "name": "market listing 213"
+   },
+   {
+    "room_id": "mkt214",
+    "nightly_price": 199.0,
+    "name": "market listing 214"
+   },
+   {
+    "room_id": "mkt215",
+    "nightly_price": 199.0,
+    "name": "market listing 215"
+   },
+   {
+    "room_id": "mkt216",
+    "nightly_price": 199.0,
+    "name": "market listing 216"
+   },
+   {
+    "room_id": "mkt217",
+    "nightly_price": 199.0,
+    "name": "market listing 217"
+   },
+   {
+    "room_id": "mkt218",
+    "nightly_price": 199.0,
+    "name": "market listing 218"
+   },
+   {
+    "room_id": "mkt219",
+    "nightly_price": 199.0,
+    "name": "market listing 219"
+   },
+   {
+    "room_id": "mkt220",
+    "nightly_price": 199.0,
+    "name": "market listing 220"
+   },
+   {
+    "room_id": "mkt221",
+    "nightly_price": 199.0,
+    "name": "market listing 221"
+   },
+   {
+    "room_id": "mkt222",
+    "nightly_price": 199.0,
+    "name": "market listing 222"
+   },
+   {
+    "room_id": "mkt223",
+    "nightly_price": 199.0,
+    "name": "market listing 223"
+   },
+   {
+    "room_id": "mkt224",
+    "nightly_price": 199.0,
+    "name": "market listing 224"
+   },
+   {
+    "room_id": "mkt225",
+    "nightly_price": 199.0,
+    "name": "market listing 225"
+   },
+   {
+    "room_id": "mkt226",
+    "nightly_price": 199.0,
+    "name": "market listing 226"
+   },
+   {
+    "room_id": "mkt227",
+    "nightly_price": 199.0,
+    "name": "market listing 227"
+   },
+   {
+    "room_id": "mkt228",
+    "nightly_price": 199.0,
+    "name": "market listing 228"
+   },
+   {
+    "room_id": "mkt229",
+    "nightly_price": 199.0,
+    "name": "market listing 229"
+   },
+   {
+    "room_id": "mkt230",
+    "nightly_price": 199.0,
+    "name": "market listing 230"
+   },
+   {
+    "room_id": "mkt231",
+    "nightly_price": 199.0,
+    "name": "market listing 231"
+   },
+   {
+    "room_id": "mkt232",
+    "nightly_price": 199.0,
+    "name": "market listing 232"
+   },
+   {
+    "room_id": "mkt233",
+    "nightly_price": 199.0,
+    "name": "market listing 233"
+   },
+   {
+    "room_id": "mkt234",
+    "nightly_price": 199.0,
+    "name": "market listing 234"
+   },
+   {
+    "room_id": "mkt235",
+    "nightly_price": 199.0,
+    "name": "market listing 235"
+   },
+   {
+    "room_id": "mkt236",
+    "nightly_price": 199.0,
+    "name": "market listing 236"
+   },
+   {
+    "room_id": "mkt237",
+    "nightly_price": 199.0,
+    "name": "market listing 237"
+   },
+   {
+    "room_id": "mkt238",
+    "nightly_price": 199.0,
+    "name": "market listing 238"
+   },
+   {
+    "room_id": "mkt239",
+    "nightly_price": 199.0,
+    "name": "market listing 239"
+   },
+   {
+    "room_id": "mkt240",
+    "nightly_price": 199.0,
+    "name": "market listing 240"
+   },
+   {
+    "room_id": "mkt241",
+    "nightly_price": 199.0,
+    "name": "market listing 241"
+   },
+   {
+    "room_id": "mkt242",
+    "nightly_price": 199.0,
+    "name": "market listing 242"
+   },
+   {
+    "room_id": "mkt243",
+    "nightly_price": 199.0,
+    "name": "market listing 243"
+   },
+   {
+    "room_id": "mkt244",
+    "nightly_price": 199.0,
+    "name": "market listing 244"
+   },
+   {
+    "room_id": "mkt245",
+    "nightly_price": 199.0,
+    "name": "market listing 245"
+   },
+   {
+    "room_id": "mkt246",
+    "nightly_price": 199.0,
+    "name": "market listing 246"
+   },
+   {
+    "room_id": "mkt247",
+    "nightly_price": 199.0,
+    "name": "market listing 247"
+   },
+   {
+    "room_id": "mkt248",
+    "nightly_price": 199.0,
+    "name": "market listing 248"
+   },
+   {
+    "room_id": "mkt249",
+    "nightly_price": 199.0,
+    "name": "market listing 249"
+   },
+   {
+    "room_id": "mkt250",
+    "nightly_price": 199.0,
+    "name": "market listing 250"
+   },
+   {
+    "room_id": "mkt251",
+    "nightly_price": 199.0,
+    "name": "market listing 251"
+   },
+   {
+    "room_id": "mkt252",
+    "nightly_price": 199.0,
+    "name": "market listing 252"
+   },
+   {
+    "room_id": "mkt253",
+    "nightly_price": 199.0,
+    "name": "market listing 253"
+   },
+   {
+    "room_id": "mkt254",
+    "nightly_price": 199.0,
+    "name": "market listing 254"
+   },
+   {
+    "room_id": "mkt255",
+    "nightly_price": 199.0,
+    "name": "market listing 255"
+   },
+   {
+    "room_id": "mkt256",
+    "nightly_price": 199.0,
+    "name": "market listing 256"
+   },
+   {
+    "room_id": "mkt257",
+    "nightly_price": 199.0,
+    "name": "market listing 257"
+   },
+   {
+    "room_id": "mkt258",
+    "nightly_price": 199.0,
+    "name": "market listing 258"
+   },
+   {
+    "room_id": "mkt259",
+    "nightly_price": 199.0,
+    "name": "market listing 259"
+   },
+   {
+    "room_id": "mkt260",
+    "nightly_price": 199.0,
+    "name": "market listing 260"
+   },
+   {
+    "room_id": "mkt261",
+    "nightly_price": 199.0,
+    "name": "market listing 261"
+   },
+   {
+    "room_id": "mkt262",
+    "nightly_price": 199.0,
+    "name": "market listing 262"
+   },
+   {
+    "room_id": "mkt263",
+    "nightly_price": 199.0,
+    "name": "market listing 263"
+   },
+   {
+    "room_id": "mkt264",
+    "nightly_price": 199.0,
+    "name": "market listing 264"
+   },
+   {
+    "room_id": "mkt265",
+    "nightly_price": 199.0,
+    "name": "market listing 265"
+   },
+   {
+    "room_id": "mkt266",
+    "nightly_price": 199.0,
+    "name": "market listing 266"
+   },
+   {
+    "room_id": "mkt267",
+    "nightly_price": 199.0,
+    "name": "market listing 267"
+   },
+   {
+    "room_id": "mkt268",
+    "nightly_price": 199.0,
+    "name": "market listing 268"
+   },
+   {
+    "room_id": "mkt269",
+    "nightly_price": 199.0,
+    "name": "market listing 269"
+   },
+   {
+    "room_id": "mkt270",
+    "nightly_price": 199.0,
+    "name": "market listing 270"
+   },
+   {
+    "room_id": "mkt271",
+    "nightly_price": 199.0,
+    "name": "market listing 271"
+   },
+   {
+    "room_id": "mkt272",
+    "nightly_price": 199.0,
+    "name": "market listing 272"
+   },
+   {
+    "room_id": "mkt273",
+    "nightly_price": 199.0,
+    "name": "market listing 273"
+   },
+   {
+    "room_id": "mkt274",
+    "nightly_price": 199.0,
+    "name": "market listing 274"
+   }
+  ],
+  "2026-12-08": [
+   {
+    "room_id": "25025719",
+    "nightly_price": 199.0,
+    "name": "comp 25025719"
+   },
+   {
+    "room_id": "28034852",
+    "nightly_price": 199.0,
+    "name": "comp 28034852"
+   },
+   {
+    "room_id": "3113520",
+    "nightly_price": 199.0,
+    "name": "comp 3113520"
+   },
+   {
+    "room_id": "38425742",
+    "nightly_price": 199.0,
+    "name": "comp 38425742"
+   },
+   {
+    "room_id": "1026751424661674679",
+    "nightly_price": 199.0,
+    "name": "comp 1026751424661674679"
+   },
+   {
+    "room_id": "mkt0",
+    "nightly_price": 199.0,
+    "name": "market listing 0"
+   },
+   {
+    "room_id": "mkt1",
+    "nightly_price": 199.0,
+    "name": "market listing 1"
+   },
+   {
+    "room_id": "mkt2",
+    "nightly_price": 199.0,
+    "name": "market listing 2"
+   },
+   {
+    "room_id": "mkt3",
+    "nightly_price": 199.0,
+    "name": "market listing 3"
+   },
+   {
+    "room_id": "mkt4",
+    "nightly_price": 199.0,
+    "name": "market listing 4"
+   },
+   {
+    "room_id": "mkt5",
+    "nightly_price": 199.0,
+    "name": "market listing 5"
+   },
+   {
+    "room_id": "mkt6",
+    "nightly_price": 199.0,
+    "name": "market listing 6"
+   },
+   {
+    "room_id": "mkt7",
+    "nightly_price": 199.0,
+    "name": "market listing 7"
+   },
+   {
+    "room_id": "mkt8",
+    "nightly_price": 199.0,
+    "name": "market listing 8"
+   },
+   {
+    "room_id": "mkt9",
+    "nightly_price": 199.0,
+    "name": "market listing 9"
+   },
+   {
+    "room_id": "mkt10",
+    "nightly_price": 199.0,
+    "name": "market listing 10"
+   },
+   {
+    "room_id": "mkt11",
+    "nightly_price": 199.0,
+    "name": "market listing 11"
+   },
+   {
+    "room_id": "mkt12",
+    "nightly_price": 199.0,
+    "name": "market listing 12"
+   },
+   {
+    "room_id": "mkt13",
+    "nightly_price": 199.0,
+    "name": "market listing 13"
+   },
+   {
+    "room_id": "mkt14",
+    "nightly_price": 199.0,
+    "name": "market listing 14"
+   },
+   {
+    "room_id": "mkt15",
+    "nightly_price": 199.0,
+    "name": "market listing 15"
+   },
+   {
+    "room_id": "mkt16",
+    "nightly_price": 199.0,
+    "name": "market listing 16"
+   },
+   {
+    "room_id": "mkt17",
+    "nightly_price": 199.0,
+    "name": "market listing 17"
+   },
+   {
+    "room_id": "mkt18",
+    "nightly_price": 199.0,
+    "name": "market listing 18"
+   },
+   {
+    "room_id": "mkt19",
+    "nightly_price": 199.0,
+    "name": "market listing 19"
+   },
+   {
+    "room_id": "mkt20",
+    "nightly_price": 199.0,
+    "name": "market listing 20"
+   },
+   {
+    "room_id": "mkt21",
+    "nightly_price": 199.0,
+    "name": "market listing 21"
+   },
+   {
+    "room_id": "mkt22",
+    "nightly_price": 199.0,
+    "name": "market listing 22"
+   },
+   {
+    "room_id": "mkt23",
+    "nightly_price": 199.0,
+    "name": "market listing 23"
+   },
+   {
+    "room_id": "mkt24",
+    "nightly_price": 199.0,
+    "name": "market listing 24"
+   },
+   {
+    "room_id": "mkt25",
+    "nightly_price": 199.0,
+    "name": "market listing 25"
+   },
+   {
+    "room_id": "mkt26",
+    "nightly_price": 199.0,
+    "name": "market listing 26"
+   },
+   {
+    "room_id": "mkt27",
+    "nightly_price": 199.0,
+    "name": "market listing 27"
+   },
+   {
+    "room_id": "mkt28",
+    "nightly_price": 199.0,
+    "name": "market listing 28"
+   },
+   {
+    "room_id": "mkt29",
+    "nightly_price": 199.0,
+    "name": "market listing 29"
+   },
+   {
+    "room_id": "mkt30",
+    "nightly_price": 199.0,
+    "name": "market listing 30"
+   },
+   {
+    "room_id": "mkt31",
+    "nightly_price": 199.0,
+    "name": "market listing 31"
+   },
+   {
+    "room_id": "mkt32",
+    "nightly_price": 199.0,
+    "name": "market listing 32"
+   },
+   {
+    "room_id": "mkt33",
+    "nightly_price": 199.0,
+    "name": "market listing 33"
+   },
+   {
+    "room_id": "mkt34",
+    "nightly_price": 199.0,
+    "name": "market listing 34"
+   },
+   {
+    "room_id": "mkt35",
+    "nightly_price": 199.0,
+    "name": "market listing 35"
+   },
+   {
+    "room_id": "mkt36",
+    "nightly_price": 199.0,
+    "name": "market listing 36"
+   },
+   {
+    "room_id": "mkt37",
+    "nightly_price": 199.0,
+    "name": "market listing 37"
+   },
+   {
+    "room_id": "mkt38",
+    "nightly_price": 199.0,
+    "name": "market listing 38"
+   },
+   {
+    "room_id": "mkt39",
+    "nightly_price": 199.0,
+    "name": "market listing 39"
+   },
+   {
+    "room_id": "mkt40",
+    "nightly_price": 199.0,
+    "name": "market listing 40"
+   },
+   {
+    "room_id": "mkt41",
+    "nightly_price": 199.0,
+    "name": "market listing 41"
+   },
+   {
+    "room_id": "mkt42",
+    "nightly_price": 199.0,
+    "name": "market listing 42"
+   },
+   {
+    "room_id": "mkt43",
+    "nightly_price": 199.0,
+    "name": "market listing 43"
+   },
+   {
+    "room_id": "mkt44",
+    "nightly_price": 199.0,
+    "name": "market listing 44"
+   },
+   {
+    "room_id": "mkt45",
+    "nightly_price": 199.0,
+    "name": "market listing 45"
+   },
+   {
+    "room_id": "mkt46",
+    "nightly_price": 199.0,
+    "name": "market listing 46"
+   },
+   {
+    "room_id": "mkt47",
+    "nightly_price": 199.0,
+    "name": "market listing 47"
+   },
+   {
+    "room_id": "mkt48",
+    "nightly_price": 199.0,
+    "name": "market listing 48"
+   },
+   {
+    "room_id": "mkt49",
+    "nightly_price": 199.0,
+    "name": "market listing 49"
+   },
+   {
+    "room_id": "mkt50",
+    "nightly_price": 199.0,
+    "name": "market listing 50"
+   },
+   {
+    "room_id": "mkt51",
+    "nightly_price": 199.0,
+    "name": "market listing 51"
+   },
+   {
+    "room_id": "mkt52",
+    "nightly_price": 199.0,
+    "name": "market listing 52"
+   },
+   {
+    "room_id": "mkt53",
+    "nightly_price": 199.0,
+    "name": "market listing 53"
+   },
+   {
+    "room_id": "mkt54",
+    "nightly_price": 199.0,
+    "name": "market listing 54"
+   },
+   {
+    "room_id": "mkt55",
+    "nightly_price": 199.0,
+    "name": "market listing 55"
+   },
+   {
+    "room_id": "mkt56",
+    "nightly_price": 199.0,
+    "name": "market listing 56"
+   },
+   {
+    "room_id": "mkt57",
+    "nightly_price": 199.0,
+    "name": "market listing 57"
+   },
+   {
+    "room_id": "mkt58",
+    "nightly_price": 199.0,
+    "name": "market listing 58"
+   },
+   {
+    "room_id": "mkt59",
+    "nightly_price": 199.0,
+    "name": "market listing 59"
+   },
+   {
+    "room_id": "mkt60",
+    "nightly_price": 199.0,
+    "name": "market listing 60"
+   },
+   {
+    "room_id": "mkt61",
+    "nightly_price": 199.0,
+    "name": "market listing 61"
+   },
+   {
+    "room_id": "mkt62",
+    "nightly_price": 199.0,
+    "name": "market listing 62"
+   },
+   {
+    "room_id": "mkt63",
+    "nightly_price": 199.0,
+    "name": "market listing 63"
+   },
+   {
+    "room_id": "mkt64",
+    "nightly_price": 199.0,
+    "name": "market listing 64"
+   },
+   {
+    "room_id": "mkt65",
+    "nightly_price": 199.0,
+    "name": "market listing 65"
+   },
+   {
+    "room_id": "mkt66",
+    "nightly_price": 199.0,
+    "name": "market listing 66"
+   },
+   {
+    "room_id": "mkt67",
+    "nightly_price": 199.0,
+    "name": "market listing 67"
+   },
+   {
+    "room_id": "mkt68",
+    "nightly_price": 199.0,
+    "name": "market listing 68"
+   },
+   {
+    "room_id": "mkt69",
+    "nightly_price": 199.0,
+    "name": "market listing 69"
+   },
+   {
+    "room_id": "mkt70",
+    "nightly_price": 199.0,
+    "name": "market listing 70"
+   },
+   {
+    "room_id": "mkt71",
+    "nightly_price": 199.0,
+    "name": "market listing 71"
+   },
+   {
+    "room_id": "mkt72",
+    "nightly_price": 199.0,
+    "name": "market listing 72"
+   },
+   {
+    "room_id": "mkt73",
+    "nightly_price": 199.0,
+    "name": "market listing 73"
+   },
+   {
+    "room_id": "mkt74",
+    "nightly_price": 199.0,
+    "name": "market listing 74"
+   },
+   {
+    "room_id": "mkt75",
+    "nightly_price": 199.0,
+    "name": "market listing 75"
+   },
+   {
+    "room_id": "mkt76",
+    "nightly_price": 199.0,
+    "name": "market listing 76"
+   },
+   {
+    "room_id": "mkt77",
+    "nightly_price": 199.0,
+    "name": "market listing 77"
+   },
+   {
+    "room_id": "mkt78",
+    "nightly_price": 199.0,
+    "name": "market listing 78"
+   },
+   {
+    "room_id": "mkt79",
+    "nightly_price": 199.0,
+    "name": "market listing 79"
+   },
+   {
+    "room_id": "mkt80",
+    "nightly_price": 199.0,
+    "name": "market listing 80"
+   },
+   {
+    "room_id": "mkt81",
+    "nightly_price": 199.0,
+    "name": "market listing 81"
+   },
+   {
+    "room_id": "mkt82",
+    "nightly_price": 199.0,
+    "name": "market listing 82"
+   },
+   {
+    "room_id": "mkt83",
+    "nightly_price": 199.0,
+    "name": "market listing 83"
+   },
+   {
+    "room_id": "mkt84",
+    "nightly_price": 199.0,
+    "name": "market listing 84"
+   },
+   {
+    "room_id": "mkt85",
+    "nightly_price": 199.0,
+    "name": "market listing 85"
+   },
+   {
+    "room_id": "mkt86",
+    "nightly_price": 199.0,
+    "name": "market listing 86"
+   },
+   {
+    "room_id": "mkt87",
+    "nightly_price": 199.0,
+    "name": "market listing 87"
+   },
+   {
+    "room_id": "mkt88",
+    "nightly_price": 199.0,
+    "name": "market listing 88"
+   },
+   {
+    "room_id": "mkt89",
+    "nightly_price": 199.0,
+    "name": "market listing 89"
+   },
+   {
+    "room_id": "mkt90",
+    "nightly_price": 199.0,
+    "name": "market listing 90"
+   },
+   {
+    "room_id": "mkt91",
+    "nightly_price": 199.0,
+    "name": "market listing 91"
+   },
+   {
+    "room_id": "mkt92",
+    "nightly_price": 199.0,
+    "name": "market listing 92"
+   },
+   {
+    "room_id": "mkt93",
+    "nightly_price": 199.0,
+    "name": "market listing 93"
+   },
+   {
+    "room_id": "mkt94",
+    "nightly_price": 199.0,
+    "name": "market listing 94"
+   },
+   {
+    "room_id": "mkt95",
+    "nightly_price": 199.0,
+    "name": "market listing 95"
+   },
+   {
+    "room_id": "mkt96",
+    "nightly_price": 199.0,
+    "name": "market listing 96"
+   },
+   {
+    "room_id": "mkt97",
+    "nightly_price": 199.0,
+    "name": "market listing 97"
+   },
+   {
+    "room_id": "mkt98",
+    "nightly_price": 199.0,
+    "name": "market listing 98"
+   },
+   {
+    "room_id": "mkt99",
+    "nightly_price": 199.0,
+    "name": "market listing 99"
+   },
+   {
+    "room_id": "mkt100",
+    "nightly_price": 199.0,
+    "name": "market listing 100"
+   },
+   {
+    "room_id": "mkt101",
+    "nightly_price": 199.0,
+    "name": "market listing 101"
+   },
+   {
+    "room_id": "mkt102",
+    "nightly_price": 199.0,
+    "name": "market listing 102"
+   },
+   {
+    "room_id": "mkt103",
+    "nightly_price": 199.0,
+    "name": "market listing 103"
+   },
+   {
+    "room_id": "mkt104",
+    "nightly_price": 199.0,
+    "name": "market listing 104"
+   },
+   {
+    "room_id": "mkt105",
+    "nightly_price": 199.0,
+    "name": "market listing 105"
+   },
+   {
+    "room_id": "mkt106",
+    "nightly_price": 199.0,
+    "name": "market listing 106"
+   },
+   {
+    "room_id": "mkt107",
+    "nightly_price": 199.0,
+    "name": "market listing 107"
+   },
+   {
+    "room_id": "mkt108",
+    "nightly_price": 199.0,
+    "name": "market listing 108"
+   },
+   {
+    "room_id": "mkt109",
+    "nightly_price": 199.0,
+    "name": "market listing 109"
+   },
+   {
+    "room_id": "mkt110",
+    "nightly_price": 199.0,
+    "name": "market listing 110"
+   },
+   {
+    "room_id": "mkt111",
+    "nightly_price": 199.0,
+    "name": "market listing 111"
+   },
+   {
+    "room_id": "mkt112",
+    "nightly_price": 199.0,
+    "name": "market listing 112"
+   },
+   {
+    "room_id": "mkt113",
+    "nightly_price": 199.0,
+    "name": "market listing 113"
+   },
+   {
+    "room_id": "mkt114",
+    "nightly_price": 199.0,
+    "name": "market listing 114"
+   },
+   {
+    "room_id": "mkt115",
+    "nightly_price": 199.0,
+    "name": "market listing 115"
+   },
+   {
+    "room_id": "mkt116",
+    "nightly_price": 199.0,
+    "name": "market listing 116"
+   },
+   {
+    "room_id": "mkt117",
+    "nightly_price": 199.0,
+    "name": "market listing 117"
+   },
+   {
+    "room_id": "mkt118",
+    "nightly_price": 199.0,
+    "name": "market listing 118"
+   },
+   {
+    "room_id": "mkt119",
+    "nightly_price": 199.0,
+    "name": "market listing 119"
+   },
+   {
+    "room_id": "mkt120",
+    "nightly_price": 199.0,
+    "name": "market listing 120"
+   },
+   {
+    "room_id": "mkt121",
+    "nightly_price": 199.0,
+    "name": "market listing 121"
+   },
+   {
+    "room_id": "mkt122",
+    "nightly_price": 199.0,
+    "name": "market listing 122"
+   },
+   {
+    "room_id": "mkt123",
+    "nightly_price": 199.0,
+    "name": "market listing 123"
+   },
+   {
+    "room_id": "mkt124",
+    "nightly_price": 199.0,
+    "name": "market listing 124"
+   },
+   {
+    "room_id": "mkt125",
+    "nightly_price": 199.0,
+    "name": "market listing 125"
+   },
+   {
+    "room_id": "mkt126",
+    "nightly_price": 199.0,
+    "name": "market listing 126"
+   },
+   {
+    "room_id": "mkt127",
+    "nightly_price": 199.0,
+    "name": "market listing 127"
+   },
+   {
+    "room_id": "mkt128",
+    "nightly_price": 199.0,
+    "name": "market listing 128"
+   },
+   {
+    "room_id": "mkt129",
+    "nightly_price": 199.0,
+    "name": "market listing 129"
+   },
+   {
+    "room_id": "mkt130",
+    "nightly_price": 199.0,
+    "name": "market listing 130"
+   },
+   {
+    "room_id": "mkt131",
+    "nightly_price": 199.0,
+    "name": "market listing 131"
+   },
+   {
+    "room_id": "mkt132",
+    "nightly_price": 199.0,
+    "name": "market listing 132"
+   },
+   {
+    "room_id": "mkt133",
+    "nightly_price": 199.0,
+    "name": "market listing 133"
+   },
+   {
+    "room_id": "mkt134",
+    "nightly_price": 199.0,
+    "name": "market listing 134"
+   },
+   {
+    "room_id": "mkt135",
+    "nightly_price": 199.0,
+    "name": "market listing 135"
+   },
+   {
+    "room_id": "mkt136",
+    "nightly_price": 199.0,
+    "name": "market listing 136"
+   },
+   {
+    "room_id": "mkt137",
+    "nightly_price": 199.0,
+    "name": "market listing 137"
+   },
+   {
+    "room_id": "mkt138",
+    "nightly_price": 199.0,
+    "name": "market listing 138"
+   },
+   {
+    "room_id": "mkt139",
+    "nightly_price": 199.0,
+    "name": "market listing 139"
+   },
+   {
+    "room_id": "mkt140",
+    "nightly_price": 199.0,
+    "name": "market listing 140"
+   },
+   {
+    "room_id": "mkt141",
+    "nightly_price": 199.0,
+    "name": "market listing 141"
+   },
+   {
+    "room_id": "mkt142",
+    "nightly_price": 199.0,
+    "name": "market listing 142"
+   },
+   {
+    "room_id": "mkt143",
+    "nightly_price": 199.0,
+    "name": "market listing 143"
+   },
+   {
+    "room_id": "mkt144",
+    "nightly_price": 199.0,
+    "name": "market listing 144"
+   },
+   {
+    "room_id": "mkt145",
+    "nightly_price": 199.0,
+    "name": "market listing 145"
+   },
+   {
+    "room_id": "mkt146",
+    "nightly_price": 199.0,
+    "name": "market listing 146"
+   },
+   {
+    "room_id": "mkt147",
+    "nightly_price": 199.0,
+    "name": "market listing 147"
+   },
+   {
+    "room_id": "mkt148",
+    "nightly_price": 199.0,
+    "name": "market listing 148"
+   },
+   {
+    "room_id": "mkt149",
+    "nightly_price": 199.0,
+    "name": "market listing 149"
+   },
+   {
+    "room_id": "mkt150",
+    "nightly_price": 199.0,
+    "name": "market listing 150"
+   },
+   {
+    "room_id": "mkt151",
+    "nightly_price": 199.0,
+    "name": "market listing 151"
+   },
+   {
+    "room_id": "mkt152",
+    "nightly_price": 199.0,
+    "name": "market listing 152"
+   },
+   {
+    "room_id": "mkt153",
+    "nightly_price": 199.0,
+    "name": "market listing 153"
+   },
+   {
+    "room_id": "mkt154",
+    "nightly_price": 199.0,
+    "name": "market listing 154"
+   },
+   {
+    "room_id": "mkt155",
+    "nightly_price": 199.0,
+    "name": "market listing 155"
+   },
+   {
+    "room_id": "mkt156",
+    "nightly_price": 199.0,
+    "name": "market listing 156"
+   },
+   {
+    "room_id": "mkt157",
+    "nightly_price": 199.0,
+    "name": "market listing 157"
+   },
+   {
+    "room_id": "mkt158",
+    "nightly_price": 199.0,
+    "name": "market listing 158"
+   },
+   {
+    "room_id": "mkt159",
+    "nightly_price": 199.0,
+    "name": "market listing 159"
+   },
+   {
+    "room_id": "mkt160",
+    "nightly_price": 199.0,
+    "name": "market listing 160"
+   },
+   {
+    "room_id": "mkt161",
+    "nightly_price": 199.0,
+    "name": "market listing 161"
+   },
+   {
+    "room_id": "mkt162",
+    "nightly_price": 199.0,
+    "name": "market listing 162"
+   },
+   {
+    "room_id": "mkt163",
+    "nightly_price": 199.0,
+    "name": "market listing 163"
+   },
+   {
+    "room_id": "mkt164",
+    "nightly_price": 199.0,
+    "name": "market listing 164"
+   },
+   {
+    "room_id": "mkt165",
+    "nightly_price": 199.0,
+    "name": "market listing 165"
+   },
+   {
+    "room_id": "mkt166",
+    "nightly_price": 199.0,
+    "name": "market listing 166"
+   },
+   {
+    "room_id": "mkt167",
+    "nightly_price": 199.0,
+    "name": "market listing 167"
+   },
+   {
+    "room_id": "mkt168",
+    "nightly_price": 199.0,
+    "name": "market listing 168"
+   },
+   {
+    "room_id": "mkt169",
+    "nightly_price": 199.0,
+    "name": "market listing 169"
+   },
+   {
+    "room_id": "mkt170",
+    "nightly_price": 199.0,
+    "name": "market listing 170"
+   },
+   {
+    "room_id": "mkt171",
+    "nightly_price": 199.0,
+    "name": "market listing 171"
+   },
+   {
+    "room_id": "mkt172",
+    "nightly_price": 199.0,
+    "name": "market listing 172"
+   },
+   {
+    "room_id": "mkt173",
+    "nightly_price": 199.0,
+    "name": "market listing 173"
+   },
+   {
+    "room_id": "mkt174",
+    "nightly_price": 199.0,
+    "name": "market listing 174"
+   },
+   {
+    "room_id": "mkt175",
+    "nightly_price": 199.0,
+    "name": "market listing 175"
+   },
+   {
+    "room_id": "mkt176",
+    "nightly_price": 199.0,
+    "name": "market listing 176"
+   },
+   {
+    "room_id": "mkt177",
+    "nightly_price": 199.0,
+    "name": "market listing 177"
+   },
+   {
+    "room_id": "mkt178",
+    "nightly_price": 199.0,
+    "name": "market listing 178"
+   },
+   {
+    "room_id": "mkt179",
+    "nightly_price": 199.0,
+    "name": "market listing 179"
+   },
+   {
+    "room_id": "mkt180",
+    "nightly_price": 199.0,
+    "name": "market listing 180"
+   },
+   {
+    "room_id": "mkt181",
+    "nightly_price": 199.0,
+    "name": "market listing 181"
+   },
+   {
+    "room_id": "mkt182",
+    "nightly_price": 199.0,
+    "name": "market listing 182"
+   },
+   {
+    "room_id": "mkt183",
+    "nightly_price": 199.0,
+    "name": "market listing 183"
+   },
+   {
+    "room_id": "mkt184",
+    "nightly_price": 199.0,
+    "name": "market listing 184"
+   },
+   {
+    "room_id": "mkt185",
+    "nightly_price": 199.0,
+    "name": "market listing 185"
+   },
+   {
+    "room_id": "mkt186",
+    "nightly_price": 199.0,
+    "name": "market listing 186"
+   },
+   {
+    "room_id": "mkt187",
+    "nightly_price": 199.0,
+    "name": "market listing 187"
+   },
+   {
+    "room_id": "mkt188",
+    "nightly_price": 199.0,
+    "name": "market listing 188"
+   },
+   {
+    "room_id": "mkt189",
+    "nightly_price": 199.0,
+    "name": "market listing 189"
+   },
+   {
+    "room_id": "mkt190",
+    "nightly_price": 199.0,
+    "name": "market listing 190"
+   },
+   {
+    "room_id": "mkt191",
+    "nightly_price": 199.0,
+    "name": "market listing 191"
+   },
+   {
+    "room_id": "mkt192",
+    "nightly_price": 199.0,
+    "name": "market listing 192"
+   },
+   {
+    "room_id": "mkt193",
+    "nightly_price": 199.0,
+    "name": "market listing 193"
+   },
+   {
+    "room_id": "mkt194",
+    "nightly_price": 199.0,
+    "name": "market listing 194"
+   },
+   {
+    "room_id": "mkt195",
+    "nightly_price": 199.0,
+    "name": "market listing 195"
+   },
+   {
+    "room_id": "mkt196",
+    "nightly_price": 199.0,
+    "name": "market listing 196"
+   },
+   {
+    "room_id": "mkt197",
+    "nightly_price": 199.0,
+    "name": "market listing 197"
+   },
+   {
+    "room_id": "mkt198",
+    "nightly_price": 199.0,
+    "name": "market listing 198"
+   },
+   {
+    "room_id": "mkt199",
+    "nightly_price": 199.0,
+    "name": "market listing 199"
+   },
+   {
+    "room_id": "mkt200",
+    "nightly_price": 199.0,
+    "name": "market listing 200"
+   },
+   {
+    "room_id": "mkt201",
+    "nightly_price": 199.0,
+    "name": "market listing 201"
+   },
+   {
+    "room_id": "mkt202",
+    "nightly_price": 199.0,
+    "name": "market listing 202"
+   },
+   {
+    "room_id": "mkt203",
+    "nightly_price": 199.0,
+    "name": "market listing 203"
+   },
+   {
+    "room_id": "mkt204",
+    "nightly_price": 199.0,
+    "name": "market listing 204"
+   },
+   {
+    "room_id": "mkt205",
+    "nightly_price": 199.0,
+    "name": "market listing 205"
+   },
+   {
+    "room_id": "mkt206",
+    "nightly_price": 199.0,
+    "name": "market listing 206"
+   },
+   {
+    "room_id": "mkt207",
+    "nightly_price": 199.0,
+    "name": "market listing 207"
+   },
+   {
+    "room_id": "mkt208",
+    "nightly_price": 199.0,
+    "name": "market listing 208"
+   },
+   {
+    "room_id": "mkt209",
+    "nightly_price": 199.0,
+    "name": "market listing 209"
+   },
+   {
+    "room_id": "mkt210",
+    "nightly_price": 199.0,
+    "name": "market listing 210"
+   },
+   {
+    "room_id": "mkt211",
+    "nightly_price": 199.0,
+    "name": "market listing 211"
+   },
+   {
+    "room_id": "mkt212",
+    "nightly_price": 199.0,
+    "name": "market listing 212"
+   },
+   {
+    "room_id": "mkt213",
+    "nightly_price": 199.0,
+    "name": "market listing 213"
+   },
+   {
+    "room_id": "mkt214",
+    "nightly_price": 199.0,
+    "name": "market listing 214"
+   },
+   {
+    "room_id": "mkt215",
+    "nightly_price": 199.0,
+    "name": "market listing 215"
+   },
+   {
+    "room_id": "mkt216",
+    "nightly_price": 199.0,
+    "name": "market listing 216"
+   },
+   {
+    "room_id": "mkt217",
+    "nightly_price": 199.0,
+    "name": "market listing 217"
+   },
+   {
+    "room_id": "mkt218",
+    "nightly_price": 199.0,
+    "name": "market listing 218"
+   },
+   {
+    "room_id": "mkt219",
+    "nightly_price": 199.0,
+    "name": "market listing 219"
+   },
+   {
+    "room_id": "mkt220",
+    "nightly_price": 199.0,
+    "name": "market listing 220"
+   },
+   {
+    "room_id": "mkt221",
+    "nightly_price": 199.0,
+    "name": "market listing 221"
+   },
+   {
+    "room_id": "mkt222",
+    "nightly_price": 199.0,
+    "name": "market listing 222"
+   },
+   {
+    "room_id": "mkt223",
+    "nightly_price": 199.0,
+    "name": "market listing 223"
+   },
+   {
+    "room_id": "mkt224",
+    "nightly_price": 199.0,
+    "name": "market listing 224"
+   },
+   {
+    "room_id": "mkt225",
+    "nightly_price": 199.0,
+    "name": "market listing 225"
+   },
+   {
+    "room_id": "mkt226",
+    "nightly_price": 199.0,
+    "name": "market listing 226"
+   },
+   {
+    "room_id": "mkt227",
+    "nightly_price": 199.0,
+    "name": "market listing 227"
+   },
+   {
+    "room_id": "mkt228",
+    "nightly_price": 199.0,
+    "name": "market listing 228"
+   },
+   {
+    "room_id": "mkt229",
+    "nightly_price": 199.0,
+    "name": "market listing 229"
+   },
+   {
+    "room_id": "mkt230",
+    "nightly_price": 199.0,
+    "name": "market listing 230"
+   },
+   {
+    "room_id": "mkt231",
+    "nightly_price": 199.0,
+    "name": "market listing 231"
+   },
+   {
+    "room_id": "mkt232",
+    "nightly_price": 199.0,
+    "name": "market listing 232"
+   },
+   {
+    "room_id": "mkt233",
+    "nightly_price": 199.0,
+    "name": "market listing 233"
+   },
+   {
+    "room_id": "mkt234",
+    "nightly_price": 199.0,
+    "name": "market listing 234"
+   },
+   {
+    "room_id": "mkt235",
+    "nightly_price": 199.0,
+    "name": "market listing 235"
+   },
+   {
+    "room_id": "mkt236",
+    "nightly_price": 199.0,
+    "name": "market listing 236"
+   },
+   {
+    "room_id": "mkt237",
+    "nightly_price": 199.0,
+    "name": "market listing 237"
+   },
+   {
+    "room_id": "mkt238",
+    "nightly_price": 199.0,
+    "name": "market listing 238"
+   },
+   {
+    "room_id": "mkt239",
+    "nightly_price": 199.0,
+    "name": "market listing 239"
+   },
+   {
+    "room_id": "mkt240",
+    "nightly_price": 199.0,
+    "name": "market listing 240"
+   },
+   {
+    "room_id": "mkt241",
+    "nightly_price": 199.0,
+    "name": "market listing 241"
+   },
+   {
+    "room_id": "mkt242",
+    "nightly_price": 199.0,
+    "name": "market listing 242"
+   },
+   {
+    "room_id": "mkt243",
+    "nightly_price": 199.0,
+    "name": "market listing 243"
+   },
+   {
+    "room_id": "mkt244",
+    "nightly_price": 199.0,
+    "name": "market listing 244"
+   },
+   {
+    "room_id": "mkt245",
+    "nightly_price": 199.0,
+    "name": "market listing 245"
+   },
+   {
+    "room_id": "mkt246",
+    "nightly_price": 199.0,
+    "name": "market listing 246"
+   },
+   {
+    "room_id": "mkt247",
+    "nightly_price": 199.0,
+    "name": "market listing 247"
+   },
+   {
+    "room_id": "mkt248",
+    "nightly_price": 199.0,
+    "name": "market listing 248"
+   },
+   {
+    "room_id": "mkt249",
+    "nightly_price": 199.0,
+    "name": "market listing 249"
+   },
+   {
+    "room_id": "mkt250",
+    "nightly_price": 199.0,
+    "name": "market listing 250"
+   },
+   {
+    "room_id": "mkt251",
+    "nightly_price": 199.0,
+    "name": "market listing 251"
+   },
+   {
+    "room_id": "mkt252",
+    "nightly_price": 199.0,
+    "name": "market listing 252"
+   },
+   {
+    "room_id": "mkt253",
+    "nightly_price": 199.0,
+    "name": "market listing 253"
+   },
+   {
+    "room_id": "mkt254",
+    "nightly_price": 199.0,
+    "name": "market listing 254"
+   },
+   {
+    "room_id": "mkt255",
+    "nightly_price": 199.0,
+    "name": "market listing 255"
+   },
+   {
+    "room_id": "mkt256",
+    "nightly_price": 199.0,
+    "name": "market listing 256"
+   },
+   {
+    "room_id": "mkt257",
+    "nightly_price": 199.0,
+    "name": "market listing 257"
+   },
+   {
+    "room_id": "mkt258",
+    "nightly_price": 199.0,
+    "name": "market listing 258"
+   },
+   {
+    "room_id": "mkt259",
+    "nightly_price": 199.0,
+    "name": "market listing 259"
+   },
+   {
+    "room_id": "mkt260",
+    "nightly_price": 199.0,
+    "name": "market listing 260"
+   },
+   {
+    "room_id": "mkt261",
+    "nightly_price": 199.0,
+    "name": "market listing 261"
+   },
+   {
+    "room_id": "mkt262",
+    "nightly_price": 199.0,
+    "name": "market listing 262"
+   },
+   {
+    "room_id": "mkt263",
+    "nightly_price": 199.0,
+    "name": "market listing 263"
+   },
+   {
+    "room_id": "mkt264",
+    "nightly_price": 199.0,
+    "name": "market listing 264"
+   },
+   {
+    "room_id": "mkt265",
+    "nightly_price": 199.0,
+    "name": "market listing 265"
+   },
+   {
+    "room_id": "mkt266",
+    "nightly_price": 199.0,
+    "name": "market listing 266"
+   },
+   {
+    "room_id": "mkt267",
+    "nightly_price": 199.0,
+    "name": "market listing 267"
+   },
+   {
+    "room_id": "mkt268",
+    "nightly_price": 199.0,
+    "name": "market listing 268"
+   },
+   {
+    "room_id": "mkt269",
+    "nightly_price": 199.0,
+    "name": "market listing 269"
+   },
+   {
+    "room_id": "mkt270",
+    "nightly_price": 199.0,
+    "name": "market listing 270"
+   },
+   {
+    "room_id": "mkt271",
+    "nightly_price": 199.0,
+    "name": "market listing 271"
+   },
+   {
+    "room_id": "mkt272",
+    "nightly_price": 199.0,
+    "name": "market listing 272"
+   },
+   {
+    "room_id": "mkt273",
+    "nightly_price": 199.0,
+    "name": "market listing 273"
+   },
+   {
+    "room_id": "mkt274",
+    "nightly_price": 199.0,
+    "name": "market listing 274"
+   }
+  ],
+  "2026-12-11": [
+   {
+    "room_id": "25025719",
+    "nightly_price": 199.0,
+    "name": "comp 25025719"
+   },
+   {
+    "room_id": "28034852",
+    "nightly_price": 199.0,
+    "name": "comp 28034852"
+   },
+   {
+    "room_id": "3113520",
+    "nightly_price": 199.0,
+    "name": "comp 3113520"
+   },
+   {
+    "room_id": "38425742",
+    "nightly_price": 199.0,
+    "name": "comp 38425742"
+   },
+   {
+    "room_id": "1026751424661674679",
+    "nightly_price": 199.0,
+    "name": "comp 1026751424661674679"
+   },
+   {
+    "room_id": "mkt0",
+    "nightly_price": 199.0,
+    "name": "market listing 0"
+   },
+   {
+    "room_id": "mkt1",
+    "nightly_price": 199.0,
+    "name": "market listing 1"
+   },
+   {
+    "room_id": "mkt2",
+    "nightly_price": 199.0,
+    "name": "market listing 2"
+   },
+   {
+    "room_id": "mkt3",
+    "nightly_price": 199.0,
+    "name": "market listing 3"
+   },
+   {
+    "room_id": "mkt4",
+    "nightly_price": 199.0,
+    "name": "market listing 4"
+   },
+   {
+    "room_id": "mkt5",
+    "nightly_price": 199.0,
+    "name": "market listing 5"
+   },
+   {
+    "room_id": "mkt6",
+    "nightly_price": 199.0,
+    "name": "market listing 6"
+   },
+   {
+    "room_id": "mkt7",
+    "nightly_price": 199.0,
+    "name": "market listing 7"
+   },
+   {
+    "room_id": "mkt8",
+    "nightly_price": 199.0,
+    "name": "market listing 8"
+   },
+   {
+    "room_id": "mkt9",
+    "nightly_price": 199.0,
+    "name": "market listing 9"
+   },
+   {
+    "room_id": "mkt10",
+    "nightly_price": 199.0,
+    "name": "market listing 10"
+   },
+   {
+    "room_id": "mkt11",
+    "nightly_price": 199.0,
+    "name": "market listing 11"
+   },
+   {
+    "room_id": "mkt12",
+    "nightly_price": 199.0,
+    "name": "market listing 12"
+   },
+   {
+    "room_id": "mkt13",
+    "nightly_price": 199.0,
+    "name": "market listing 13"
+   },
+   {
+    "room_id": "mkt14",
+    "nightly_price": 199.0,
+    "name": "market listing 14"
+   },
+   {
+    "room_id": "mkt15",
+    "nightly_price": 199.0,
+    "name": "market listing 15"
+   },
+   {
+    "room_id": "mkt16",
+    "nightly_price": 199.0,
+    "name": "market listing 16"
+   },
+   {
+    "room_id": "mkt17",
+    "nightly_price": 199.0,
+    "name": "market listing 17"
+   },
+   {
+    "room_id": "mkt18",
+    "nightly_price": 199.0,
+    "name": "market listing 18"
+   },
+   {
+    "room_id": "mkt19",
+    "nightly_price": 199.0,
+    "name": "market listing 19"
+   },
+   {
+    "room_id": "mkt20",
+    "nightly_price": 199.0,
+    "name": "market listing 20"
+   },
+   {
+    "room_id": "mkt21",
+    "nightly_price": 199.0,
+    "name": "market listing 21"
+   },
+   {
+    "room_id": "mkt22",
+    "nightly_price": 199.0,
+    "name": "market listing 22"
+   },
+   {
+    "room_id": "mkt23",
+    "nightly_price": 199.0,
+    "name": "market listing 23"
+   },
+   {
+    "room_id": "mkt24",
+    "nightly_price": 199.0,
+    "name": "market listing 24"
+   },
+   {
+    "room_id": "mkt25",
+    "nightly_price": 199.0,
+    "name": "market listing 25"
+   },
+   {
+    "room_id": "mkt26",
+    "nightly_price": 199.0,
+    "name": "market listing 26"
+   },
+   {
+    "room_id": "mkt27",
+    "nightly_price": 199.0,
+    "name": "market listing 27"
+   },
+   {
+    "room_id": "mkt28",
+    "nightly_price": 199.0,
+    "name": "market listing 28"
+   },
+   {
+    "room_id": "mkt29",
+    "nightly_price": 199.0,
+    "name": "market listing 29"
+   },
+   {
+    "room_id": "mkt30",
+    "nightly_price": 199.0,
+    "name": "market listing 30"
+   },
+   {
+    "room_id": "mkt31",
+    "nightly_price": 199.0,
+    "name": "market listing 31"
+   },
+   {
+    "room_id": "mkt32",
+    "nightly_price": 199.0,
+    "name": "market listing 32"
+   },
+   {
+    "room_id": "mkt33",
+    "nightly_price": 199.0,
+    "name": "market listing 33"
+   },
+   {
+    "room_id": "mkt34",
+    "nightly_price": 199.0,
+    "name": "market listing 34"
+   },
+   {
+    "room_id": "mkt35",
+    "nightly_price": 199.0,
+    "name": "market listing 35"
+   },
+   {
+    "room_id": "mkt36",
+    "nightly_price": 199.0,
+    "name": "market listing 36"
+   },
+   {
+    "room_id": "mkt37",
+    "nightly_price": 199.0,
+    "name": "market listing 37"
+   },
+   {
+    "room_id": "mkt38",
+    "nightly_price": 199.0,
+    "name": "market listing 38"
+   },
+   {
+    "room_id": "mkt39",
+    "nightly_price": 199.0,
+    "name": "market listing 39"
+   },
+   {
+    "room_id": "mkt40",
+    "nightly_price": 199.0,
+    "name": "market listing 40"
+   },
+   {
+    "room_id": "mkt41",
+    "nightly_price": 199.0,
+    "name": "market listing 41"
+   },
+   {
+    "room_id": "mkt42",
+    "nightly_price": 199.0,
+    "name": "market listing 42"
+   },
+   {
+    "room_id": "mkt43",
+    "nightly_price": 199.0,
+    "name": "market listing 43"
+   },
+   {
+    "room_id": "mkt44",
+    "nightly_price": 199.0,
+    "name": "market listing 44"
+   },
+   {
+    "room_id": "mkt45",
+    "nightly_price": 199.0,
+    "name": "market listing 45"
+   },
+   {
+    "room_id": "mkt46",
+    "nightly_price": 199.0,
+    "name": "market listing 46"
+   },
+   {
+    "room_id": "mkt47",
+    "nightly_price": 199.0,
+    "name": "market listing 47"
+   },
+   {
+    "room_id": "mkt48",
+    "nightly_price": 199.0,
+    "name": "market listing 48"
+   },
+   {
+    "room_id": "mkt49",
+    "nightly_price": 199.0,
+    "name": "market listing 49"
+   },
+   {
+    "room_id": "mkt50",
+    "nightly_price": 199.0,
+    "name": "market listing 50"
+   },
+   {
+    "room_id": "mkt51",
+    "nightly_price": 199.0,
+    "name": "market listing 51"
+   },
+   {
+    "room_id": "mkt52",
+    "nightly_price": 199.0,
+    "name": "market listing 52"
+   },
+   {
+    "room_id": "mkt53",
+    "nightly_price": 199.0,
+    "name": "market listing 53"
+   },
+   {
+    "room_id": "mkt54",
+    "nightly_price": 199.0,
+    "name": "market listing 54"
+   },
+   {
+    "room_id": "mkt55",
+    "nightly_price": 199.0,
+    "name": "market listing 55"
+   },
+   {
+    "room_id": "mkt56",
+    "nightly_price": 199.0,
+    "name": "market listing 56"
+   },
+   {
+    "room_id": "mkt57",
+    "nightly_price": 199.0,
+    "name": "market listing 57"
+   },
+   {
+    "room_id": "mkt58",
+    "nightly_price": 199.0,
+    "name": "market listing 58"
+   },
+   {
+    "room_id": "mkt59",
+    "nightly_price": 199.0,
+    "name": "market listing 59"
+   },
+   {
+    "room_id": "mkt60",
+    "nightly_price": 199.0,
+    "name": "market listing 60"
+   },
+   {
+    "room_id": "mkt61",
+    "nightly_price": 199.0,
+    "name": "market listing 61"
+   },
+   {
+    "room_id": "mkt62",
+    "nightly_price": 199.0,
+    "name": "market listing 62"
+   },
+   {
+    "room_id": "mkt63",
+    "nightly_price": 199.0,
+    "name": "market listing 63"
+   },
+   {
+    "room_id": "mkt64",
+    "nightly_price": 199.0,
+    "name": "market listing 64"
+   },
+   {
+    "room_id": "mkt65",
+    "nightly_price": 199.0,
+    "name": "market listing 65"
+   },
+   {
+    "room_id": "mkt66",
+    "nightly_price": 199.0,
+    "name": "market listing 66"
+   },
+   {
+    "room_id": "mkt67",
+    "nightly_price": 199.0,
+    "name": "market listing 67"
+   },
+   {
+    "room_id": "mkt68",
+    "nightly_price": 199.0,
+    "name": "market listing 68"
+   },
+   {
+    "room_id": "mkt69",
+    "nightly_price": 199.0,
+    "name": "market listing 69"
+   },
+   {
+    "room_id": "mkt70",
+    "nightly_price": 199.0,
+    "name": "market listing 70"
+   },
+   {
+    "room_id": "mkt71",
+    "nightly_price": 199.0,
+    "name": "market listing 71"
+   },
+   {
+    "room_id": "mkt72",
+    "nightly_price": 199.0,
+    "name": "market listing 72"
+   },
+   {
+    "room_id": "mkt73",
+    "nightly_price": 199.0,
+    "name": "market listing 73"
+   },
+   {
+    "room_id": "mkt74",
+    "nightly_price": 199.0,
+    "name": "market listing 74"
+   },
+   {
+    "room_id": "mkt75",
+    "nightly_price": 199.0,
+    "name": "market listing 75"
+   },
+   {
+    "room_id": "mkt76",
+    "nightly_price": 199.0,
+    "name": "market listing 76"
+   },
+   {
+    "room_id": "mkt77",
+    "nightly_price": 199.0,
+    "name": "market listing 77"
+   },
+   {
+    "room_id": "mkt78",
+    "nightly_price": 199.0,
+    "name": "market listing 78"
+   },
+   {
+    "room_id": "mkt79",
+    "nightly_price": 199.0,
+    "name": "market listing 79"
+   },
+   {
+    "room_id": "mkt80",
+    "nightly_price": 199.0,
+    "name": "market listing 80"
+   },
+   {
+    "room_id": "mkt81",
+    "nightly_price": 199.0,
+    "name": "market listing 81"
+   },
+   {
+    "room_id": "mkt82",
+    "nightly_price": 199.0,
+    "name": "market listing 82"
+   },
+   {
+    "room_id": "mkt83",
+    "nightly_price": 199.0,
+    "name": "market listing 83"
+   },
+   {
+    "room_id": "mkt84",
+    "nightly_price": 199.0,
+    "name": "market listing 84"
+   },
+   {
+    "room_id": "mkt85",
+    "nightly_price": 199.0,
+    "name": "market listing 85"
+   },
+   {
+    "room_id": "mkt86",
+    "nightly_price": 199.0,
+    "name": "market listing 86"
+   },
+   {
+    "room_id": "mkt87",
+    "nightly_price": 199.0,
+    "name": "market listing 87"
+   },
+   {
+    "room_id": "mkt88",
+    "nightly_price": 199.0,
+    "name": "market listing 88"
+   },
+   {
+    "room_id": "mkt89",
+    "nightly_price": 199.0,
+    "name": "market listing 89"
+   },
+   {
+    "room_id": "mkt90",
+    "nightly_price": 199.0,
+    "name": "market listing 90"
+   },
+   {
+    "room_id": "mkt91",
+    "nightly_price": 199.0,
+    "name": "market listing 91"
+   },
+   {
+    "room_id": "mkt92",
+    "nightly_price": 199.0,
+    "name": "market listing 92"
+   },
+   {
+    "room_id": "mkt93",
+    "nightly_price": 199.0,
+    "name": "market listing 93"
+   },
+   {
+    "room_id": "mkt94",
+    "nightly_price": 199.0,
+    "name": "market listing 94"
+   },
+   {
+    "room_id": "mkt95",
+    "nightly_price": 199.0,
+    "name": "market listing 95"
+   },
+   {
+    "room_id": "mkt96",
+    "nightly_price": 199.0,
+    "name": "market listing 96"
+   },
+   {
+    "room_id": "mkt97",
+    "nightly_price": 199.0,
+    "name": "market listing 97"
+   },
+   {
+    "room_id": "mkt98",
+    "nightly_price": 199.0,
+    "name": "market listing 98"
+   },
+   {
+    "room_id": "mkt99",
+    "nightly_price": 199.0,
+    "name": "market listing 99"
+   },
+   {
+    "room_id": "mkt100",
+    "nightly_price": 199.0,
+    "name": "market listing 100"
+   },
+   {
+    "room_id": "mkt101",
+    "nightly_price": 199.0,
+    "name": "market listing 101"
+   },
+   {
+    "room_id": "mkt102",
+    "nightly_price": 199.0,
+    "name": "market listing 102"
+   },
+   {
+    "room_id": "mkt103",
+    "nightly_price": 199.0,
+    "name": "market listing 103"
+   },
+   {
+    "room_id": "mkt104",
+    "nightly_price": 199.0,
+    "name": "market listing 104"
+   },
+   {
+    "room_id": "mkt105",
+    "nightly_price": 199.0,
+    "name": "market listing 105"
+   },
+   {
+    "room_id": "mkt106",
+    "nightly_price": 199.0,
+    "name": "market listing 106"
+   },
+   {
+    "room_id": "mkt107",
+    "nightly_price": 199.0,
+    "name": "market listing 107"
+   },
+   {
+    "room_id": "mkt108",
+    "nightly_price": 199.0,
+    "name": "market listing 108"
+   },
+   {
+    "room_id": "mkt109",
+    "nightly_price": 199.0,
+    "name": "market listing 109"
+   },
+   {
+    "room_id": "mkt110",
+    "nightly_price": 199.0,
+    "name": "market listing 110"
+   },
+   {
+    "room_id": "mkt111",
+    "nightly_price": 199.0,
+    "name": "market listing 111"
+   },
+   {
+    "room_id": "mkt112",
+    "nightly_price": 199.0,
+    "name": "market listing 112"
+   },
+   {
+    "room_id": "mkt113",
+    "nightly_price": 199.0,
+    "name": "market listing 113"
+   },
+   {
+    "room_id": "mkt114",
+    "nightly_price": 199.0,
+    "name": "market listing 114"
+   },
+   {
+    "room_id": "mkt115",
+    "nightly_price": 199.0,
+    "name": "market listing 115"
+   },
+   {
+    "room_id": "mkt116",
+    "nightly_price": 199.0,
+    "name": "market listing 116"
+   },
+   {
+    "room_id": "mkt117",
+    "nightly_price": 199.0,
+    "name": "market listing 117"
+   },
+   {
+    "room_id": "mkt118",
+    "nightly_price": 199.0,
+    "name": "market listing 118"
+   },
+   {
+    "room_id": "mkt119",
+    "nightly_price": 199.0,
+    "name": "market listing 119"
+   },
+   {
+    "room_id": "mkt120",
+    "nightly_price": 199.0,
+    "name": "market listing 120"
+   },
+   {
+    "room_id": "mkt121",
+    "nightly_price": 199.0,
+    "name": "market listing 121"
+   },
+   {
+    "room_id": "mkt122",
+    "nightly_price": 199.0,
+    "name": "market listing 122"
+   },
+   {
+    "room_id": "mkt123",
+    "nightly_price": 199.0,
+    "name": "market listing 123"
+   },
+   {
+    "room_id": "mkt124",
+    "nightly_price": 199.0,
+    "name": "market listing 124"
+   },
+   {
+    "room_id": "mkt125",
+    "nightly_price": 199.0,
+    "name": "market listing 125"
+   },
+   {
+    "room_id": "mkt126",
+    "nightly_price": 199.0,
+    "name": "market listing 126"
+   },
+   {
+    "room_id": "mkt127",
+    "nightly_price": 199.0,
+    "name": "market listing 127"
+   },
+   {
+    "room_id": "mkt128",
+    "nightly_price": 199.0,
+    "name": "market listing 128"
+   },
+   {
+    "room_id": "mkt129",
+    "nightly_price": 199.0,
+    "name": "market listing 129"
+   },
+   {
+    "room_id": "mkt130",
+    "nightly_price": 199.0,
+    "name": "market listing 130"
+   },
+   {
+    "room_id": "mkt131",
+    "nightly_price": 199.0,
+    "name": "market listing 131"
+   },
+   {
+    "room_id": "mkt132",
+    "nightly_price": 199.0,
+    "name": "market listing 132"
+   },
+   {
+    "room_id": "mkt133",
+    "nightly_price": 199.0,
+    "name": "market listing 133"
+   },
+   {
+    "room_id": "mkt134",
+    "nightly_price": 199.0,
+    "name": "market listing 134"
+   },
+   {
+    "room_id": "mkt135",
+    "nightly_price": 199.0,
+    "name": "market listing 135"
+   },
+   {
+    "room_id": "mkt136",
+    "nightly_price": 199.0,
+    "name": "market listing 136"
+   },
+   {
+    "room_id": "mkt137",
+    "nightly_price": 199.0,
+    "name": "market listing 137"
+   },
+   {
+    "room_id": "mkt138",
+    "nightly_price": 199.0,
+    "name": "market listing 138"
+   },
+   {
+    "room_id": "mkt139",
+    "nightly_price": 199.0,
+    "name": "market listing 139"
+   },
+   {
+    "room_id": "mkt140",
+    "nightly_price": 199.0,
+    "name": "market listing 140"
+   },
+   {
+    "room_id": "mkt141",
+    "nightly_price": 199.0,
+    "name": "market listing 141"
+   },
+   {
+    "room_id": "mkt142",
+    "nightly_price": 199.0,
+    "name": "market listing 142"
+   },
+   {
+    "room_id": "mkt143",
+    "nightly_price": 199.0,
+    "name": "market listing 143"
+   },
+   {
+    "room_id": "mkt144",
+    "nightly_price": 199.0,
+    "name": "market listing 144"
+   },
+   {
+    "room_id": "mkt145",
+    "nightly_price": 199.0,
+    "name": "market listing 145"
+   },
+   {
+    "room_id": "mkt146",
+    "nightly_price": 199.0,
+    "name": "market listing 146"
+   },
+   {
+    "room_id": "mkt147",
+    "nightly_price": 199.0,
+    "name": "market listing 147"
+   },
+   {
+    "room_id": "mkt148",
+    "nightly_price": 199.0,
+    "name": "market listing 148"
+   },
+   {
+    "room_id": "mkt149",
+    "nightly_price": 199.0,
+    "name": "market listing 149"
+   },
+   {
+    "room_id": "mkt150",
+    "nightly_price": 199.0,
+    "name": "market listing 150"
+   },
+   {
+    "room_id": "mkt151",
+    "nightly_price": 199.0,
+    "name": "market listing 151"
+   },
+   {
+    "room_id": "mkt152",
+    "nightly_price": 199.0,
+    "name": "market listing 152"
+   },
+   {
+    "room_id": "mkt153",
+    "nightly_price": 199.0,
+    "name": "market listing 153"
+   },
+   {
+    "room_id": "mkt154",
+    "nightly_price": 199.0,
+    "name": "market listing 154"
+   },
+   {
+    "room_id": "mkt155",
+    "nightly_price": 199.0,
+    "name": "market listing 155"
+   },
+   {
+    "room_id": "mkt156",
+    "nightly_price": 199.0,
+    "name": "market listing 156"
+   },
+   {
+    "room_id": "mkt157",
+    "nightly_price": 199.0,
+    "name": "market listing 157"
+   },
+   {
+    "room_id": "mkt158",
+    "nightly_price": 199.0,
+    "name": "market listing 158"
+   },
+   {
+    "room_id": "mkt159",
+    "nightly_price": 199.0,
+    "name": "market listing 159"
+   },
+   {
+    "room_id": "mkt160",
+    "nightly_price": 199.0,
+    "name": "market listing 160"
+   },
+   {
+    "room_id": "mkt161",
+    "nightly_price": 199.0,
+    "name": "market listing 161"
+   },
+   {
+    "room_id": "mkt162",
+    "nightly_price": 199.0,
+    "name": "market listing 162"
+   },
+   {
+    "room_id": "mkt163",
+    "nightly_price": 199.0,
+    "name": "market listing 163"
+   },
+   {
+    "room_id": "mkt164",
+    "nightly_price": 199.0,
+    "name": "market listing 164"
+   },
+   {
+    "room_id": "mkt165",
+    "nightly_price": 199.0,
+    "name": "market listing 165"
+   },
+   {
+    "room_id": "mkt166",
+    "nightly_price": 199.0,
+    "name": "market listing 166"
+   },
+   {
+    "room_id": "mkt167",
+    "nightly_price": 199.0,
+    "name": "market listing 167"
+   },
+   {
+    "room_id": "mkt168",
+    "nightly_price": 199.0,
+    "name": "market listing 168"
+   },
+   {
+    "room_id": "mkt169",
+    "nightly_price": 199.0,
+    "name": "market listing 169"
+   },
+   {
+    "room_id": "mkt170",
+    "nightly_price": 199.0,
+    "name": "market listing 170"
+   },
+   {
+    "room_id": "mkt171",
+    "nightly_price": 199.0,
+    "name": "market listing 171"
+   },
+   {
+    "room_id": "mkt172",
+    "nightly_price": 199.0,
+    "name": "market listing 172"
+   },
+   {
+    "room_id": "mkt173",
+    "nightly_price": 199.0,
+    "name": "market listing 173"
+   },
+   {
+    "room_id": "mkt174",
+    "nightly_price": 199.0,
+    "name": "market listing 174"
+   },
+   {
+    "room_id": "mkt175",
+    "nightly_price": 199.0,
+    "name": "market listing 175"
+   },
+   {
+    "room_id": "mkt176",
+    "nightly_price": 199.0,
+    "name": "market listing 176"
+   },
+   {
+    "room_id": "mkt177",
+    "nightly_price": 199.0,
+    "name": "market listing 177"
+   },
+   {
+    "room_id": "mkt178",
+    "nightly_price": 199.0,
+    "name": "market listing 178"
+   },
+   {
+    "room_id": "mkt179",
+    "nightly_price": 199.0,
+    "name": "market listing 179"
+   },
+   {
+    "room_id": "mkt180",
+    "nightly_price": 199.0,
+    "name": "market listing 180"
+   },
+   {
+    "room_id": "mkt181",
+    "nightly_price": 199.0,
+    "name": "market listing 181"
+   },
+   {
+    "room_id": "mkt182",
+    "nightly_price": 199.0,
+    "name": "market listing 182"
+   },
+   {
+    "room_id": "mkt183",
+    "nightly_price": 199.0,
+    "name": "market listing 183"
+   },
+   {
+    "room_id": "mkt184",
+    "nightly_price": 199.0,
+    "name": "market listing 184"
+   },
+   {
+    "room_id": "mkt185",
+    "nightly_price": 199.0,
+    "name": "market listing 185"
+   },
+   {
+    "room_id": "mkt186",
+    "nightly_price": 199.0,
+    "name": "market listing 186"
+   },
+   {
+    "room_id": "mkt187",
+    "nightly_price": 199.0,
+    "name": "market listing 187"
+   },
+   {
+    "room_id": "mkt188",
+    "nightly_price": 199.0,
+    "name": "market listing 188"
+   },
+   {
+    "room_id": "mkt189",
+    "nightly_price": 199.0,
+    "name": "market listing 189"
+   },
+   {
+    "room_id": "mkt190",
+    "nightly_price": 199.0,
+    "name": "market listing 190"
+   },
+   {
+    "room_id": "mkt191",
+    "nightly_price": 199.0,
+    "name": "market listing 191"
+   },
+   {
+    "room_id": "mkt192",
+    "nightly_price": 199.0,
+    "name": "market listing 192"
+   },
+   {
+    "room_id": "mkt193",
+    "nightly_price": 199.0,
+    "name": "market listing 193"
+   },
+   {
+    "room_id": "mkt194",
+    "nightly_price": 199.0,
+    "name": "market listing 194"
+   },
+   {
+    "room_id": "mkt195",
+    "nightly_price": 199.0,
+    "name": "market listing 195"
+   },
+   {
+    "room_id": "mkt196",
+    "nightly_price": 199.0,
+    "name": "market listing 196"
+   },
+   {
+    "room_id": "mkt197",
+    "nightly_price": 199.0,
+    "name": "market listing 197"
+   },
+   {
+    "room_id": "mkt198",
+    "nightly_price": 199.0,
+    "name": "market listing 198"
+   },
+   {
+    "room_id": "mkt199",
+    "nightly_price": 199.0,
+    "name": "market listing 199"
+   },
+   {
+    "room_id": "mkt200",
+    "nightly_price": 199.0,
+    "name": "market listing 200"
+   },
+   {
+    "room_id": "mkt201",
+    "nightly_price": 199.0,
+    "name": "market listing 201"
+   },
+   {
+    "room_id": "mkt202",
+    "nightly_price": 199.0,
+    "name": "market listing 202"
+   },
+   {
+    "room_id": "mkt203",
+    "nightly_price": 199.0,
+    "name": "market listing 203"
+   },
+   {
+    "room_id": "mkt204",
+    "nightly_price": 199.0,
+    "name": "market listing 204"
+   },
+   {
+    "room_id": "mkt205",
+    "nightly_price": 199.0,
+    "name": "market listing 205"
+   },
+   {
+    "room_id": "mkt206",
+    "nightly_price": 199.0,
+    "name": "market listing 206"
+   },
+   {
+    "room_id": "mkt207",
+    "nightly_price": 199.0,
+    "name": "market listing 207"
+   },
+   {
+    "room_id": "mkt208",
+    "nightly_price": 199.0,
+    "name": "market listing 208"
+   },
+   {
+    "room_id": "mkt209",
+    "nightly_price": 199.0,
+    "name": "market listing 209"
+   },
+   {
+    "room_id": "mkt210",
+    "nightly_price": 199.0,
+    "name": "market listing 210"
+   },
+   {
+    "room_id": "mkt211",
+    "nightly_price": 199.0,
+    "name": "market listing 211"
+   },
+   {
+    "room_id": "mkt212",
+    "nightly_price": 199.0,
+    "name": "market listing 212"
+   },
+   {
+    "room_id": "mkt213",
+    "nightly_price": 199.0,
+    "name": "market listing 213"
+   },
+   {
+    "room_id": "mkt214",
+    "nightly_price": 199.0,
+    "name": "market listing 214"
+   },
+   {
+    "room_id": "mkt215",
+    "nightly_price": 199.0,
+    "name": "market listing 215"
+   },
+   {
+    "room_id": "mkt216",
+    "nightly_price": 199.0,
+    "name": "market listing 216"
+   },
+   {
+    "room_id": "mkt217",
+    "nightly_price": 199.0,
+    "name": "market listing 217"
+   },
+   {
+    "room_id": "mkt218",
+    "nightly_price": 199.0,
+    "name": "market listing 218"
+   },
+   {
+    "room_id": "mkt219",
+    "nightly_price": 199.0,
+    "name": "market listing 219"
+   },
+   {
+    "room_id": "mkt220",
+    "nightly_price": 199.0,
+    "name": "market listing 220"
+   },
+   {
+    "room_id": "mkt221",
+    "nightly_price": 199.0,
+    "name": "market listing 221"
+   },
+   {
+    "room_id": "mkt222",
+    "nightly_price": 199.0,
+    "name": "market listing 222"
+   },
+   {
+    "room_id": "mkt223",
+    "nightly_price": 199.0,
+    "name": "market listing 223"
+   },
+   {
+    "room_id": "mkt224",
+    "nightly_price": 199.0,
+    "name": "market listing 224"
+   },
+   {
+    "room_id": "mkt225",
+    "nightly_price": 199.0,
+    "name": "market listing 225"
+   },
+   {
+    "room_id": "mkt226",
+    "nightly_price": 199.0,
+    "name": "market listing 226"
+   },
+   {
+    "room_id": "mkt227",
+    "nightly_price": 199.0,
+    "name": "market listing 227"
+   },
+   {
+    "room_id": "mkt228",
+    "nightly_price": 199.0,
+    "name": "market listing 228"
+   },
+   {
+    "room_id": "mkt229",
+    "nightly_price": 199.0,
+    "name": "market listing 229"
+   },
+   {
+    "room_id": "mkt230",
+    "nightly_price": 199.0,
+    "name": "market listing 230"
+   },
+   {
+    "room_id": "mkt231",
+    "nightly_price": 199.0,
+    "name": "market listing 231"
+   },
+   {
+    "room_id": "mkt232",
+    "nightly_price": 199.0,
+    "name": "market listing 232"
+   },
+   {
+    "room_id": "mkt233",
+    "nightly_price": 199.0,
+    "name": "market listing 233"
+   },
+   {
+    "room_id": "mkt234",
+    "nightly_price": 199.0,
+    "name": "market listing 234"
+   },
+   {
+    "room_id": "mkt235",
+    "nightly_price": 199.0,
+    "name": "market listing 235"
+   },
+   {
+    "room_id": "mkt236",
+    "nightly_price": 199.0,
+    "name": "market listing 236"
+   },
+   {
+    "room_id": "mkt237",
+    "nightly_price": 199.0,
+    "name": "market listing 237"
+   },
+   {
+    "room_id": "mkt238",
+    "nightly_price": 199.0,
+    "name": "market listing 238"
+   },
+   {
+    "room_id": "mkt239",
+    "nightly_price": 199.0,
+    "name": "market listing 239"
+   },
+   {
+    "room_id": "mkt240",
+    "nightly_price": 199.0,
+    "name": "market listing 240"
+   },
+   {
+    "room_id": "mkt241",
+    "nightly_price": 199.0,
+    "name": "market listing 241"
+   },
+   {
+    "room_id": "mkt242",
+    "nightly_price": 199.0,
+    "name": "market listing 242"
+   },
+   {
+    "room_id": "mkt243",
+    "nightly_price": 199.0,
+    "name": "market listing 243"
+   },
+   {
+    "room_id": "mkt244",
+    "nightly_price": 199.0,
+    "name": "market listing 244"
+   },
+   {
+    "room_id": "mkt245",
+    "nightly_price": 199.0,
+    "name": "market listing 245"
+   },
+   {
+    "room_id": "mkt246",
+    "nightly_price": 199.0,
+    "name": "market listing 246"
+   },
+   {
+    "room_id": "mkt247",
+    "nightly_price": 199.0,
+    "name": "market listing 247"
+   },
+   {
+    "room_id": "mkt248",
+    "nightly_price": 199.0,
+    "name": "market listing 248"
+   },
+   {
+    "room_id": "mkt249",
+    "nightly_price": 199.0,
+    "name": "market listing 249"
+   },
+   {
+    "room_id": "mkt250",
+    "nightly_price": 199.0,
+    "name": "market listing 250"
+   },
+   {
+    "room_id": "mkt251",
+    "nightly_price": 199.0,
+    "name": "market listing 251"
+   },
+   {
+    "room_id": "mkt252",
+    "nightly_price": 199.0,
+    "name": "market listing 252"
+   },
+   {
+    "room_id": "mkt253",
+    "nightly_price": 199.0,
+    "name": "market listing 253"
+   },
+   {
+    "room_id": "mkt254",
+    "nightly_price": 199.0,
+    "name": "market listing 254"
+   },
+   {
+    "room_id": "mkt255",
+    "nightly_price": 199.0,
+    "name": "market listing 255"
+   },
+   {
+    "room_id": "mkt256",
+    "nightly_price": 199.0,
+    "name": "market listing 256"
+   },
+   {
+    "room_id": "mkt257",
+    "nightly_price": 199.0,
+    "name": "market listing 257"
+   },
+   {
+    "room_id": "mkt258",
+    "nightly_price": 199.0,
+    "name": "market listing 258"
+   },
+   {
+    "room_id": "mkt259",
+    "nightly_price": 199.0,
+    "name": "market listing 259"
+   },
+   {
+    "room_id": "mkt260",
+    "nightly_price": 199.0,
+    "name": "market listing 260"
+   },
+   {
+    "room_id": "mkt261",
+    "nightly_price": 199.0,
+    "name": "market listing 261"
+   },
+   {
+    "room_id": "mkt262",
+    "nightly_price": 199.0,
+    "name": "market listing 262"
+   },
+   {
+    "room_id": "mkt263",
+    "nightly_price": 199.0,
+    "name": "market listing 263"
+   },
+   {
+    "room_id": "mkt264",
+    "nightly_price": 199.0,
+    "name": "market listing 264"
+   },
+   {
+    "room_id": "mkt265",
+    "nightly_price": 199.0,
+    "name": "market listing 265"
+   },
+   {
+    "room_id": "mkt266",
+    "nightly_price": 199.0,
+    "name": "market listing 266"
+   },
+   {
+    "room_id": "mkt267",
+    "nightly_price": 199.0,
+    "name": "market listing 267"
+   },
+   {
+    "room_id": "mkt268",
+    "nightly_price": 199.0,
+    "name": "market listing 268"
+   },
+   {
+    "room_id": "mkt269",
+    "nightly_price": 199.0,
+    "name": "market listing 269"
+   },
+   {
+    "room_id": "mkt270",
+    "nightly_price": 199.0,
+    "name": "market listing 270"
+   },
+   {
+    "room_id": "mkt271",
+    "nightly_price": 199.0,
+    "name": "market listing 271"
+   },
+   {
+    "room_id": "mkt272",
+    "nightly_price": 199.0,
+    "name": "market listing 272"
+   },
+   {
+    "room_id": "mkt273",
+    "nightly_price": 199.0,
+    "name": "market listing 273"
+   },
+   {
+    "room_id": "mkt274",
+    "nightly_price": 199.0,
+    "name": "market listing 274"
+   }
+  ]
+ },
+ "calendars": {}
+}

@@ -1,0 +1,293 @@
+"""Price composer — maximizes E[RevPAN] subject to guardrails, then explains itself.
+
+v1 chose a price by multiplying rules together and clamping to the ceiling. That
+optimizes a rate. This version searches a grid over [floor, ceiling] and selects the
+price maximizing `P x P(book|P)`, which is what "RevPAN is the core metric" has to
+mean operationally. Multipliers now shape the SEARCH BOUNDS and the reference price
+rather than being the answer.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import sqlite3
+import uuid
+from dataclasses import dataclass
+from datetime import date
+from typing import Any
+
+import numpy as np
+
+from src import bookprob
+from src.ceiling import CeilingResult, compute_ceiling
+from src.config import load_policy
+from src.elasticity import elasticity_context, maybe_soften
+from src.explain import Reason, select_top_reasons
+from src.features import NightFeatures, build_features
+from src.guardrails import DataHealth, apply_guardrails, assess_data_health, record_health
+from src.leakage import apply_leakage_price, scan_leakage
+from src.utils import round_price_conservative
+
+
+@dataclass
+class Recommendation:
+    property_id: str
+    stay_date: date
+    recommended_price: float
+    ceiling_price: float
+    floor_price: float
+    listed_price_at_run: float | None
+    expected_book_prob: float | None
+    expected_revpan: float | None
+    ceiling_confidence: float
+    autonomy_level: str
+    guardrail_action: str | None
+    reasons: list[dict[str, Any]]
+    rule_version: str
+    model_version: str
+    inputs_hash: str
+    run_id: str
+    status: str = "suggested"
+
+
+def _search_bounds(feat: NightFeatures, ceiling: CeilingResult, policy: dict[str, Any]) -> tuple[float, float]:
+    g = policy.get("global", {})
+    floor = max(feat.min_floor_rate, float(g.get("min_price", 0)), ceiling.floor_price)
+    ceil = min(feat.max_ceiling_rate, float(g.get("max_price", 1e9)), ceiling.ceiling_price)
+    return floor, max(ceil, floor)
+
+
+def _optimize_revpan(
+    bp: bookprob.BookingProbability,
+    floor: float,
+    ceil: float,
+    steps: int,
+) -> tuple[float, float, float]:
+    """Return (best_price, prob_at_best, expected_revpan)."""
+    if ceil <= floor:
+        return floor, bp.prob_at(floor), bp.expected_revpan(floor)
+    grid = np.linspace(floor, ceil, max(2, steps))
+    values = [bp.expected_revpan(float(p)) for p in grid]
+    i = int(np.argmax(values))
+    best = float(grid[i])
+    return best, bp.prob_at(best), float(values[i])
+
+
+def _inputs_hash(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
+def recommend_night(
+    conn: sqlite3.Connection,
+    feat: NightFeatures,
+    policy: dict[str, Any] | None = None,
+    health: DataHealth | None = None,
+    run_id: str = "adhoc",
+) -> Recommendation | None:
+    if feat.status != "available":
+        return None
+
+    policy = policy or load_policy()
+    g = policy.get("global", {})
+    round_to = int(g.get("round_to", 5))
+    max_reasons = int(policy.get("explain", {}).get("max_reasons", 3))
+    steps = int(policy.get("compose", {}).get("candidate_steps", 40))
+
+    ceiling = compute_ceiling(conn, feat, policy)
+    floor, ceil = _search_bounds(feat, ceiling, policy)
+    bp = bookprob.estimate(conn, feat, policy)
+
+    # 1. RevPAN optimum over the admissible band.
+    optimum, prob, exp_revpan = _optimize_revpan(bp, floor, ceil, steps)
+
+    # 2. Leakage scanners may override the optimum (orphan gaps in particular are a
+    #    fill problem, not a yield problem).
+    findings = scan_leakage(feat, ceiling, optimum, policy)
+    leaked_price, primary_leak = apply_leakage_price(optimum, findings)
+
+    # 3. Elasticity softening on weak first-party conversion.
+    ctx = elasticity_context(conn, feat, policy)
+    softened = maybe_soften(feat.listed_price, leaked_price, ctx, policy)
+
+    # 4. Deference to the incumbent price when our own evidence is weak. The operator
+    #    set the current price deliberately; a low-confidence model must nudge it, not
+    #    overrule it. See config compose.deference for the measured motivation.
+    deferred = softened
+    deference_shift = 0.0
+    dcfg = policy.get("compose", {}).get("deference", {})
+    if (dcfg.get("enabled", True) and feat.listed_price
+            and ceiling.confidence < float(dcfg.get("below_confidence", 0.80))):
+        w = max(float(dcfg.get("min_model_weight", 0.25)), ceiling.confidence)
+        deferred = w * softened + (1.0 - w) * float(feat.listed_price)
+        deference_shift = deferred - softened
+
+    pre_guard = min(max(deferred, floor), ceil)
+
+    # 5. Hard invariants. Never overridable.
+    verdict = apply_guardrails(
+        proposed=pre_guard,
+        listed=feat.listed_price,
+        anchor=ceiling.anchor_price,
+        demand_strength=feat.demand_strength,
+        policy=policy,
+    )
+    recommended = round_price_conservative(verdict.price, feat.listed_price, round_to)
+
+    # 6. Autonomy: derived from data health, further demoted by thin ceilings.
+    level = health.granted_level if health else "suggest"
+    min_conf = float(policy.get("autonomy", {}).get("require_ceiling_confidence", 0.80))
+    if ceiling.confidence < min_conf and level == "handle":
+        level = "suggest"
+    if verdict.blocked:
+        level = "escalate"
+
+    # ---- attribution -------------------------------------------------------
+    listed = feat.listed_price
+    reasons: list[Reason] = []
+
+    if listed is not None:
+        reasons.append(Reason(
+            "revpan_optimum",
+            f"E[RevPAN] peaks at ${optimum:.0f} (P(book)={bp.prob_at(optimum):.0%}, "
+            f"beta={bp.beta:.2f}, bucket {bp.bucket} n={bp.sample_size})",
+            contribution=optimum - listed,
+        ))
+    reasons.append(Reason(
+        "base_compose",
+        f"Ceiling ${ceiling.ceiling_price:.0f} via {ceiling.method} "
+        f"(n={ceiling.sample_size}, confidence {ceiling.confidence:.0%})",
+        contribution=0.0,
+    ))
+    if ceiling.is_thin:
+        reasons.append(Reason(
+            "thin_history",
+            f"Thin {feat.season} history — ceiling blended {1 - ceiling.confidence:.0%} "
+            f"toward the ${ceiling.anchor_price:.0f} seasonal anchor",
+            contribution=(ceiling.ceiling_price - ceiling.anchor_price) * (1 - ceiling.confidence),
+        ))
+    if ceiling.comp_price is not None:
+        reasons.append(Reason(
+            "comp_move",
+            f"Comp set p75 ${ceiling.comp_price:.0f} (weight {ceiling.comp_weight:.0%})",
+            contribution=(ceiling.comp_price - ceiling.anchor_price) * ceiling.comp_weight,
+        ))
+    if feat.demand_event and feat.demand_strength >= 0.5:
+        reasons.append(Reason(
+            "event_boost",
+            f"{feat.demand_event} (demand {feat.demand_strength:.2f})",
+            contribution=0.0,
+        ))
+    if bp.pacing_ratio is not None:
+        reasons.append(Reason(
+            "pacing",
+            f"Pacing {bp.pacing_ratio:.2f}x the portfolio norm at this lead time",
+            contribution=0.0,
+        ))
+    for f in findings:
+        code = {"peak_underprice": "ceiling_gap", "orphan_gap": "gap_night",
+                "shoulder_over_discount": "shoulder_floor"}.get(f.kind)
+        if code:
+            reasons.append(Reason(code, f.detail,
+                                  contribution=f.suggested_adjustment - optimum))
+    if ctx.soften_upward:
+        reasons.append(Reason("inquiry_soft", ctx.note, contribution=softened - leaked_price))
+    if abs(deference_shift) >= 1.0:
+        reasons.append(Reason(
+            "thin_history",
+            f"Low ceiling confidence ({ceiling.confidence:.0%}) — held "
+            f"{1 - max(float(dcfg.get('min_model_weight', 0.25)), ceiling.confidence):.0%} "
+            f"toward your listed ${feat.listed_price:.0f}",
+            contribution=deference_shift,
+        ))
+    if verdict.action:
+        reasons.append(Reason("guardrail",
+                              f"{verdict.action}: {verdict.detail}",
+                              contribution=verdict.price - pre_guard,
+                              always_show=True))
+
+    top = select_top_reasons(reasons, max_n=max_reasons)
+    payload = {
+        "property_id": feat.property_id, "stay_date": feat.stay_date.isoformat(),
+        "listed": listed, "optimum": optimum, "ceiling": ceiling.ceiling_price,
+        "floor": floor, "beta": bp.beta, "p_ref": bp.p_ref,
+        "rule_version": policy.get("rule_version"), "model_version": policy.get("model_version"),
+    }
+    return Recommendation(
+        property_id=feat.property_id,
+        stay_date=feat.stay_date,
+        recommended_price=recommended,
+        ceiling_price=ceiling.ceiling_price,
+        floor_price=floor,
+        listed_price_at_run=listed,
+        expected_book_prob=bp.prob_at(recommended),
+        expected_revpan=bp.expected_revpan(recommended),
+        ceiling_confidence=ceiling.confidence,
+        autonomy_level=level,
+        guardrail_action=verdict.action,
+        reasons=[r.as_dict() for r in top],
+        rule_version=str(policy.get("rule_version", "unknown")),
+        model_version=str(policy.get("model_version", "rules_v2")),
+        inputs_hash=_inputs_hash(payload),
+        run_id=run_id,
+        status="blocked" if verdict.blocked else "suggested",
+    )
+
+
+def persist_recommendation(conn: sqlite3.Connection, rec: Recommendation) -> int:
+    cur = conn.execute(
+        """
+        INSERT INTO price_recommendations (
+            run_id, property_id, stay_date, recommended_price, ceiling_price, floor_price,
+            listed_price_at_run, expected_book_prob, expected_revpan, ceiling_confidence,
+            autonomy_level, guardrail_action, reasons, rule_version, model_version,
+            inputs_hash, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(run_id, property_id, stay_date) DO UPDATE SET
+            recommended_price=excluded.recommended_price,
+            expected_book_prob=excluded.expected_book_prob,
+            expected_revpan=excluded.expected_revpan,
+            guardrail_action=excluded.guardrail_action,
+            reasons=excluded.reasons, status=excluded.status
+        """,
+        (rec.run_id, rec.property_id, rec.stay_date.isoformat(), rec.recommended_price,
+         rec.ceiling_price, rec.floor_price, rec.listed_price_at_run, rec.expected_book_prob,
+         rec.expected_revpan, rec.ceiling_confidence, rec.autonomy_level, rec.guardrail_action,
+         json.dumps(rec.reasons), rec.rule_version, rec.model_version, rec.inputs_hash, rec.status),
+    )
+    return int(cur.lastrowid)
+
+
+def generate_recommendations(
+    conn: sqlite3.Connection,
+    start: date,
+    end: date,
+    property_ids: list[str] | None = None,
+    policy: dict[str, Any] | None = None,
+    persist: bool = True,
+    run_id: str | None = None,
+    allow_past: bool = False,
+) -> tuple[list[Recommendation], DataHealth]:
+    policy = policy or load_policy()
+    run_id = run_id or uuid.uuid4().hex[:12]
+    health = assess_data_health(conn, policy)
+    if persist:
+        record_health(conn, run_id, health)
+
+    features = build_features(conn, start, end, property_ids=property_ids, policy=policy)
+    if not allow_past:
+        # Pricing a night that has already happened is always a bug in a live run.
+        # Backtests must opt in explicitly.
+        today = date.today()
+        features = [f for f in features if f.stay_date >= today]
+    recs: list[Recommendation] = []
+    for feat in features:
+        rec = recommend_night(conn, feat, policy=policy, health=health, run_id=run_id)
+        if rec is None:
+            continue
+        if persist:
+            persist_recommendation(conn, rec)
+        recs.append(rec)
+    if persist:
+        conn.commit()
+    return recs, health

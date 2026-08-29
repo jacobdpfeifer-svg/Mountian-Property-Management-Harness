@@ -1,0 +1,60 @@
+# First-class markets for Pfeifer Optimization.
+# SNOTEL triplets verified against NRCS sitelist (network=SNTL, state=CO).
+# region_legacy maps the pre–Pfeifer Optimization string region columns.
+
+markets:
+  - market_id: grand_home
+    name: Winter Park / Fraser / Tabernash
+    ring: home
+    county: Grand
+    region_legacy: winter_park
+    bbox: {ne_lat: 39.95, ne_lng: -105.70, sw_lat: 39.85, sw_lng: -105.82}
+    centroid: {lat: 39.90, lng: -105.76}
+    snotel_stations:
+      - "335:CO:SNTL"    # Berthoud Summit 11,300 ft
+      - "1186:CO:SNTL"   # Fool Creek
+
+  - market_id: grand_valley
+    name: Granby / Grand Lake / Hot Sulphur / Kremmling
+    ring: valley
+    county: Grand
+    region_legacy: grand_valley
+    bbox: {ne_lat: 40.30, ne_lng: -105.70, sw_lat: 39.95, sw_lng: -106.45}
+    centroid: {lat: 40.15, lng: -105.95}
+    snotel_stations:
+      - "688:CO:SNTL"    # Phantom Valley
+      - "869:CO:SNTL"    # Willow Creek Pass
+
+  - market_id: summit
+    name: Breckenridge / Keystone / Frisco / Silverthorne
+    ring: substitute
+    county: Summit
+    region_legacy: summit
+    bbox: {ne_lat: 39.75, ne_lng: -105.85, sw_lat: 39.40, sw_lng: -106.20}
+    centroid: {lat: 39.58, lng: -106.05}
+    snotel_stations:
+      - "505:CO:SNTL"    # Grizzly Peak
+      - "415:CO:SNTL"    # Copper Mountain
+      - "531:CO:SNTL"    # Hoosier Pass
+
+  - market_id: clear_creek_eagle
+    name: Georgetown / Idaho Springs / Vail / Avon
+    ring: substitute
+    county: Clear Creek / Eagle
+    region_legacy: clear_creek_eagle
+    bbox: {ne_lat: 39.80, ne_lng: -105.40, sw_lat: 39.50, sw_lng: -106.55}
+    centroid: {lat: 39.65, lng: -106.00}
+    snotel_stations:
+      - "602:CO:SNTL"    # Loveland Basin
+      - "842:CO:SNTL"    # Vail Mountain
+
+  - market_id: routt
+    name: Steamboat Springs
+    ring: watch
+    county: Routt
+    region_legacy: routt
+    bbox: {ne_lat: 40.60, ne_lng: -106.70, sw_lat: 40.40, sw_lng: -106.95}
+    centroid: {lat: 40.48, lng: -106.83}
+    snotel_stations:
+      - "709:CO:SNTL"    # Rabbit Ears
+      - "825:CO:SNTL"    # Tower
