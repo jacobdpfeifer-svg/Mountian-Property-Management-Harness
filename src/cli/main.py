@@ -133,15 +133,20 @@ def cmd_discover_comps(args: argparse.Namespace) -> int:
     check_in = parse_date(args.date) if args.date else date.today() + timedelta(days=45)
     rows = discover_comps(provider, check_in, int(policy["scrape"]["window_nights"]),
                           min_price=args.min_price or float(cfg.get("min_price", 400)),
-                          limit=args.limit or int(cfg.get("limit", 40)))
+                          limit=args.limit or int(cfg.get("limit", 40)),
+                          policy=policy)
     if not rows:
-        print("No listings returned — the sweep failed or nothing cleared the price floor.")
+        print("No listings returned — the sweep failed or nothing cleared the price/size floor.")
         return 1
+    gcfg = policy.get("scrape", {}).get("group_size", {})
     print(f"Top {len(rows)} Winter Park listings by nightly rate for {check_in} "
-          f"(candidate luxury comp set):\n")
-    print(f"{'room_id':22}{'$/night':>9}  name")
+          f"(group-size filter: bd>={gcfg.get('min_bedrooms', '?')}, "
+          f"sleeps>={gcfg.get('min_sleeps', '?')}):\n")
+    print(f"{'room_id':22}{'$/night':>9}{'bd':>4}{'slp':>5}  name")
     for r in rows:
-        print(f"{r['room_id']:22}{r['nightly_price']:>9.0f}  {(r['name'] or '')[:52]}")
+        bd = "" if r.get("bedrooms") is None else str(r["bedrooms"])
+        sl = "" if r.get("sleeps") is None else str(r["sleeps"])
+        print(f"{r['room_id']:22}{r['nightly_price']:>9.0f}{bd:>4}{sl:>5}  {(r['name'] or '')[:48]}")
     print("\nAdd the ones you want to data/sample/comps.csv (or your own comps CSV) with")
     print("columns comp_id,name,airbnb_room_id,for_properties, then run `wp-price ingest-csv`.")
     return 0
@@ -173,10 +178,20 @@ def _print_recs(recs, limit: int) -> None:
             pct = (rec.recommended_price - rec.listed_price_at_run) / rec.listed_price_at_run
             delta = f" ({pct:+.1%})"
         flag = f"  [{rec.status.upper()}]" if rec.status == "blocked" else ""
+        los = ""
+        if getattr(rec, "recommended_min_stay", None) is not None:
+            src = getattr(rec, "min_stay_source", "") or ""
+            los = f"  minStay={rec.recommended_min_stay}({src})"
+        pp = ""
+        if getattr(rec, "per_person_nightly", None) is not None:
+            occ = getattr(rec, "max_occupancy", None)
+            pp = f"  ${rec.per_person_nightly:.0f}/person"
+            if occ:
+                pp += f"/{occ}"
         print(
             f"  {rec.property_id:14} {rec.stay_date}  {listed:>7} -> "
             f"${rec.recommended_price:.0f}{delta}  "
-            f"P(book)={rec.expected_book_prob:.0%}  {rec.autonomy_level}{flag}"
+            f"P(book)={rec.expected_book_prob:.0%}  {rec.autonomy_level}{los}{pp}{flag}"
         )
         for r in rec.reasons:
             c = f"{r['contribution']:+.0f}" if r.get("contribution") else "  ."
@@ -230,7 +245,7 @@ def cmd_push(args: argparse.Namespace) -> int:
             print(f"  gate: {f}")
         if withheld:
             print(f"Run scope cap: withholding {len(withheld)} largest move(s) for review")
-        counts = push_recommendations(conn, pushable, adapter, health.granted_level)
+        counts = push_recommendations(conn, pushable, adapter, health.granted_level, policy=policy)
     print(f"Push via '{args.adapter}': {json.dumps(counts)}")
     if health.granted_level != "handle":
         print("No rates written — data health did not grant 'handle'. "

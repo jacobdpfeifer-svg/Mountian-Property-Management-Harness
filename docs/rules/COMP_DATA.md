@@ -16,6 +16,12 @@ to the comp set afterwards. This is roughly two orders of magnitude fewer reques
 and it yields the whole-market distribution (`market_snapshots`) for free — which is
 what makes "invisible in comps" detectable at all.
 
+**Group-size tier.** Discovery and curated evidence filter to large-group peers
+(`scrape.group_size`: default bedrooms ≥ 5, sleeps ≥ 14) so small units do not
+contaminate ceilings for sleeps-16–18 homes. Market percentiles prefer sized
+listings that pass the same filter when enough observations exist. Thresholds are
+**owner-tunable** (twins are 5bd — a 6+ bedroom cutoff would be too strict).
+
 **Sampling.** Windows are sampled one midweek (Tue) + one weekend (Fri) per week
 rather than every night, because the ceiling consumes comp evidence at the
 season x day-of-week level. `src/comps` falls back to nearby same-weekday-class

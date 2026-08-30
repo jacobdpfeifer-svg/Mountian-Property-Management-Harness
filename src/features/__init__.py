@@ -55,18 +55,37 @@ def _demand_index(events: list[dict[str, Any]]) -> dict[date, tuple[float, str]]
     return index
 
 
-def _db_demand(conn: sqlite3.Connection) -> dict[date, tuple[float, str]]:
-    index: dict[date, tuple[float, str]] = {}
+def _db_demand(
+    conn: sqlite3.Connection,
+    region: str = "winter_park",
+) -> dict[date, tuple[float, str]]:
+    """Load demand_signals for one region (plus legacy blank-region rows).
+
+    Region collapse was a bug: valley/substitute market signals could overwrite
+    Winter Park strengths for the same calendar date. Exact-region rows win.
+    """
+    best: dict[date, tuple[float, str, bool]] = {}
     rows = conn.execute(
-        "SELECT signal_date, event_name, signal_strength FROM demand_signals"
+        """
+        SELECT signal_date, event_name, signal_strength, region FROM demand_signals
+        WHERE region = ? OR region = '' OR region IS NULL
+        """,
+        (region,),
     ).fetchall()
     for row in rows:
         d = parse_date(row["signal_date"])
         strength = float(row["signal_strength"])
-        prev = index.get(d)
-        if prev is None or strength > prev[0]:
-            index[d] = (strength, row["event_name"])
-    return index
+        exact = (row["region"] or "").strip() == region
+        prev = best.get(d)
+        if prev is None:
+            best[d] = (strength, row["event_name"], exact)
+            continue
+        prev_strength, _prev_name, prev_exact = prev
+        if exact and not prev_exact:
+            best[d] = (strength, row["event_name"], True)
+        elif exact == prev_exact and strength > prev_strength:
+            best[d] = (strength, row["event_name"], exact)
+    return {d: (s, n) for d, (s, n, _) in best.items()}
 
 
 def _orphan_gaps(conn: sqlite3.Connection, property_id: str, max_gap: int) -> dict[date, int]:
@@ -126,7 +145,12 @@ def build_features_for_property(
         raise KeyError(f"Unknown property_id: {property_id}")
 
     event_demand = _demand_index(load_events())
-    event_demand.update(_db_demand(conn))
+    demand_region = str(
+        (policy.get("scrape") or {}).get("region")
+        or (policy.get("demand") or {}).get("region")
+        or "winter_park"
+    )
+    event_demand.update(_db_demand(conn, region=demand_region))
     max_gap = int(policy.get("leakage", {}).get("orphan_gap", {}).get("max_gap_nights", 2))
     orphan = _orphan_gaps(conn, property_id, max_gap)
 

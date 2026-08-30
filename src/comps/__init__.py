@@ -57,15 +57,36 @@ def comp_evidence(
     min_members = int(health.get("comp_min_members", 3))
     pct = float(policy.get("ceiling", {}).get("comp_percentile", 0.75))
 
-    members = [
-        r["comp_id"]
-        for r in conn.execute(
-            "SELECT comp_id FROM comp_set_members WHERE property_id = ?",
-            (feat.property_id,),
-        ).fetchall()
-    ]
+    members_rows = conn.execute(
+        """
+        SELECT m.comp_id, c.bedrooms, c.sleeps
+        FROM comp_set_members m
+        JOIN comps c ON c.comp_id = m.comp_id
+        WHERE m.property_id = ? AND c.active = 1
+        """,
+        (feat.property_id,),
+    ).fetchall()
+
+    gcfg = (policy.get("scrape") or {}).get("group_size") or {}
+    min_bd = gcfg.get("min_bedrooms")
+    min_sl = gcfg.get("min_sleeps")
+    keep_unknown = bool(gcfg.get("keep_unknown_curated", True))
+
+    def _passes_tier(bedrooms: Any, sleeps: Any) -> bool:
+        bd = int(bedrooms) if bedrooms is not None else None
+        sl = int(sleeps) if sleeps is not None else None
+        if bd is None and sl is None:
+            return keep_unknown
+        if min_bd is not None and bd is not None and bd < int(min_bd):
+            return False
+        if min_sl is not None and sl is not None and sl < int(min_sl):
+            return False
+        return True
+
+    members = [r["comp_id"] for r in members_rows if _passes_tier(r["bedrooms"], r["sleeps"])]
     if not members:
-        return CompEvidence(None, 0.0, 0, 0, None, False, "no comp set defined")
+        return CompEvidence(None, 0.0, 0, 0, None, False,
+                            "no comp set members pass group-size filter")
 
     placeholders = ",".join("?" for _ in members)
 

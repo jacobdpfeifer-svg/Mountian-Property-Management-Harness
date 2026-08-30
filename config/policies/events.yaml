@@ -1,5 +1,9 @@
 # Recurring / dated demand signals for Winter Park region.
 # signal_strength: 0.0–1.0
+#
+# OWNER DECISION: Add/remove named festivals and resort milestones here.
+# Weather/snowfall stay on the SQI path (conditions.yaml) — do not fold into
+# these calendar demand scores.
 
 signals:
   - event_name: "Christmas / New Year holiday peak"
@@ -32,10 +36,40 @@ signals:
     signal_strength: 0.55
     source: "calendar"
 
+  - event_name: "Ski season close / late-season powder"
+    start: "2026-03-23"
+    end: "2026-04-12"
+    signal_strength: 0.50
+    source: "calendar"
+
+  - event_name: "Winter Park Jazz Fest"
+    start: "2026-07-10"
+    end: "2026-07-12"
+    signal_strength: 0.70
+    source: "calendar"
+
+  - event_name: "Alpine Mountain Challenge / trail race weekend"
+    start: "2026-07-25"
+    end: "2026-07-26"
+    signal_strength: 0.55
+    source: "calendar"
+
   - event_name: "Summer festival / trail season"
     start: "2026-07-01"
     end: "2026-08-15"
     signal_strength: 0.60
+    source: "calendar"
+
+  - event_name: "Labor Day weekend"
+    start: "2026-09-04"
+    end: "2026-09-07"
+    signal_strength: 0.65
+    source: "calendar"
+
+  - event_name: "Fall color peak"
+    start: "2026-09-18"
+    end: "2026-10-04"
+    signal_strength: 0.55
     source: "calendar"
 
   - event_name: "Christmas / New Year holiday peak"

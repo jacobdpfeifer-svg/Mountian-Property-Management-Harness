@@ -101,6 +101,27 @@ def _record_market(conn: sqlite3.Connection, as_of: date, sweep: SweepResult,
         )
 
 
+def _group_size_prices(listings: list, policy: dict[str, Any]) -> list[float]:
+    """Market percentile prices filtered to the large-group tier when size is known."""
+    gcfg = (policy.get("scrape") or {}).get("group_size") or {}
+    min_bd = gcfg.get("min_bedrooms")
+    min_sl = gcfg.get("min_sleeps")
+    filtered: list[float] = []
+    for l in listings:
+        if not l.nightly_price:
+            continue
+        bd, sl = l.bedrooms, l.sleeps
+        if bd is None and sl is None:
+            # Unknown size: exclude from tiered market stats (avoid small-unit pull-down).
+            continue
+        if min_bd is not None and bd is not None and bd < int(min_bd):
+            continue
+        if min_sl is not None and sl is not None and sl < int(min_sl):
+            continue
+        filtered.append(float(l.nightly_price))
+    return filtered
+
+
 def run_scrape(
     conn: sqlite3.Connection,
     provider: CompProvider,
@@ -153,7 +174,11 @@ def run_scrape(
             continue
 
         report.windows_ok += 1
-        _record_market(conn, as_of, sweep, [float(p) for p in prices], run_id, region=region)
+        # Prefer group-size-filtered market distribution; fall back to full sweep
+        # when too few sized listings are present.
+        tier_prices = _group_size_prices(sweep.listings, policy)
+        market_prices = tier_prices if len(tier_prices) >= 5 else [float(p) for p in prices]
+        _record_market(conn, as_of, sweep, market_prices, run_id, region=region)
 
         seen_this_window: set[str] = set()
         for listing in sweep.listings:
@@ -194,6 +219,13 @@ def run_scrape(
     report.comps_matched = len(matched_ids)
     report.status = _verdict(report, policy)
     _finish(conn, report)
+    # Upstream demand contributor: comp rate movement → demand_signals (soft).
+    try:
+        from src.signals.comp_movement import upsert_comp_movement_signals
+
+        upsert_comp_movement_signals(conn, as_of=as_of, region=region)
+    except Exception as exc:  # noqa: BLE001 — never fail a scrape on demand shim
+        report.errors.append(f"comp_movement signal: {type(exc).__name__}: {exc}")
     return report
 
 
@@ -279,19 +311,49 @@ def discover_comps(
     nights: int,
     min_price: float,
     limit: int = 40,
+    *,
+    min_bedrooms: int | None = None,
+    min_sleeps: int | None = None,
+    policy: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Rank the live market to help the operator curate a luxury comp set."""
+    """Rank the live market to help the operator curate a luxury comp set.
+
+    Group-size filters keep small-unit listings out of the candidate pool for
+    sleeps-16–18 homes. OWNER-TUNABLE thresholds live in scrape.group_size.
+    """
+    if policy:
+        gcfg = (policy.get("scrape") or {}).get("group_size") or {}
+        dcfg = (policy.get("scrape") or {}).get("discover") or {}
+        if dcfg.get("apply_group_size_filter", True):
+            if min_bedrooms is None:
+                min_bedrooms = int(gcfg["min_bedrooms"]) if gcfg.get("min_bedrooms") is not None else None
+            if min_sleeps is None:
+                min_sleeps = int(gcfg["min_sleeps"]) if gcfg.get("min_sleeps") is not None else None
+
     sweep = provider.sweep(check_in, nights)
     if not sweep.ok:
         return []
-    rows = [
-        {"room_id": l.room_id, "name": l.name, "nightly_price": l.nightly_price,
-         "rating": l.rating}
-        for l in sweep.listings
-        if l.nightly_price and l.nightly_price >= min_price
-    ]
+    rows: list[dict[str, Any]] = []
+    for l in sweep.listings:
+        if not l.nightly_price or l.nightly_price < min_price:
+            continue
+        if min_bedrooms is not None and l.bedrooms is not None and l.bedrooms < min_bedrooms:
+            continue
+        if min_sleeps is not None and l.sleeps is not None and l.sleeps < min_sleeps:
+            continue
+        # When size is unknown, include for operator review but mark it.
+        rows.append({
+            "room_id": l.room_id,
+            "name": l.name,
+            "nightly_price": l.nightly_price,
+            "rating": l.rating,
+            "bedrooms": l.bedrooms,
+            "sleeps": l.sleeps,
+            "size_known": l.bedrooms is not None or l.sleeps is not None,
+        })
     rows.sort(key=lambda r: r["nightly_price"], reverse=True)
     return rows[:limit]
+
 
 
 def min_stay_wall_distribution(
