@@ -33,7 +33,33 @@ class Listing:
     nightly_price: float | None
     name: str | None = None
     bedrooms: int | None = None
+    sleeps: int | None = None
     rating: float | None = None
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _listing_size(item: dict[str, Any]) -> tuple[int | None, int | None]:
+    """Best-effort bedrooms / sleeps from Airbnb search payloads."""
+    room = item.get("room") if isinstance(item.get("room"), dict) else {}
+    bedrooms = _int_or_none(
+        item.get("bedrooms") or item.get("beds") or room.get("bedrooms")
+    )
+    sleeps = _int_or_none(
+        item.get("personCapacity")
+        or item.get("person_capacity")
+        or item.get("sleeps")
+        or item.get("guests")
+        or room.get("personCapacity")
+    )
+    return bedrooms, sleeps
 
 
 @dataclass
@@ -128,10 +154,13 @@ class PyAirbnbProvider(CompProvider):
                 continue
             seen.add(str(room_id))
             rating = item.get("rating")
+            bedrooms, sleeps = _listing_size(item)
             listings.append(Listing(
                 room_id=str(room_id),
                 nightly_price=nightly_price(item, nights),
                 name=str(item.get("name") or "") or None,
+                bedrooms=bedrooms,
+                sleeps=sleeps,
                 rating=rating.get("value") if isinstance(rating, dict) else None,
             ))
         return SweepResult(check_in, nights, listings, True)
@@ -178,7 +207,13 @@ class FixtureProvider(CompProvider):
             if str(x["room_id"]) in seen:
                 continue
             seen.add(str(x["room_id"]))
-            listings.append(Listing(str(x["room_id"]), x.get("nightly_price"), x.get("name")))
+            listings.append(Listing(
+                str(x["room_id"]),
+                x.get("nightly_price"),
+                x.get("name"),
+                bedrooms=_int_or_none(x.get("bedrooms")),
+                sleeps=_int_or_none(x.get("sleeps") or x.get("personCapacity")),
+            ))
         return SweepResult(check_in, nights, listings, True)
 
     def calendar(self, room_id: str) -> dict[str, dict[str, Any]]:

@@ -30,6 +30,7 @@ ReasonCode = Literal[
     "guardrail",
     "thin_history",
     "pacing",
+    "min_stay",
 ]
 
 

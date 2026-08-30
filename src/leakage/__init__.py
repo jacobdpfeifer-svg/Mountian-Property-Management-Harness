@@ -87,9 +87,15 @@ def scan_leakage(
         action = None
         if suggest_min_stay:
             action = feat.gap_size
-            if feat.min_stay is not None and feat.min_stay > feat.gap_size:
+            # Prefer the engine policy standing min when present; fall back to PMS.
+            from src.min_stay import resolve_policy_min_stay
+
+            standing = resolve_policy_min_stay(feat.season, feat.lead_time_days, policy)
+            if standing is None:
+                standing = feat.min_stay
+            if standing is not None and standing > feat.gap_size:
                 detail += (
-                    f"; min-stay is {feat.min_stay} so this hole is UNSELLABLE at any "
+                    f"; standing min-stay is {standing} so this hole is UNSELLABLE at any "
                     f"price — relax to {feat.gap_size} first"
                 )
             else:

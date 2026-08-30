@@ -36,9 +36,24 @@ evidence and the seasonal anchor both enter the number.
 3. **Orphan gap nights** — 1-2 empty nights between bookings. **Min-stay is the first
    lever, price is the second**: a 2-night hole cannot be sold at any price while a
    3-night minimum is in force. The scanner emits a `min_stay_action` alongside the
-   gap-fill discount.
+   gap-fill discount; compose persists `recommended_min_stay` and may push relaxed
+   `minNights` when autonomy is `handle` and `leakage.orphan_gap.push_min_stay_relaxation`
+   is true.
 4. **Channel mix drift** — deferred until channel-level data exists.
 5. **Invisible in comps** — flag for manual review when rate band never overlaps curated comps.
+
+## Dynamic minimum stay
+
+Standing min-nights come from `min_stay_rules` in policy: a season × lead-time lookup
+table (far-out / peak → higher; close-in → lower). Gap overrides temporarily relax the
+standing rule for orphan windows. Exact buckets are **owner-tunable** — confirm before
+trusting auto-push of Guesty `minNights`.
+
+## Per-person framing
+
+`recommended_price / max_occupancy` is display-only (CLI + `per_person_nightly` column).
+It never enters RevPAN, ceiling, or booking probability.
+
 
 ## Elasticity
 

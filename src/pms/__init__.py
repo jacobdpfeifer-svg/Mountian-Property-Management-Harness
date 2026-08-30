@@ -139,15 +139,28 @@ def push_recommendations(
     recs: list[Any],
     adapter: PMSAdapter,
     autonomy_level: str,
+    policy: dict[str, Any] | None = None,
 ) -> dict[str, int]:
     """Write rates for recommendations cleared to 'handle'. Every attempt is audited.
 
     Refuses to write anything unless the run was granted 'handle' by the data-health
     gate. Blocked/escalated recommendations are never pushed.
+
+    Min-stay: when the recommendation carries `recommended_min_stay` and policy allows
+    push (gap overrides respect `leakage.orphan_gap.push_min_stay_relaxation`; policy
+    table values always push alongside the rate when present).
     """
     if autonomy_level != "handle":
         return {"attempted": 0, "applied": 0, "failed": 0,
                 "skipped_autonomy": len(recs)}
+
+    if policy is None:
+        from src.config import load_policy
+        policy = load_policy()
+    push_gap = bool(
+        (policy.get("leakage") or {}).get("orphan_gap", {}).get("push_min_stay_relaxation", True)
+    )
+    policy_min_enabled = bool((policy.get("min_stay_rules") or {}).get("enabled", False))
 
     counts = {"attempted": 0, "applied": 0, "failed": 0, "skipped_autonomy": 0}
     for rec in recs:
@@ -155,7 +168,18 @@ def push_recommendations(
             counts["skipped_autonomy"] += 1
             continue
         counts["attempted"] += 1
-        res = adapter.push_rate(rec.property_id, rec.stay_date, rec.recommended_price)
+
+        min_stay = getattr(rec, "recommended_min_stay", None)
+        source = getattr(rec, "min_stay_source", None)
+        if min_stay is not None:
+            if source == "gap_override" and not push_gap:
+                min_stay = None
+            elif source == "policy" and not policy_min_enabled:
+                min_stay = None
+
+        res = adapter.push_rate(
+            rec.property_id, rec.stay_date, rec.recommended_price, min_stay=min_stay
+        )
         rec_id = conn.execute(
             "SELECT id FROM price_recommendations WHERE run_id=? AND property_id=? AND stay_date=?",
             (rec.run_id, rec.property_id, rec.stay_date.isoformat()),
@@ -172,11 +196,19 @@ def push_recommendations(
         )
         if res.result == "applied":
             counts["applied"] += 1
-            conn.execute(
-                "UPDATE nightly_inventory SET listed_price=?, updated_at=datetime('now') "
-                "WHERE property_id=? AND stay_date=?",
-                (rec.recommended_price, rec.property_id, rec.stay_date.isoformat()),
-            )
+            if min_stay is not None:
+                conn.execute(
+                    "UPDATE nightly_inventory SET listed_price=?, min_stay=?, "
+                    "updated_at=datetime('now') WHERE property_id=? AND stay_date=?",
+                    (rec.recommended_price, min_stay, rec.property_id,
+                     rec.stay_date.isoformat()),
+                )
+            else:
+                conn.execute(
+                    "UPDATE nightly_inventory SET listed_price=?, updated_at=datetime('now') "
+                    "WHERE property_id=? AND stay_date=?",
+                    (rec.recommended_price, rec.property_id, rec.stay_date.isoformat()),
+                )
         elif res.result == "failed":
             counts["failed"] += 1
     conn.commit()

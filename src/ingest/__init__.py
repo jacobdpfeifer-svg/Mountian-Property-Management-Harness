@@ -49,13 +49,15 @@ def _json_list(value: Any) -> str:
 
 
 def upsert_property(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
+    occ = row.get("max_occupancy") or row.get("accommodates") or row.get("sleeps")
+    occ_i = int(occ) if occ not in (None, "") else None
     conn.execute(
         """
         INSERT INTO properties (
             property_id, name, bedrooms, bathrooms, amenities,
             base_ceiling_rate, min_floor_rate, max_ceiling_rate,
-            luxury_tier, target_alos, timezone
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            luxury_tier, target_alos, timezone, max_occupancy
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(property_id) DO UPDATE SET
             name=excluded.name,
             bedrooms=excluded.bedrooms,
@@ -66,7 +68,8 @@ def upsert_property(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
             max_ceiling_rate=excluded.max_ceiling_rate,
             luxury_tier=excluded.luxury_tier,
             target_alos=excluded.target_alos,
-            timezone=excluded.timezone
+            timezone=excluded.timezone,
+            max_occupancy=COALESCE(excluded.max_occupancy, properties.max_occupancy)
         """,
         (
             row["property_id"],
@@ -80,6 +83,7 @@ def upsert_property(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
             row.get("luxury_tier") or "luxury",
             float(row.get("target_alos") or 3.0),
             row.get("timezone") or "America/Denver",
+            occ_i,
         ),
     )
 
@@ -168,13 +172,14 @@ class CsvIngestAdapter(IngestAdapter):
             for row in csv.DictReader(f):
                 conn.execute(
                     """
-                    INSERT INTO comps (comp_id, name, bedrooms, bathrooms, amenities,
+                    INSERT INTO comps (comp_id, name, bedrooms, bathrooms, sleeps, amenities,
                         notes, source_url, platform, airbnb_room_id, active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(comp_id) DO UPDATE SET
                         name=excluded.name,
                         bedrooms=excluded.bedrooms,
                         bathrooms=excluded.bathrooms,
+                        sleeps=COALESCE(excluded.sleeps, comps.sleeps),
                         amenities=excluded.amenities,
                         notes=excluded.notes,
                         source_url=excluded.source_url,
@@ -187,6 +192,7 @@ class CsvIngestAdapter(IngestAdapter):
                         row["name"],
                         int(row["bedrooms"]) if row.get("bedrooms") else None,
                         float(row["bathrooms"]) if row.get("bathrooms") else None,
+                        int(row["sleeps"]) if row.get("sleeps") not in (None, "") else None,
                         _json_list(row.get("amenities")),
                         row.get("notes"),
                         row.get("source_url"),

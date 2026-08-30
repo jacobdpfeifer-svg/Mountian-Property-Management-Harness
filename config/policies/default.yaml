@@ -1,4 +1,4 @@
-rule_version: "2026.08.2"
+rule_version: "2026.08.3"
 model_version: "rules_v2_revpan"
 
 # ---------------------------------------------------------------- global clamps
@@ -44,6 +44,34 @@ lead_time_curves:
   - {min_days: 22,  max_days: 60,   multiplier: 1.00}
   - {min_days: 61,  max_days: 120,  multiplier: 1.03}
   - {min_days: 121, max_days: 9999, multiplier: 1.05}
+
+# --------------------------------------------------------------- min-stay rules
+# Dynamic minimum-stay lookup: season × lead time → min nights.
+# Far out + unsold → higher min (protects peak weekends from fragmentation).
+# Close-in + unsold → lower min (fills the calendar).
+#
+# OWNER DECISION: Confirm these buckets/values before enabling Guesty auto-push
+# of minNights. Defaults are reasoned starting points for sleeps-16–18 WP homes.
+min_stay_rules:
+  enabled: true
+  fallback_min_nights: 2
+  by_season:
+    peak_ski:
+      - {min_lead_days: 0,    max_lead_days: 14,   min_nights: 2}
+      - {min_lead_days: 15,   max_lead_days: 60,   min_nights: 3}
+      - {min_lead_days: 61,   max_lead_days: 9999, min_nights: 4}
+    early_winter:
+      - {min_lead_days: 0,    max_lead_days: 21,   min_nights: 2}
+      - {min_lead_days: 22,   max_lead_days: 9999, min_nights: 3}
+    summer:
+      - {min_lead_days: 0,    max_lead_days: 14,   min_nights: 2}
+      - {min_lead_days: 15,   max_lead_days: 9999, min_nights: 3}
+    shoulder_spring:
+      - {min_lead_days: 0,    max_lead_days: 9999, min_nights: 2}
+    shoulder_fall:
+      - {min_lead_days: 0,    max_lead_days: 9999, min_nights: 2}
+    default:
+      - {min_lead_days: 0,    max_lead_days: 9999, min_nights: 2}
 
 seasons:
   peak_ski:        {start: "12-15", end: "03-31", base_multiplier: 1.15}
@@ -121,6 +149,9 @@ leakage:
     discount_multiplier: 0.88
     # The real orphan-gap lever is min-stay, not price. Flag it for the operator.
     suggest_min_stay_relaxation: true
+    # OWNER DECISION: When true and autonomy is handle, push relaxed minNights
+    # alongside the rate. Set false to keep gap overrides suggest-only.
+    push_min_stay_relaxation: true
 
 # ---------------------------------------------------------------------- scrape
 # Comp acquisition. Operator chose scraper-first (docs/LOCKED_INPUTS.md).
@@ -145,6 +176,15 @@ scrape:
   match:
     max_day_distance: 10
     require_same_dow_class: true
+  # Group-size tier filter. Portfolio is 5–6bd / sleeps 16–18; small units must
+  # not contaminate ceiling/elasticity. OWNER DECISION: twins are 5bd — a 6+
+  # bedroom cutoff would exclude valid peers; default is bedrooms ≥ 5, sleeps ≥ 14.
+  group_size:
+    min_bedrooms: 5
+    min_sleeps: 14
+    # When bedrooms/sleeps are unknown on a curated member, keep them (operator
+    # curated intentionally). Discovery still requires known size when filtering.
+    keep_unknown_curated: true
   # A broken parser returns plausible garbage, not exceptions. These reject a sweep
   # that looks like a failure rather than a market.
   validation:
@@ -159,6 +199,8 @@ scrape:
   discover:
     min_price: 400
     limit: 40
+    # Inherit scrape.group_size unless overridden here.
+    apply_group_size_filter: true
 
 # ------------------------------------------------------------------ guardrails
 # Hard invariants. NO autonomy level may override these.
@@ -192,3 +234,13 @@ autonomy:
 
 explain:
   max_reasons: 3
+
+# ----------------------------------------------------------- display framing
+# Per-person price is DISPLAY ONLY — never feeds RevPAN / compose.
+# OWNER DECISION: divisor defaults to Guesty `accommodates` (persisted as
+# max_occupancy). Override per property in the DB if advertised sleeps differ.
+display:
+  per_person:
+    enabled: true
+    # Round per-person figure to this many dollars for listing copy.
+    round_to: 1

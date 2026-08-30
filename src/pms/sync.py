@@ -105,16 +105,18 @@ def sync_listings(conn: sqlite3.Connection, client: GuestyClient,
             """
             INSERT INTO properties (property_id, name, bedrooms, bathrooms, amenities,
                 base_ceiling_rate, min_floor_rate, max_ceiling_rate, luxury_tier,
-                target_alos, timezone, pms_listing_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'luxury', 3.0, ?, ?)
+                target_alos, timezone, pms_listing_id, max_occupancy)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'luxury', 3.0, ?, ?, ?)
             ON CONFLICT(property_id) DO UPDATE SET
                 name=excluded.name, bedrooms=excluded.bedrooms,
                 bathrooms=excluded.bathrooms, amenities=excluded.amenities,
-                timezone=excluded.timezone, pms_listing_id=excluded.pms_listing_id
+                timezone=excluded.timezone, pms_listing_id=excluded.pms_listing_id,
+                max_occupancy=COALESCE(excluded.max_occupancy, properties.max_occupancy)
             """,
             (l.property_id, l.nickname or l.title, l.bedrooms or 0,
              float(l.bathrooms or 0), json.dumps(l.amenities),
-             base_ceiling, floor, max_ceiling, l.timezone, l.listing_id),
+             base_ceiling, floor, max_ceiling, l.timezone, l.listing_id,
+             int(l.accommodates) if l.accommodates else None),
         )
         if l.base_price and l.weekend_base_price and l.base_price == l.weekend_base_price:
             report.warnings.append(

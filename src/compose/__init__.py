@@ -27,6 +27,7 @@ from src.explain import Reason, select_top_reasons
 from src.features import NightFeatures, build_features
 from src.guardrails import DataHealth, apply_guardrails, assess_data_health, record_health
 from src.leakage import apply_leakage_price, scan_leakage
+from src.min_stay import decide_min_stay
 from src.utils import round_price_conservative
 
 
@@ -49,6 +50,30 @@ class Recommendation:
     inputs_hash: str
     run_id: str
     status: str = "suggested"
+    recommended_min_stay: int | None = None
+    min_stay_source: str | None = None
+    per_person_nightly: float | None = None
+    max_occupancy: int | None = None
+
+
+def _property_occupancy(conn: sqlite3.Connection, property_id: str) -> int | None:
+    row = conn.execute(
+        "SELECT max_occupancy FROM properties WHERE property_id = ?",
+        (property_id,),
+    ).fetchone()
+    if row is None or row["max_occupancy"] is None:
+        return None
+    occ = int(row["max_occupancy"])
+    return occ if occ > 0 else None
+
+
+def _per_person_nightly(price: float, occupancy: int | None, policy: dict[str, Any]) -> float | None:
+    """Display-only framing. Never feeds RevPAN."""
+    cfg = (policy.get("display") or {}).get("per_person") or {}
+    if not cfg.get("enabled", True) or occupancy is None or occupancy <= 0:
+        return None
+    round_to = max(1, int(cfg.get("round_to", 1)))
+    return float(round(price / occupancy / round_to) * round_to)
 
 
 def _search_bounds(feat: NightFeatures, ceiling: CeilingResult, policy: dict[str, Any]) -> tuple[float, float]:
@@ -105,6 +130,17 @@ def recommend_night(
     #    fill problem, not a yield problem).
     findings = scan_leakage(feat, ceiling, optimum, policy)
     leaked_price, primary_leak = apply_leakage_price(optimum, findings)
+
+    # 2b. Min-stay decision: season × lead-time policy table, then gap override.
+    gap_action = None
+    if primary_leak and primary_leak.kind == "orphan_gap":
+        gap_action = primary_leak.min_stay_action
+    elif findings:
+        for f in findings:
+            if f.kind == "orphan_gap" and f.min_stay_action is not None:
+                gap_action = f.min_stay_action
+                break
+    min_stay = decide_min_stay(feat, policy, gap_min_stay_action=gap_action)
 
     # 3. Elasticity softening on weak first-party conversion.
     ctx = elasticity_context(conn, feat, policy)
@@ -190,6 +226,13 @@ def recommend_night(
         if code:
             reasons.append(Reason(code, f.detail,
                                   contribution=f.suggested_adjustment - optimum))
+    if min_stay.recommended_min_stay is not None:
+        reasons.append(Reason(
+            "min_stay",
+            min_stay.detail,
+            contribution=0.0,
+            always_show=min_stay.gap_override,
+        ))
     if ctx.soften_upward:
         reasons.append(Reason("inquiry_soft", ctx.note, contribution=softened - leaked_price))
     if abs(deference_shift) >= 1.0:
@@ -207,10 +250,14 @@ def recommend_night(
                               always_show=True))
 
     top = select_top_reasons(reasons, max_n=max_reasons)
+    occupancy = _property_occupancy(conn, feat.property_id)
+    per_person = _per_person_nightly(recommended, occupancy, policy)
     payload = {
         "property_id": feat.property_id, "stay_date": feat.stay_date.isoformat(),
         "listed": listed, "optimum": optimum, "ceiling": ceiling.ceiling_price,
         "floor": floor, "beta": bp.beta, "p_ref": bp.p_ref,
+        "min_stay": min_stay.recommended_min_stay,
+        "min_stay_source": min_stay.source,
         "rule_version": policy.get("rule_version"), "model_version": policy.get("model_version"),
     }
     return Recommendation(
@@ -231,6 +278,10 @@ def recommend_night(
         inputs_hash=_inputs_hash(payload),
         run_id=run_id,
         status="blocked" if verdict.blocked else "suggested",
+        recommended_min_stay=min_stay.recommended_min_stay,
+        min_stay_source=min_stay.source,
+        per_person_nightly=per_person,
+        max_occupancy=occupancy,
     )
 
 
@@ -241,19 +292,23 @@ def persist_recommendation(conn: sqlite3.Connection, rec: Recommendation) -> int
             run_id, property_id, stay_date, recommended_price, ceiling_price, floor_price,
             listed_price_at_run, expected_book_prob, expected_revpan, ceiling_confidence,
             autonomy_level, guardrail_action, reasons, rule_version, model_version,
-            inputs_hash, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            inputs_hash, status, recommended_min_stay, min_stay_source, per_person_nightly
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(run_id, property_id, stay_date) DO UPDATE SET
             recommended_price=excluded.recommended_price,
             expected_book_prob=excluded.expected_book_prob,
             expected_revpan=excluded.expected_revpan,
             guardrail_action=excluded.guardrail_action,
-            reasons=excluded.reasons, status=excluded.status
+            reasons=excluded.reasons, status=excluded.status,
+            recommended_min_stay=excluded.recommended_min_stay,
+            min_stay_source=excluded.min_stay_source,
+            per_person_nightly=excluded.per_person_nightly
         """,
         (rec.run_id, rec.property_id, rec.stay_date.isoformat(), rec.recommended_price,
          rec.ceiling_price, rec.floor_price, rec.listed_price_at_run, rec.expected_book_prob,
          rec.expected_revpan, rec.ceiling_confidence, rec.autonomy_level, rec.guardrail_action,
-         json.dumps(rec.reasons), rec.rule_version, rec.model_version, rec.inputs_hash, rec.status),
+         json.dumps(rec.reasons), rec.rule_version, rec.model_version, rec.inputs_hash, rec.status,
+         rec.recommended_min_stay, rec.min_stay_source, rec.per_person_nightly),
     )
     return int(cur.lastrowid)
 

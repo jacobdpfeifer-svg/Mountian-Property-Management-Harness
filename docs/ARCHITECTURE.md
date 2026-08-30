@@ -11,7 +11,9 @@ v1.5:          Pfeifer Optimization — condition-conditioned history (SQI). Age
                observations; deterministic features; guarded engine alone prices.
 v2 (~6 mo):    Replace pooled linear demand with logistic regression per date-bucket
                once pacing_snapshots holds a full season (~40k observations).
-v3 (optional): Length-of-stay optimization; min-stay as a decision variable.
+v2.5:          Dynamic min-stay (season × lead time) + orphan-gap LOS override;
+               group-size-tiered comps; per-person display framing.
+v3 (optional): Full length-of-stay optimization as a joint RevPAN decision variable.
 ```
 
 **Drought reframing.** Last season's ~$482 Christmas was correct pricing under a
@@ -52,9 +54,9 @@ does not run is permanently lost. Pfeifer Optimization makes that data condition
 EBITDA / EV / exit readiness, owner attrition, marketing CTR product, channel-mix
 automation, SaaS multi-tenant, Aerosolve/Java, academic notebook forks as production code.
 
-Comp scraping is **in** scope (operator chose scraper-first) but not yet implemented:
-`src/comps` reads whatever is in `comp_snapshots` and reports coverage honestly, so the
-system degrades to advisory rather than guessing while the scraper is built.
+Comp scraping is **in** scope and implemented (`src/scrape`): market sweeps write
+`comp_snapshots` / `market_snapshots`, and `src/comps` reports coverage honestly so
+the system degrades to advisory when the scraper is unhealthy.
 
 ## Rule governance
 

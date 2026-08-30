@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS properties (
     target_alos       REAL NOT NULL DEFAULT 3.0,
     timezone          TEXT NOT NULL DEFAULT 'America/Denver',
     pms_listing_id    TEXT,
+    -- Guesty `accommodates` / advertised sleeps. Used for display framing and
+    -- group-size comp filters; never for RevPAN math.
+    max_occupancy     INTEGER,
     created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -24,6 +27,8 @@ CREATE TABLE IF NOT EXISTS comps (
     name            TEXT NOT NULL,
     bedrooms        INTEGER,
     bathrooms       REAL,
+    -- Guest capacity when known (Airbnb/VRBO sleeps). Used for group-size tier filters.
+    sleeps          INTEGER,
     amenities       TEXT NOT NULL DEFAULT '[]',
     notes           TEXT,
     source_url      TEXT,
@@ -176,6 +181,11 @@ CREATE TABLE IF NOT EXISTS price_recommendations (
     inputs_hash         TEXT,
     status              TEXT NOT NULL DEFAULT 'suggested'
         CHECK (status IN ('suggested', 'accepted', 'overridden', 'blocked')),
+    -- Engine-owned LOS decision (policy table and/or gap override). Null = no change.
+    recommended_min_stay INTEGER,
+    min_stay_source      TEXT,         -- policy | gap_override | inventory | none
+    -- Display-only framing: recommended_price / max_occupancy. Never used in RevPAN.
+    per_person_nightly   REAL,
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     -- One recommendation per property/night per run. The v1 constraint included
     -- created_at (second resolution) and therefore deduplicated nothing.
