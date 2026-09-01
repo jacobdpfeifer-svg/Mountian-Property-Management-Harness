@@ -34,6 +34,7 @@ def load_events(path: Path | None = None) -> list[dict[str, Any]]:
 
 CONDITIONS_PATH = ROOT / "config" / "policies" / "conditions.yaml"
 MARKETS_PATH = ROOT / "config" / "policies" / "markets.yaml"
+RESORT_PATH = ROOT / "config" / "resort" / "winter_park.yaml"
 
 
 def load_conditions(path: Path | None = None) -> dict[str, Any]:
@@ -42,3 +43,7 @@ def load_conditions(path: Path | None = None) -> dict[str, Any]:
 
 def load_markets(path: Path | None = None) -> dict[str, Any]:
     return load_yaml(path or MARKETS_PATH)
+
+
+def load_resort_config(path: Path | None = None) -> dict[str, Any]:
+    return load_yaml(path or RESORT_PATH)

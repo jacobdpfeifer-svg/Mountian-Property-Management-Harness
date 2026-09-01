@@ -8,7 +8,13 @@ from typing import Any, Literal
 from src.ceiling import CeilingResult
 from src.features import NightFeatures
 
-LeakKind = Literal["peak_underprice", "shoulder_over_discount", "orphan_gap", "none"]
+LeakKind = Literal[
+    "peak_underprice",
+    "shoulder_over_discount",
+    "orphan_gap",
+    "access_cliff",
+    "none",
+]
 
 
 @dataclass
@@ -28,6 +34,8 @@ def scan_leakage(
     ceiling: CeilingResult,
     composed_base: float,
     policy: dict[str, Any],
+    *,
+    access_risk: float = 0.0,
 ) -> list[LeakageFinding]:
     """Return actionable leakage findings for an available night."""
     if feat.status != "available":
@@ -110,6 +118,26 @@ def scan_leakage(
             )
         )
 
+    access_cfg = policy.get("access", {})
+    if access_cfg.get("enabled", True) and access_risk > 0:
+        risk_hi = float(access_cfg.get("max_upward_move_when_risk_above", 0.8))
+        max_up = float(access_cfg.get("max_upward_move_pct", 0.05))
+        lead = feat.lead_time_days if feat.lead_time_days is not None else 999
+        if access_risk >= risk_hi and lead <= 7 and listed is not None:
+            cap = listed * (1.0 + max_up)
+            if composed_base > cap:
+                findings.append(
+                    LeakageFinding(
+                        kind="access_cliff",
+                        severity=min(1.0, access_risk),
+                        suggested_adjustment=cap,
+                        detail=(
+                            f"Access cliff: Berthoud risk {access_risk:.0%} within "
+                            f"{lead}d — cap upward move at +{max_up:.0%} over listed"
+                        ),
+                    )
+                )
+
     return findings
 
 
@@ -119,13 +147,16 @@ def apply_leakage_price(
 ) -> tuple[float, LeakageFinding | None]:
     """Choose the primary leakage-driven price when findings exist.
 
-    Priority: peak lift > orphan gap discount > shoulder floor raise.
+    Priority: peak lift > access cliff cap > orphan gap discount > shoulder floor raise.
     """
     if not findings:
         return composed_base, None
     by_kind = {f.kind: f for f in findings}
     if "peak_underprice" in by_kind:
         f = by_kind["peak_underprice"]
+        return f.suggested_adjustment, f
+    if "access_cliff" in by_kind:
+        f = by_kind["access_cliff"]
         return f.suggested_adjustment, f
     if "orphan_gap" in by_kind:
         f = by_kind["orphan_gap"]

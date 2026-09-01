@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS properties (
     -- Guesty `accommodates` / advertised sleeps. Used for display framing and
     -- group-size comp filters; never for RevPAN math.
     max_occupancy     INTEGER,
+    airbnb_room_id    TEXT,          -- join key for scrape-only inventory
     created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -309,6 +310,53 @@ CREATE TABLE IF NOT EXISTS signal_observations (
 CREATE INDEX IF NOT EXISTS idx_sig_obs_asof
     ON signal_observations(signal_key, market_id, effective_date, observed_at);
 CREATE INDEX IF NOT EXISTS idx_sig_obs_observed ON signal_observations(observed_at);
+
+-- ---------------------------------------------------------------------------
+-- Winter Park resort intelligence — daily immutable lift/trail archive.
+-- Skipped days are permanently lost (same discipline as pacing_snapshots).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS resort_snapshots (
+    as_of           TEXT NOT NULL,
+    market_id       TEXT NOT NULL REFERENCES markets(market_id),
+    payload_json    TEXT NOT NULL,
+    source_url      TEXT,
+    lift_open       INTEGER,
+    lift_total      INTEGER,
+    trail_open      INTEGER,
+    trail_total     INTEGER,
+    PRIMARY KEY (as_of, market_id)
+);
+CREATE INDEX IF NOT EXISTS idx_resort_snap_asof ON resort_snapshots(as_of);
+
+-- Curated historical facts APIs cannot backfill (wind holds, terrain opens, etc.)
+CREATE TABLE IF NOT EXISTS resort_events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    resort_id       TEXT NOT NULL DEFAULT 'winter_park',
+    event_date      TEXT NOT NULL,
+    event_type      TEXT NOT NULL
+        CHECK (event_type IN (
+            'closure', 'wind_hold', 'terrain_open', 'ikon_blackout',
+            'access_closure', 'season_open', 'season_close'
+        )),
+    entity_name     TEXT,
+    notes           TEXT,
+    source_url      TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_resort_events_date ON resort_events(resort_id, event_date);
+
+-- Monthly / seasonal reference stats (OnTheSnow norms, opening curves).
+CREATE TABLE IF NOT EXISTS resort_season_stats (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    resort_id       TEXT NOT NULL DEFAULT 'winter_park',
+    stat_key        TEXT NOT NULL,
+    month           INTEGER,
+    season          TEXT,
+    value           REAL NOT NULL,
+    unit            TEXT NOT NULL,
+    source          TEXT,
+    UNIQUE (resort_id, stat_key, month, season)
+);
 
 CREATE TABLE IF NOT EXISTS signal_features (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

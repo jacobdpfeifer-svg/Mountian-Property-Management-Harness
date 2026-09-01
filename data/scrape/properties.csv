@@ -1,0 +1,3 @@
+property_id,name,bedrooms,bathrooms,amenities,base_ceiling_rate,min_floor_rate,max_ceiling_rate,luxury_tier,target_alos,timezone,airbnb_room_id
+summit_haus,Summit Haus,5,5.5,Hot Tub|Ski-in/Ski-out|Fireplace|Garage,2500,400,4000,luxury,4,America/Denver,
+overlook_ridge,Overlook Ridge,5,5.5,Hot Tub|Ski-in/Ski-out|Fireplace|Garage,2500,400,4000,luxury,4,America/Denver,

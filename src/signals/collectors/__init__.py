@@ -9,5 +9,6 @@ from src.signals.collectors import cdot as _cdot  # noqa: F401
 from src.signals.collectors import calendars as _calendars  # noqa: F401
 from src.signals.collectors import regulatory as _regulatory  # noqa: F401
 from src.signals.collectors import intent as _intent  # noqa: F401
+from src.signals.collectors import flight as _flight  # noqa: F401
 
 __all__ = []

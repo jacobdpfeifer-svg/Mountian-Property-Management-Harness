@@ -224,6 +224,193 @@ class SignalStore:
         )
         self.conn.commit()
 
+    # ---------------------------------------------------------- resort snapshots
+
+    def write_resort_snapshot(
+        self,
+        *,
+        as_of: date | str,
+        market_id: str,
+        payload: dict[str, Any],
+        source_url: str | None = None,
+        lift_open: int | None = None,
+        lift_total: int | None = None,
+        trail_open: int | None = None,
+        trail_total: int | None = None,
+    ) -> None:
+        self.conn.execute(
+            """
+            INSERT INTO resort_snapshots (
+                as_of, market_id, payload_json, source_url,
+                lift_open, lift_total, trail_open, trail_total
+            ) VALUES (?,?,?,?,?,?,?,?)
+            ON CONFLICT(as_of, market_id) DO UPDATE SET
+                payload_json=excluded.payload_json,
+                source_url=excluded.source_url,
+                lift_open=excluded.lift_open,
+                lift_total=excluded.lift_total,
+                trail_open=excluded.trail_open,
+                trail_total=excluded.trail_total
+            """,
+            (
+                _iso(as_of),
+                market_id,
+                json.dumps(payload),
+                source_url,
+                lift_open,
+                lift_total,
+                trail_open,
+                trail_total,
+            ),
+        )
+        self.conn.commit()
+
+    def latest_resort_snapshot(
+        self,
+        *,
+        as_of: date | str,
+        market_id: str,
+        before_as_of: date | str | None = None,
+    ) -> sqlite3.Row | None:
+        """Most recent snapshot on or before as_of (or before_as_of if set)."""
+        cutoff = _iso(before_as_of or as_of)
+        return self.conn.execute(
+            """
+            SELECT * FROM resort_snapshots
+            WHERE market_id = ? AND as_of <= ?
+            ORDER BY as_of DESC LIMIT 1
+            """,
+            (market_id, cutoff),
+        ).fetchone()
+
+    def prior_resort_snapshot(
+        self,
+        *,
+        as_of: date | str,
+        market_id: str,
+    ) -> sqlite3.Row | None:
+        """Snapshot strictly before as_of (for diffing lift changes)."""
+        return self.conn.execute(
+            """
+            SELECT * FROM resort_snapshots
+            WHERE market_id = ? AND as_of < ?
+            ORDER BY as_of DESC LIMIT 1
+            """,
+            (market_id, _iso(as_of)),
+        ).fetchone()
+
+    def list_resort_events(
+        self,
+        *,
+        resort_id: str = "winter_park",
+        event_type: str | None = None,
+        from_date: date | str | None = None,
+        to_date: date | str | None = None,
+    ) -> list[sqlite3.Row]:
+        clauses = ["resort_id = ?"]
+        params: list[Any] = [resort_id]
+        if event_type:
+            clauses.append("event_type = ?")
+            params.append(event_type)
+        if from_date:
+            clauses.append("event_date >= ?")
+            params.append(_iso(from_date))
+        if to_date:
+            clauses.append("event_date <= ?")
+            params.append(_iso(to_date))
+        sql = (
+            "SELECT * FROM resort_events WHERE "
+            + " AND ".join(clauses)
+            + " ORDER BY event_date"
+        )
+        return list(self.conn.execute(sql, params).fetchall())
+
+    def upsert_resort_event(
+        self,
+        *,
+        resort_id: str,
+        event_date: date | str,
+        event_type: str,
+        entity_name: str | None = None,
+        notes: str | None = None,
+        source_url: str | None = None,
+    ) -> None:
+        self.conn.execute(
+            """
+            INSERT INTO resort_events (
+                resort_id, event_date, event_type, entity_name, notes, source_url
+            ) VALUES (?,?,?,?,?,?)
+            """,
+            (
+                resort_id,
+                _iso(event_date),
+                event_type,
+                entity_name,
+                notes,
+                source_url,
+            ),
+        )
+        self.conn.commit()
+
+    def seed_resort_events(self, events: Iterable[dict[str, Any]]) -> int:
+        n = 0
+        for ev in events:
+            self.upsert_resort_event(
+                resort_id=ev.get("resort_id", "winter_park"),
+                event_date=ev["event_date"],
+                event_type=ev["event_type"],
+                entity_name=ev.get("entity_name"),
+                notes=ev.get("notes"),
+                source_url=ev.get("source_url"),
+            )
+            n += 1
+        return n
+
+    def upsert_season_stat(
+        self,
+        *,
+        resort_id: str,
+        stat_key: str,
+        value: float,
+        unit: str,
+        month: int | None = None,
+        season: str | None = None,
+        source: str | None = None,
+    ) -> None:
+        self.conn.execute(
+            """
+            INSERT INTO resort_season_stats (
+                resort_id, stat_key, month, season, value, unit, source
+            ) VALUES (?,?,?,?,?,?,?)
+            ON CONFLICT(resort_id, stat_key, month, season) DO UPDATE SET
+                value=excluded.value,
+                unit=excluded.unit,
+                source=excluded.source
+            """,
+            (resort_id, stat_key, month, season, float(value), unit, source),
+        )
+        self.conn.commit()
+
+    def read_season_stats(
+        self,
+        *,
+        resort_id: str = "winter_park",
+        stat_key: str | None = None,
+    ) -> list[sqlite3.Row]:
+        if stat_key:
+            return list(
+                self.conn.execute(
+                    "SELECT * FROM resort_season_stats WHERE resort_id = ? AND stat_key = ?",
+                    (resort_id, stat_key),
+                ).fetchall()
+            )
+        return list(
+            self.conn.execute(
+                "SELECT * FROM resort_season_stats WHERE resort_id = ? ORDER BY stat_key, month",
+                (resort_id,),
+            ).fetchall()
+        )
+
     # ------------------------------------------------------------------- runs
 
     def start_run(

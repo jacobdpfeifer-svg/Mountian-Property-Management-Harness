@@ -114,6 +114,27 @@ def compute_sqi(
         terrain = terrain / 100.0  # store as percent 0-100 → ratio for SQI scale ~1
     components["terrain_open_pct"] = terrain
 
+    groomed = _get_ok_value(
+        store,
+        as_of=as_of,
+        signal_key="resort.trails_groomed_pct",
+        market_id=market_id,
+        effective_date=target_date,
+    )
+    if groomed is not None:
+        groomed = groomed / 100.0
+    components["trails_groomed_pct"] = groomed
+
+    packed = _get_ok_value(
+        store,
+        as_of=as_of,
+        signal_key="resort.surface_packed_score",
+        market_id=market_id,
+        effective_date=target_date,
+    )
+    if packed is not None and groomed is None:
+        components["trails_groomed_pct"] = packed  # fallback when groomed pct absent
+
     # Trailing powder days from weather.powder_day
     powder_rows = store.read_observations(
         as_of=as_of,

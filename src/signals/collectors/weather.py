@@ -54,6 +54,8 @@ class WeatherCollector(Collector):
             FieldSpec("snowmaking_hours", unit="hours", value_min=0.0, value_max=24.0,
                       description="Hours with wet-bulb suitable for snowmaking"),
             FieldSpec("powder_day", unit="flag", value_min=0.0, value_max=1.0),
+            FieldSpec("wind_gust_max_mph", unit="mph", value_min=0.0, value_max=150.0,
+                      description="Daily max wind gust for wind-hold risk"),
         ],
     )
 
@@ -95,6 +97,7 @@ class WeatherCollector(Collector):
         snow = daily.get("snowfall_sum") or []
         tmean = daily.get("temperature_2m_mean") or []
         rh = daily.get("relative_humidity_2m_mean") or []
+        gusts = daily.get("wind_gust_max_mph") or []
 
         obs: list[Observation] = []
         for i, t in enumerate(times):
@@ -164,6 +167,21 @@ class WeatherCollector(Collector):
                         meta={**meta, "wet_bulb_c": wb},
                     )
                 )
+            gust = gusts[i] if i < len(gusts) else None
+            if gust is not None:
+                obs.append(
+                    Observation(
+                        signal_key="weather.wind_gust_max_mph",
+                        market_id=market_id,
+                        observed_at=observed_at,
+                        effective_date=d.isoformat(),
+                        horizon_days=horizon,
+                        value=float(gust),
+                        quality=QUALITY_OK,
+                        provenance_url=prov,
+                        meta=meta,
+                    )
+                )
         return obs
 
     def _fetch_archive_and_forecast(self, lat: float, lng: float, as_of: date) -> dict[str, Any]:
@@ -175,7 +193,7 @@ class WeatherCollector(Collector):
                 "longitude": lng,
                 "start_date": begin.isoformat(),
                 "end_date": as_of.isoformat(),
-                "daily": "snowfall_sum,temperature_2m_mean,relative_humidity_2m_mean",
+                "daily": "snowfall_sum,temperature_2m_mean,relative_humidity_2m_mean,wind_gusts_10m_max",
                 "timezone": "America/Denver",
             },
             timeout=60,
@@ -188,7 +206,7 @@ class WeatherCollector(Collector):
             params={
                 "latitude": lat,
                 "longitude": lng,
-                "daily": "snowfall_sum,temperature_2m_max,temperature_2m_min",
+                "daily": "snowfall_sum,temperature_2m_max,temperature_2m_min,wind_gusts_10m_max",
                 "forecast_days": 16,
                 "timezone": "America/Denver",
             },
@@ -202,6 +220,7 @@ class WeatherCollector(Collector):
             "snowfall_sum": [],
             "temperature_2m_mean": [],
             "relative_humidity_2m_mean": [],
+            "wind_gust_max_mph": [],
         }
         hd = hist.get("daily") or {}
         for i, t in enumerate(hd.get("time") or []):
@@ -210,6 +229,10 @@ class WeatherCollector(Collector):
             daily["temperature_2m_mean"].append((hd.get("temperature_2m_mean") or [None])[i])
             daily["relative_humidity_2m_mean"].append(
                 (hd.get("relative_humidity_2m_mean") or [70])[i]
+            )
+            gust_ms = (hd.get("wind_gusts_10m_max") or [None])[i]
+            daily["wind_gust_max_mph"].append(
+                float(gust_ms) * 2.237 if gust_ms is not None else None
             )
         fd = fut.get("daily") or {}
         for i, t in enumerate(fd.get("time") or []):
@@ -224,4 +247,8 @@ class WeatherCollector(Collector):
                 mean = (float(tmax) + float(tmin)) / 2.0
             daily["temperature_2m_mean"].append(mean)
             daily["relative_humidity_2m_mean"].append(70.0)
+            gust_ms = (fd.get("wind_gusts_10m_max") or [None])[i]
+            daily["wind_gust_max_mph"].append(
+                float(gust_ms) * 2.237 if gust_ms is not None else None
+            )
         return {"daily": daily, "note": SNOTEL_DISAGREEMENT_NOTE}

@@ -246,7 +246,7 @@ def test_collectors_registered():
     import src.signals.collectors  # noqa: F401
 
     ids = list_collectors()
-    for needed in ("snotel", "weather", "enso", "resort", "cdot", "calendars", "regulatory"):
+    for needed in ("snotel", "weather", "enso", "resort", "cdot", "calendars", "regulatory", "intent", "flight"):
         assert needed in ids
 
 

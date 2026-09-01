@@ -17,17 +17,113 @@ from src.ingest import CsvIngestAdapter, ICalIngestAdapter
 from src.pacing import backfill_from_inventory, take_snapshot
 from src.pms import ADAPTERS, push_recommendations
 from src.scrape import discover_comps, run_scrape
+from src.scrape.properties import discover_owned_listings, persist_room_ids, scrape_properties
 from src.scrape.providers import PROVIDERS, FixtureProvider, PyAirbnbProvider
 from src.utils import parse_date
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLE = ROOT / "data" / "sample"
+SCRAPE = ROOT / "data" / "scrape"
 
 
 def cmd_init_db(args: argparse.Namespace) -> int:
     path = init_db(args.db)
     print(f"Initialized schema at {path}")
     return 0
+
+
+def cmd_seed_scrape(args: argparse.Namespace) -> int:
+    """Load scrape-native portfolio CSVs (Summit Haus + Overlook Ridge, no Guesty)."""
+    init_db(args.db)
+    adapter = CsvIngestAdapter(
+        properties_csv=SCRAPE / "properties.csv",
+        inventory_csv=SCRAPE / "inventory.csv",
+        comps_csv=SCRAPE / "comps.csv",
+    )
+    with connect(args.db) as conn:
+        counts = adapter.load_all(conn)
+    print(f"Seeded scrape portfolio: {counts}")
+    return 0
+
+
+def cmd_discover_properties(args: argparse.Namespace) -> int:
+    policy = load_policy()
+    provider = _make_provider(args, policy)
+    window = int(policy["scrape"]["window_nights"])
+    dates = [parse_date(d) for d in args.date.split(",")]
+    matches = discover_owned_listings(
+        provider, dates, nights=window, min_price=args.min_price,
+        property_ids=args.property.split(",") if args.property else None,
+    )
+    if not matches:
+        print("No owned listings matched — try different dates or lower --min-price.")
+        return 1
+    print(f"{'property_id':16}{'room_id':22}{'score':>6}  name")
+    for m in matches:
+        print(f"{m.property_id:16}{m.room_id:22}{m.score:>6}  {(m.name or '')[:48]}")
+    if args.persist:
+        with connect(args.db) as conn:
+            persist_room_ids(conn, matches)
+        print(f"\nPersisted {len(matches)} room id(s) to properties.airbnb_room_id")
+    return 0
+
+
+def cmd_scrape_properties(args: argparse.Namespace) -> int:
+    policy = load_policy()
+    provider = _make_provider(args, policy)
+    start = parse_date(args.start)
+    end = parse_date(args.end)
+    with connect(args.db) as conn:
+        rep = scrape_properties(
+            conn, provider, start, end, policy=policy,
+            discover=args.discover,
+            discover_dates=[parse_date(d) for d in args.discover_date.split(",")]
+            if args.discover_date else None,
+        )
+    if rep.discovery:
+        print("Discovery:")
+        for m in rep.discovery:
+            print(f"  {m.property_id}: {m.room_id} ({m.name}) score={m.score}")
+    print(f"Sweeps: {rep.sweeps_ok} ok, {rep.sweeps_failed} failed")
+    for p in rep.properties:
+        print(
+            f"  {p.property_id}: {p.nights_written} nights "
+            f"({p.nights_with_price} priced, {p.nights_available} avail, "
+            f"{p.nights_booked} booked)"
+        )
+        for e in p.errors:
+            print(f"    WARNING: {e}")
+    return 0 if rep.properties else 1
+
+
+def cmd_export(args: argparse.Namespace) -> int:
+    from src.eval.export import export_recommendations_csv
+
+    start = parse_date(args.start)
+    end = parse_date(args.end)
+    props = args.property.split(",") if args.property else None
+    out = Path(args.output)
+    with connect(args.db) as conn:
+        n = export_recommendations_csv(conn, start, end, out, property_ids=props)
+    print(f"Exported {n} rows to {out}")
+    return 0
+
+
+def cmd_audit(args: argparse.Namespace) -> int:
+    from src.audit import format_audit, run_audit
+
+    start = parse_date(args.start)
+    end = parse_date(args.end)
+    props = args.property.split(",") if args.property else None
+    policy = load_policy()
+    with connect(args.db) as conn:
+        report = run_audit(conn, start, end, property_ids=props, policy=policy)
+    text = format_audit(report)
+    print(text)
+    if args.output:
+        Path(args.output).write_text(text + "\n", encoding="utf-8")
+        print(f"\nWrote {args.output}")
+    return 0 if report.passed else 1
 
 
 def cmd_seed_sample(args: argparse.Namespace) -> int:
@@ -274,6 +370,9 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("init-db", help="Create / migrate schema")
     s.set_defaults(func=cmd_init_db)
 
+    s = sub.add_parser("seed-scrape", help="Load scrape-native portfolio (Summit/Overlook)")
+    s.set_defaults(func=cmd_seed_scrape)
+
     s = sub.add_parser("seed-sample", help="Load data/sample CSVs (+ optional iCal)")
     s.set_defaults(func=cmd_seed_sample)
 
@@ -315,6 +414,34 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--min-price", type=float)
     s.add_argument("--limit", type=int)
     s.set_defaults(func=cmd_discover_comps)
+
+    s = _scrape_args(sub.add_parser("discover-properties", help="Find owned listings in market sweeps"))
+    s.add_argument("--date", required=True, help="Comma-separated check-in dates")
+    s.add_argument("--min-price", type=float, default=300)
+    s.add_argument("--property", help="Comma-separated property_id filter")
+    s.add_argument("--persist", action="store_true", help="Write room ids to DB")
+    s.set_defaults(func=cmd_discover_properties)
+
+    s = _scrape_args(sub.add_parser("scrape-properties", help="Scrape owned listing inventory"))
+    s.add_argument("--from", dest="start", required=True)
+    s.add_argument("--to", dest="end", required=True)
+    s.add_argument("--discover", action="store_true", help="Discover room ids before scrape")
+    s.add_argument("--discover-date", help="Comma-separated dates for discovery sweeps")
+    s.set_defaults(func=cmd_scrape_properties)
+
+    s = sub.add_parser("export", help="Export recommendations to CSV")
+    s.add_argument("--from", dest="start", required=True)
+    s.add_argument("--to", dest="end", required=True)
+    s.add_argument("--property", help="Comma-separated property_id filter")
+    s.add_argument("--output", "-o", default="data/exports/recommendations.csv")
+    s.set_defaults(func=cmd_export)
+
+    s = sub.add_parser("audit", help="Post-run audit checklist")
+    s.add_argument("--from", dest="start", required=True)
+    s.add_argument("--to", dest="end", required=True)
+    s.add_argument("--property", help="Comma-separated property_id filter")
+    s.add_argument("--output", "-o", help="Write markdown report to file")
+    s.set_defaults(func=cmd_audit)
 
     s = sub.add_parser("push", help="Generate and auto-push rates within guardrails")
     s.add_argument("--from", dest="start", required=True)
@@ -367,6 +494,20 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--as-of", dest="as_of", default=None)
     s.set_defaults(func=cmd_signals_brief)
 
+    s = sig_sub.add_parser("resort-brief", help="Winter Park resort ops brief")
+    s.add_argument("--as-of", dest="as_of", default=None)
+    s.add_argument("--market", default="grand_home")
+    s.set_defaults(func=cmd_signals_resort_brief)
+
+    s = sig_sub.add_parser("rescore", help="Rescore all ladder signals against outcomes")
+    s.add_argument("--from", dest="start", required=True)
+    s.add_argument("--to", dest="end", required=True)
+    s.add_argument("--horizon-days", type=int, default=14)
+    s.set_defaults(func=cmd_signals_rescore)
+
+    s = sig_sub.add_parser("promote", help="Apply promotion ladder from latest scores")
+    s.set_defaults(func=cmd_signals_promote)
+
     return p
 
 
@@ -380,6 +521,9 @@ def cmd_signals_run(args: argparse.Namespace) -> int:
     with connect(args.db) as conn:
         store = SignalStore(conn)
         store.seed_markets()
+        from src.signals.promotion import register_ladder_signals
+
+        register_ladder_signals(store)
         cls = get_collector(args.collector)
         kwargs = {}
         if args.fixture:
@@ -419,6 +563,9 @@ def cmd_signals_list(args: argparse.Namespace) -> int:
     print("Collectors:", ", ".join(list_collectors()))
     with connect(args.db) as conn:
         store = SignalStore(conn)
+        from src.signals.promotion import register_ladder_signals
+
+        register_ladder_signals(store)
         for d in store.list_definitions():
             print(f"  {d['signal_key']:40} {d['status']:12} {d['source']}")
     return 0
@@ -459,6 +606,9 @@ def cmd_signals_cycle(args: argparse.Namespace) -> int:
     with connect(args.db) as conn:
         store = SignalStore(conn)
         store.seed_markets()
+        from src.signals.promotion import register_ladder_signals
+
+        register_ladder_signals(store)
         report = run_daily_cycle(store, as_of)
     print(json.dumps(report, indent=2, default=str))
     return 0 if not report.get("failures") else 1
@@ -472,6 +622,56 @@ def cmd_signals_brief(args: argparse.Namespace) -> int:
     as_of = parse_date(args.as_of) if args.as_of else date.today()
     with connect(args.db) as conn:
         print(weekly_brief(SignalStore(conn), as_of))
+    return 0
+
+
+def cmd_signals_resort_brief(args: argparse.Namespace) -> int:
+    from src.signals.analyst import resort_brief
+    from src.signals.store import SignalStore
+
+    init_db(args.db)
+    as_of = parse_date(args.as_of) if args.as_of else date.today()
+    with connect(args.db) as conn:
+        print(resort_brief(SignalStore(conn), as_of, market_id=args.market))
+    return 0
+
+
+def cmd_signals_rescore(args: argparse.Namespace) -> int:
+    from datetime import timedelta
+    from src.signals.promotion import register_ladder_signals, rescore_all
+    from src.signals.store import SignalStore
+
+    init_db(args.db)
+    start = parse_date(args.start)
+    end = parse_date(args.end)
+    dates = []
+    d = start
+    while d <= end:
+        dates.append(d)
+        d += timedelta(days=1)
+    with connect(args.db) as conn:
+        store = SignalStore(conn)
+        register_ladder_signals(store)
+        results = rescore_all(
+            store, conn, dates, horizon_days=int(args.horizon_days)
+        )
+    print(json.dumps(results, indent=2, default=str))
+    return 0
+
+
+def cmd_signals_promote(args: argparse.Namespace) -> int:
+    from src.signals.promotion import apply_promotions, register_ladder_signals
+    from src.signals.store import SignalStore
+
+    init_db(args.db)
+    with connect(args.db) as conn:
+        store = SignalStore(conn)
+        register_ladder_signals(store)
+        actions = apply_promotions(store)
+    for a in actions:
+        print(a)
+    if not actions:
+        print("No promotion actions.")
     return 0
 
 

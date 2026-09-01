@@ -1,0 +1,119 @@
+[
+  {
+    "Name": "Gondola",
+    "MountainAreaName": "Winter Park",
+    "Status": "Open",
+    "StatusEnglish": "open",
+    "LiftType": "Gondola",
+    "Trails": [
+      {
+        "Name": "Village Way",
+        "MountainAreaName": "Winter Park",
+        "Status": "Open",
+        "StatusEnglish": "open",
+        "Difficulty": "Beginner",
+        "Grooming": "Yes",
+        "SnowMaking": "Yes"
+      },
+      {
+        "Name": "Turnpike",
+        "MountainAreaName": "Winter Park",
+        "Status": "Open",
+        "StatusEnglish": "open",
+        "Difficulty": "Intermediate",
+        "Grooming": "Yes",
+        "SnowMaking": "No"
+      },
+      {
+        "Name": "West Portal",
+        "MountainAreaName": "Winter Park",
+        "Status": "Closed",
+        "StatusEnglish": "closed",
+        "Difficulty": "Intermediate",
+        "Grooming": "No",
+        "SnowMaking": "No"
+      }
+    ]
+  },
+  {
+    "Name": "Panoramic Express",
+    "MountainAreaName": "Mary Jane",
+    "Status": "On Hold",
+    "StatusEnglish": "on_hold",
+    "LiftType": "High Speed Quad",
+    "Trails": [
+      {
+        "Name": "Panoramic",
+        "MountainAreaName": "Mary Jane",
+        "Status": "Closed",
+        "StatusEnglish": "closed",
+        "Difficulty": "Intermediate",
+        "Grooming": "No",
+        "SnowMaking": "No"
+      }
+    ]
+  },
+  {
+    "Name": "Super Gauge Express",
+    "MountainAreaName": "Mary Jane",
+    "Status": "Open",
+    "StatusEnglish": "open",
+    "LiftType": "High Speed Quad",
+    "Trails": [
+      {
+        "Name": "Super Gauge",
+        "MountainAreaName": "Mary Jane",
+        "Status": "Open",
+        "StatusEnglish": "open",
+        "Difficulty": "Advanced",
+        "Grooming": "No",
+        "SnowMaking": "No"
+      },
+      {
+        "Name": "Belle's Bash",
+        "MountainAreaName": "Mary Jane",
+        "Status": "Open",
+        "StatusEnglish": "open",
+        "Difficulty": "Expert",
+        "Grooming": "No",
+        "SnowMaking": "No"
+      }
+    ]
+  },
+  {
+    "Name": "Eagle Wind",
+    "MountainAreaName": "Eagle Wind",
+    "Status": "Closed",
+    "StatusEnglish": "closed",
+    "LiftType": "High Speed Quad",
+    "Trails": [
+      {
+        "Name": "Eagle Wind Run",
+        "MountainAreaName": "Eagle Wind",
+        "Status": "Closed",
+        "StatusEnglish": "closed",
+        "Difficulty": "Advanced",
+        "Grooming": "No",
+        "SnowMaking": "No"
+      }
+    ]
+  },
+  {
+    "Name": "Cirque Sled",
+    "MountainAreaName": "The Cirque",
+    "Status": "Closed",
+    "StatusEnglish": "closed",
+    "LiftType": "Surface",
+    "Trails": [
+      {
+        "Name": "Cirque Slope",
+        "MountainAreaName": "The Cirque",
+        "Status": "Closed",
+        "StatusEnglish": "closed",
+        "Difficulty": "Expert",
+        "Grooming": "No",
+        "SnowMaking": "No"
+      }
+    ]
+  }
+]

@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from src.features import NightFeatures
@@ -137,6 +138,8 @@ def estimate(
     conn: sqlite3.Connection,
     feat: NightFeatures,
     policy: dict[str, Any],
+    *,
+    as_of: date | None = None,
 ) -> BookingProbability:
     cfg = policy.get("booking_probability", {})
     prior = float(cfg.get("prior_book_rate", 0.55))
@@ -234,6 +237,28 @@ def estimate(
     if pr is not None and pr < float(cfg.get("pacing_behind_threshold", 0.70)):
         beta *= float(cfg.get("pacing_elasticity_scale", 1.30))
 
+    decision = as_of or date.today()
+    from src.signals.store import SignalStore
+
+    store = SignalStore(conn)
+
+    # CDOT access risk — same-week demand cliff (ladder-gated).
+    access_cfg = policy.get("access", {})
+    if access_cfg.get("enabled", True):
+        from src.signals.features.access import access_risk
+        from src.signals.promotion import signal_status_at_least
+
+        if signal_status_at_least(store, "cdot.access_risk", "shadow"):
+            risk = access_risk(store, "grand_home", decision)
+            threshold = float(access_cfg.get("beta_scale_when_risk_above", 0.5))
+            lead = feat.lead_time_days if feat.lead_time_days is not None else 999
+            if risk > threshold and lead <= 7:
+                beta *= float(access_cfg.get("beta_scale_factor", 1.25))
+
+    p_ref = _adjust_p_ref_with_signals(
+        p_ref, conn, feat, policy, store, decision
+    )
+
     return BookingProbability(
         p_ref=max(0.01, min(0.99, p_ref)),
         price_ref=price_ref,
@@ -243,3 +268,63 @@ def estimate(
         shrunk=shrunk,
         pacing_ratio=pr,
     )
+
+
+def _adjust_p_ref_with_signals(
+    p_ref: float,
+    conn: sqlite3.Connection,
+    feat: NightFeatures,
+    policy: dict[str, Any],
+    store,
+    decision: date,
+) -> float:
+    """Nudge p_ref from intent/flight ladder signals when promoted."""
+    from src.signals.promotion import signal_status_at_least
+
+    adjusted = p_ref
+    lead = feat.lead_time_days if feat.lead_time_days is not None else 0
+
+    intent_cfg = policy.get("intent", {})
+    if intent_cfg.get("enabled", False) and signal_status_at_least(
+        store, "intent.search_interest", "shadow"
+    ):
+        row = store.latest_observation(
+            as_of=decision,
+            signal_key="intent.search_interest",
+            market_id="grand_home",
+            effective_date=decision,
+        )
+        if row and row["value"] is not None:
+            z = float(row["value"])
+            min_lead = int(intent_cfg.get("min_lead_days", 30))
+            max_lead = int(intent_cfg.get("max_lead_days", 90))
+            z_hi = float(intent_cfg.get("z_score_high", 1.5))
+            nudge = float(intent_cfg.get("p_ref_nudge_pct", 0.05))
+            if min_lead <= lead <= max_lead and z > z_hi:
+                adjusted *= 1.0 + nudge
+            elif z < float(intent_cfg.get("z_score_low", -1.0)):
+                adjusted *= 1.0 - nudge
+
+    flight_cfg = policy.get("flight", {})
+    if (
+        flight_cfg.get("enabled", False)
+        and not flight_cfg.get("brief_only", True)
+        and signal_status_at_least(store, "flight.den_capacity_yoy", "active")
+        and lead > int(flight_cfg.get("min_lead_days", 60))
+    ):
+        row = store.latest_observation(
+            as_of=decision,
+            signal_key="flight.den_capacity_yoy",
+            market_id="grand_home",
+            effective_date=decision,
+        )
+        if row and row["value"] is not None:
+            yoy = float(row["value"])
+            threshold = float(flight_cfg.get("capacity_yoy_threshold", 0.10))
+            nudge = float(flight_cfg.get("p_ref_nudge_pct", 0.05))
+            if yoy > threshold:
+                adjusted *= 1.0 + nudge
+            elif yoy < -threshold:
+                adjusted *= 1.0 - nudge
+
+    return adjusted

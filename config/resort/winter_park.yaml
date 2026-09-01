@@ -1,0 +1,137 @@
+# Winter Park Resort reference corpus — static deep knowledge.
+# Live status comes from the Intrawest feed; this file holds priors the APIs omit.
+
+resort_id: winter_park
+market_id: grand_home
+intrawest_feed_id: 5
+
+season:
+  typical_open: "11-15"
+  typical_close: "04-15"
+  hiring_ramp_start: "08-01"
+  hiring_ramp_end: "10-31"
+  staffing_readiness_prior: 0.75  # after Oct 1, more lifts likely to spin up
+
+mountain_areas:
+  - Winter Park
+  - Mary Jane
+  - The Cirque
+  - Eagle Wind
+  - Parsenn Bowl
+  - Vasquez Ridge
+
+# Typical terrain opening sequence (earliest → latest).
+terrain_opening_sequence:
+  - area: Winter Park
+    lifts: [Gondola, Discovery, Gemini Express]
+    swe_threshold_in: 8
+  - area: Mary Jane
+    lifts: [Super Gauge Express, Olympia Express]
+    swe_threshold_in: 14
+  - area: Eagle Wind
+    lifts: [Eagle Wind]
+    swe_threshold_in: 18
+  - area: Parsenn Bowl
+    lifts: [Panoramic Express]
+    swe_threshold_in: 20
+  - area: The Cirque
+    lifts: [Cirque Sled]
+    swe_threshold_in: 24
+
+# Lifts especially sensitive to wind holds (curated operator prior).
+wind_hold_lifts:
+  - Panoramic Express
+  - Eagle Wind
+  - Super Gauge Express
+  - Iron Horse
+  - Hi-Lonesome Express
+
+wind_hold:
+  gust_threshold_mph: 35
+  risk_per_mph_above: 0.02  # additive risk above threshold
+
+lifts:
+  - name: Gondola
+    area: Winter Park
+    type: gondola
+    wind_sensitive: false
+  - name: Panoramic Express
+    area: Mary Jane
+    type: high_speed_quad
+    wind_sensitive: true
+  - name: Super Gauge Express
+    area: Mary Jane
+    type: high_speed_quad
+    wind_sensitive: true
+  - name: Eagle Wind
+    area: Eagle Wind
+    type: high_speed_quad
+    wind_sensitive: true
+  - name: Cirque Sled
+    area: The Cirque
+    type: surface
+    wind_sensitive: true
+  - name: Gemini Express
+    area: Winter Park
+    type: high_speed_quad
+    wind_sensitive: false
+  - name: Discovery
+    area: Winter Park
+    type: triple
+    wind_sensitive: false
+
+# Ikon Pass blackout dates for Winter Park (verify annually against ikonpass.com).
+ikon_blackouts:
+  - start: "2025-12-26"
+    end: "2025-12-27"
+    notes: "Christmas week blackout — verify against current Ikon calendar"
+  - start: "2026-01-17"
+    end: "2026-01-17"
+    notes: "MLK weekend Saturday — verify against current Ikon calendar"
+
+# Snow packing tendencies by calendar month (declared priors).
+packing_rules:
+  - months: [11, 12]
+    label: machine_made_thin
+    temp_max_c: -2
+    surface_score: 0.55
+  - months: [1, 2, 3]
+    label: packed_powder
+    temp_max_c: -5
+    surface_score: 0.85
+  - months: [4, 5]
+    label: spring_corn
+    temp_min_c: 0
+    surface_score: 0.70
+
+# Historical season open dates (seed — extend via resort_events).
+historical_season_opens:
+  - season: "2023-24"
+    date: "2023-11-17"
+  - season: "2024-25"
+    date: "2024-11-22"
+  - season: "2025-26"
+    date: "2025-11-21"
+
+# Seed events loaded into resort_events on init-db when empty.
+seed_events:
+  - event_date: "2024-01-05"
+    event_type: wind_hold
+    entity_name: Panoramic Express
+    notes: "Multi-day wind hold — typical January pattern"
+  - event_date: "2024-02-14"
+    event_type: terrain_open
+    entity_name: The Cirque
+    notes: "Cirque opened mid-February after sufficient SWE"
+  - event_date: "2025-03-10"
+    event_type: wind_hold
+    entity_name: Eagle Wind
+    notes: "Spring wind event closed Eagle Wind terrain"
+  - event_date: "2023-11-17"
+    event_type: season_open
+    entity_name: Winter Park Resort
+    notes: "2023-24 season opening day"
+  - event_date: "2024-04-14"
+    event_type: season_close
+    entity_name: Winter Park Resort
+    notes: "2023-24 season closing day"

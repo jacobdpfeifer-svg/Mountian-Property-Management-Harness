@@ -58,6 +58,8 @@ class CeilingResult:
     comp_weight: float = 0.0
     sqi: float | None = None
     sqi_confidence: float | None = None
+    substitution_index: float | None = None
+    substitution_reduction_pct: float = 0.0
 
     @property
     def is_thin(self) -> bool:
@@ -255,6 +257,45 @@ def compute_ceiling(
         blended = (1.0 - comp_w) * blended + comp_w * comp_price
         method = f"{method}+comp"
 
+    # Substitution bleed cap — ladder-gated cross-market share shift.
+    sub_cfg = policy.get("substitution", {})
+    sub_index_val = None
+    sub_reduction = 0.0
+    if sub_cfg.get("enabled", False):
+        from src.signals.promotion import signal_status_at_least
+        from src.signals.features.substitution import (
+            apply_substitution_cap,
+            substitute_prices_for,
+            substitution_index,
+        )
+        from src.signals.store import SignalStore
+
+        store = SignalStore(conn)
+        if signal_status_at_least(store, "substitution.market_bleed", "shadow"):
+            markets = sub_cfg.get("substitute_markets", ["summit", "clear_creek_eagle"])
+            pct = float(sub_cfg.get("price_percentile", 0.75))
+            sub_prices = substitute_prices_for(
+                conn,
+                as_of=decision_date,
+                target_date=feat.stay_date,
+                markets=markets,
+                percentile=pct,
+            )
+            if sub_prices:
+                sub = substitution_index(
+                    store,
+                    home_market=market_id,
+                    home_price=blended,
+                    as_of=decision_date,
+                    target_date=feat.stay_date,
+                    substitute_prices=sub_prices,
+                )
+                sub_index_val = sub.index
+                capped, sub_reduction = apply_substitution_cap(blended, sub, policy)
+                if sub_reduction > 0:
+                    blended = capped
+                    method = f"{method}+substitution"
+
     ceiling = min(max(blended, feat.min_floor_rate), feat.max_ceiling_rate)
     return CeilingResult(
         ceiling_price=ceiling,
@@ -268,4 +309,6 @@ def compute_ceiling(
         comp_weight=comp_w,
         sqi=sqi_target,
         sqi_confidence=sqi_conf,
+        substitution_index=sub_index_val,
+        substitution_reduction_pct=sub_reduction,
     )

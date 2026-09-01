@@ -109,6 +109,8 @@ def recommend_night(
     policy: dict[str, Any] | None = None,
     health: DataHealth | None = None,
     run_id: str = "adhoc",
+    *,
+    as_of: date | None = None,
 ) -> Recommendation | None:
     if feat.status != "available":
         return None
@@ -118,17 +120,30 @@ def recommend_night(
     round_to = int(g.get("round_to", 5))
     max_reasons = int(policy.get("explain", {}).get("max_reasons", 3))
     steps = int(policy.get("compose", {}).get("candidate_steps", 40))
+    decision_date = as_of or date.today()
 
-    ceiling = compute_ceiling(conn, feat, policy)
+    from src.signals.features.access import access_risk as get_access_risk
+    from src.signals.promotion import signal_status_at_least
+    from src.signals.store import SignalStore
+
+    store = SignalStore(conn)
+    risk = 0.0
+    access_cfg = policy.get("access", {})
+    if access_cfg.get("enabled", True) and signal_status_at_least(
+        store, "cdot.access_risk", "shadow"
+    ):
+        risk = get_access_risk(store, "grand_home", decision_date)
+
+    ceiling = compute_ceiling(conn, feat, policy, as_of=decision_date)
     floor, ceil = _search_bounds(feat, ceiling, policy)
-    bp = bookprob.estimate(conn, feat, policy)
+    bp = bookprob.estimate(conn, feat, policy, as_of=decision_date)
 
     # 1. RevPAN optimum over the admissible band.
     optimum, prob, exp_revpan = _optimize_revpan(bp, floor, ceil, steps)
 
     # 2. Leakage scanners may override the optimum (orphan gaps in particular are a
     #    fill problem, not a yield problem).
-    findings = scan_leakage(feat, ceiling, optimum, policy)
+    findings = scan_leakage(feat, ceiling, optimum, policy, access_risk=risk)
     leaked_price, primary_leak = apply_leakage_price(optimum, findings)
 
     # 2b. Min-stay decision: season × lead-time policy table, then gap override.
@@ -175,6 +190,38 @@ def recommend_night(
     min_conf = float(policy.get("autonomy", {}).get("require_ceiling_confidence", 0.80))
     if ceiling.confidence < min_conf and level == "handle":
         level = "suggest"
+    # Berthoud hard closure — human should decide hold vs cut.
+    if (
+        access_cfg.get("enabled", True)
+        and risk >= 1.0
+        and feat.lead_time_days is not None
+        and feat.lead_time_days <= int(access_cfg.get("escalate_when_closed_lead_days", 3))
+    ):
+        level = "suggest"
+    # Resort closure / wind-hold risk — hold rates until ops clarify.
+    resort_cfg = policy.get("resort_ops", {})
+    if resort_cfg.get("enabled", True) and feat.lead_time_days is not None:
+        from src.signals.features.resort_ops import compute_resort_ops
+
+        ops = compute_resort_ops(store, "grand_home", feat.stay_date, decision_date)
+        escalate_lead = int(resort_cfg.get("escalate_when_closed_lead_days", 3))
+        closure_thresh = float(resort_cfg.get("closure_risk_threshold", 0.80))
+        resort_closed = store.latest_observation(
+            as_of=decision_date,
+            signal_key="resort.resort_open",
+            market_id="grand_home",
+            effective_date=decision_date,
+        )
+        is_closed = (
+            resort_closed is not None
+            and resort_closed["value"] is not None
+            and float(resort_closed["value"]) < 0.5
+        )
+        if feat.lead_time_days <= escalate_lead and (
+            ops.closure_risk >= closure_thresh
+            or (resort_cfg.get("demote_when_resort_closed", True) and is_closed)
+        ):
+            level = "suggest"
     if verdict.blocked:
         level = "escalate"
 
@@ -208,6 +255,14 @@ def recommend_night(
             f"Comp set p75 ${ceiling.comp_price:.0f} (weight {ceiling.comp_weight:.0%})",
             contribution=(ceiling.comp_price - ceiling.anchor_price) * ceiling.comp_weight,
         ))
+    if ceiling.substitution_reduction_pct > 0 and ceiling.substitution_index is not None:
+        drop = ceiling.ceiling_price * ceiling.substitution_reduction_pct
+        reasons.append(Reason(
+            "substitution_bleed",
+            f"Substitutes cheaper per SQI (index {ceiling.substitution_index:.2f}) — "
+            f"ceiling capped −{ceiling.substitution_reduction_pct:.0%}",
+            contribution=-drop,
+        ))
     if feat.demand_event and feat.demand_strength >= 0.5:
         reasons.append(Reason(
             "event_boost",
@@ -221,8 +276,12 @@ def recommend_night(
             contribution=0.0,
         ))
     for f in findings:
-        code = {"peak_underprice": "ceiling_gap", "orphan_gap": "gap_night",
-                "shoulder_over_discount": "shoulder_floor"}.get(f.kind)
+        code = {
+            "peak_underprice": "ceiling_gap",
+            "orphan_gap": "gap_night",
+            "shoulder_over_discount": "shoulder_floor",
+            "access_cliff": "access_cliff",
+        }.get(f.kind)
         if code:
             reasons.append(Reason(code, f.detail,
                                   contribution=f.suggested_adjustment - optimum))
@@ -322,6 +381,8 @@ def generate_recommendations(
     persist: bool = True,
     run_id: str | None = None,
     allow_past: bool = False,
+    *,
+    as_of: date | None = None,
 ) -> tuple[list[Recommendation], DataHealth]:
     policy = policy or load_policy()
     run_id = run_id or uuid.uuid4().hex[:12]
@@ -337,7 +398,9 @@ def generate_recommendations(
         features = [f for f in features if f.stay_date >= today]
     recs: list[Recommendation] = []
     for feat in features:
-        rec = recommend_night(conn, feat, policy=policy, health=health, run_id=run_id)
+        rec = recommend_night(
+            conn, feat, policy=policy, health=health, run_id=run_id, as_of=as_of
+        )
         if rec is None:
             continue
         if persist:

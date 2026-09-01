@@ -11,10 +11,11 @@ sqi:
   # Component weights — renormalised at read time over AVAILABLE components only.
   # Never zero-fill a missing component (that would drag SQI down artificially).
   weights:
-    swe_pct_normal: 0.55
-    terrain_open_pct: 0.25   # dropped + renormalised until resort collector lands
+    swe_pct_normal: 0.50
+    terrain_open_pct: 0.20
+    trails_groomed_pct: 0.10   # surface quality prior from live grooming coverage
     powder_days_7: 0.10
-    enso_prior: 0.10         # season-ahead when snowpack thin / far horizon
+    enso_prior: 0.10
   # Historical mean used only in tests / documentation — not as a zero-fill.
   terrain_historical_mean_pct: 70.0
   powder_lookback_days: 7

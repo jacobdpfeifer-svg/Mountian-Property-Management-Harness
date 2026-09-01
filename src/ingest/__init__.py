@@ -56,8 +56,8 @@ def upsert_property(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
         INSERT INTO properties (
             property_id, name, bedrooms, bathrooms, amenities,
             base_ceiling_rate, min_floor_rate, max_ceiling_rate,
-            luxury_tier, target_alos, timezone, max_occupancy
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            luxury_tier, target_alos, timezone, max_occupancy, airbnb_room_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(property_id) DO UPDATE SET
             name=excluded.name,
             bedrooms=excluded.bedrooms,
@@ -69,7 +69,8 @@ def upsert_property(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
             luxury_tier=excluded.luxury_tier,
             target_alos=excluded.target_alos,
             timezone=excluded.timezone,
-            max_occupancy=COALESCE(excluded.max_occupancy, properties.max_occupancy)
+            max_occupancy=COALESCE(excluded.max_occupancy, properties.max_occupancy),
+            airbnb_room_id=COALESCE(excluded.airbnb_room_id, properties.airbnb_room_id)
         """,
         (
             row["property_id"],
@@ -84,6 +85,7 @@ def upsert_property(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
             float(row.get("target_alos") or 3.0),
             row.get("timezone") or "America/Denver",
             occ_i,
+            _room_id(row),
         ),
     )
 

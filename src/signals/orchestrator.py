@@ -17,6 +17,8 @@ DEFAULT_SCHEDULE = [
     ("calendars", ["grand_home"]),
     ("resort", ["grand_home"]),
     ("regulatory", ["grand_home", "grand_valley"]),
+    ("intent", ["grand_home"]),
+    ("flight", ["grand_home"]),
 ]
 
 
@@ -60,4 +62,29 @@ def run_daily_cycle(
                     )
             except Exception as exc:  # noqa: BLE001
                 report["failures"].append(f"{collector_id}/{market_id}: {exc}")
+
+    # Build resort ops forecast features for home market after collectors finish.
+    try:
+        from src.signals.features.resort_ops import write_resort_ops_features
+
+        label = write_resort_ops_features(store, "grand_home", as_of, as_of)
+        snap = store.latest_resort_snapshot(as_of=as_of, market_id="grand_home")
+        report["resort_ops"] = {
+            "surface_label": label,
+            "built_for": as_of.isoformat(),
+            "snapshot": (
+                {
+                    "as_of": snap["as_of"],
+                    "lift_open": snap["lift_open"],
+                    "lift_total": snap["lift_total"],
+                    "trail_open": snap["trail_open"],
+                    "trail_total": snap["trail_total"],
+                }
+                if snap
+                else None
+            ),
+        }
+    except Exception as exc:  # noqa: BLE001
+        report["failures"].append(f"resort_ops/grand_home: {exc}")
+
     return report

@@ -40,5 +40,9 @@ Every `SignalStore.read_*` call requires `as_of` and filters `observed_at <= as_
 ```bash
 wp-price signals cycle --as-of 2026-08-29
 wp-price signals brief
+wp-price signals resort-brief
 wp-price signals scoreboard
 ```
+
+Resort lift/trail snapshots require the daily cycle — see
+[`docs/RESORT_INTELLIGENCE_RUNBOOK.md`](RESORT_INTELLIGENCE_RUNBOOK.md).

@@ -1,0 +1,14 @@
+{
+  "2023-12-22": {
+    "berthoud_closed": 1,
+    "chain_law": 0
+  },
+  "2023-12-23": {
+    "berthoud_closed": 1,
+    "chain_law": 0
+  },
+  "default": {
+    "berthoud_closed": 0,
+    "chain_law": 0
+  }
+}

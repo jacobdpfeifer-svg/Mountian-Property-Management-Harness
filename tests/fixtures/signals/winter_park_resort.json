@@ -1,0 +1,22 @@
+{
+  "grand_home": {
+    "terrain_open_pct": 72.0,
+    "lifts_open": 18,
+    "trails_open": 95,
+    "base_depth_in": 42,
+    "lift_ticket_window_usd": 189,
+    "source_url": "https://www.winterparkresort.com/the-mountain/mountain-report"
+  },
+  "summit": {
+    "terrain_open_pct": 68.0,
+    "lifts_open": 22,
+    "trails_open": 120,
+    "base_depth_in": 38
+  },
+  "clear_creek_eagle": {
+    "terrain_open_pct": 55.0,
+    "lifts_open": 15,
+    "trails_open": 88,
+    "base_depth_in": 35
+  }
+}

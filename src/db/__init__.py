@@ -12,6 +12,7 @@ DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "wp_pricing.db"
 # alter existing tables when only the CREATE script changes, so we patch them.
 _SCHEMA_PATCHES: list[tuple[str, str, str]] = [
     ("properties", "max_occupancy", "INTEGER"),
+    ("properties", "airbnb_room_id", "TEXT"),
     ("comps", "sleeps", "INTEGER"),
     ("price_recommendations", "recommended_min_stay", "INTEGER"),
     ("price_recommendations", "min_stay_source", "TEXT"),
@@ -36,6 +37,9 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
         }
         if column not in cols:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_properties_airbnb_room ON properties(airbnb_room_id)"
+    )
 
 
 def init_db(db_path: Path | str | None = None, *, seed_markets: bool = True) -> Path:
@@ -48,5 +52,9 @@ def init_db(db_path: Path | str | None = None, *, seed_markets: bool = True) -> 
         if seed_markets:
             from src.signals.store import SignalStore
 
-            SignalStore(conn).seed_markets()
+            store = SignalStore(conn)
+            store.seed_markets()
+            from src.resort import seed_resort_reference
+
+            seed_resort_reference(store)
     return path

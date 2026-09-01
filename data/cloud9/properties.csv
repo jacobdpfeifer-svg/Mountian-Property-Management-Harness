@@ -1,0 +1,2 @@
+property_id,name,bedrooms,bathrooms,amenities,base_ceiling_rate,min_floor_rate,max_ceiling_rate,luxury_tier,target_alos,timezone
+cloud_9,Cloud 9 Chalet,6,4.5,Hot Tub|Mountain View|Fireplace|Game Room|Nordic Trails,1100,400,2000,luxury,4,America/Denver
