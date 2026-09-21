@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -52,7 +52,7 @@ def comp_evidence(
     feat: NightFeatures,
     policy: dict[str, Any],
     *,
-    as_of: datetime | None = None,
+    as_of: datetime | date | None = None,
     allow_stale: bool = False,
 ) -> CompEvidence | None:
     """Percentile of comp-set listed prices for this night, with a usability verdict.
