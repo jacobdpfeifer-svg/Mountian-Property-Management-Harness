@@ -24,6 +24,7 @@ dev = [
   "mypy>=1.11",
   "vulture>=2.11",
   "pip-audit>=2.7",
+  "types-PyYAML>=6.0",
 ]
 # Comp scraping. Kept optional so the engine still imports and runs advisory-only
 # on a machine without it.

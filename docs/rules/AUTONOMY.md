@@ -54,6 +54,12 @@ No level, and no config, may override these (`src/guardrails/apply_guardrails`):
 - `max_increase_pct` / `max_decrease_pct` per night per run
 - `max_abs_move` absolute dollar cap
 - `sanity_min_ratio_to_anchor` — a price far under the seasonal anchor is a bug, not a bid
+- `sanity_max_ratio_to_anchor` (added 2026-09-20) — a price far *over* the seasonal
+  anchor is also a bug, not a bid. Checked on the price actually being returned,
+  after the listed-price move cap, not just on the model's raw proposal — a
+  corrupted `listed` price (bad PMS sync, unit mismatch, fat-fingered entry) can
+  otherwise pull the move-cap band itself up to whatever the bad number implies,
+  which a same-side-only floor check cannot catch
 - `auto_push_blackout_demand_strength` — the highest-demand nights always escalate
 - `max_nights_changed_per_run` / `max_pct_of_open_nights_per_run` — a run that wants to
   move most of the calendar is more likely a data fault than an opportunity; the largest

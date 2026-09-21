@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import copy
 import sqlite3
+from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -25,7 +26,13 @@ from src.db import connect, init_db
 from src.eval import compute_revpan, format_report, record_outcomes_from_inventory
 from src.explain import Reason, select_top_reasons
 from src.features import build_features_for_property
-from src.guardrails import DataHealth, apply_guardrails, assess_data_health, record_health
+from src.guardrails import (
+    DataHealth,
+    apply_guardrails,
+    assess_data_health,
+    limit_run_scope,
+    record_health,
+)
 from src.ingest import CsvIngestAdapter, ICalIngestAdapter
 from src.leakage import scan_leakage
 from src.pacing import take_snapshot
@@ -217,6 +224,98 @@ def test_guardrail_sanity_floor_catches_absurd_prices():
     assert v.blocked and v.action == "sanity_floor"
 
 
+def test_guardrail_sanity_ceiling_catches_corrupted_listed_price():
+    """REGRESSION: the move-cap band is computed relative to `listed`, which is
+    untrusted PMS input — it can itself be corrupted (bad sync, unit mismatch,
+    fat-fingered entry). Before this check existed, a sane Stage C proposal near
+    a $690 anchor, paired with a corrupted $50,000 `listed` price, clamped OUT to
+    ~$49,750 ("clamped_decrease" — within 15% of the bad number), i.e. guardrails
+    actively made a corrupted input worse instead of catching it."""
+    policy = load_policy()
+    v = apply_guardrails(proposed=690, listed=50_000, anchor=690,
+                         demand_strength=0.2, policy=policy)
+    assert v.blocked and v.action == "sanity_ceiling", v
+    assert v.price <= 690 * float(policy["guardrails"]["sanity_max_ratio_to_anchor"]) + 0.01
+    assert v.price < 10_000, f"corrupted-listed price leaked through: {v}"
+
+
+def test_guardrail_blackout_wins_label_but_sanity_still_caps_price():
+    """When a night is both a peak-demand blackout AND the price is sanity-implausible,
+    'peak_blackout' stays the reported reason (AUTONOMY.md: the highest-demand nights
+    always escalate) but the sanity ceiling must still cap the number a human reviews —
+    the two checks are not mutually exclusive on the safety side, only on the label."""
+    policy = load_policy()
+    v = apply_guardrails(proposed=690, listed=50_000, anchor=690, demand_strength=0.95, policy=policy)
+    assert v.blocked and v.action == "peak_blackout"
+    assert v.price <= 690 * float(policy["guardrails"]["sanity_max_ratio_to_anchor"]) + 0.01
+    assert "seasonal anchor" in (v.detail or "")
+
+
+def test_guardrail_sanity_ceiling_does_not_fire_on_legitimate_peak_pricing():
+    """Control: a genuinely high but anchor-consistent price must NOT be treated
+    as corrupted. The seasonal anchor already reflects the property's own history,
+    so a proposal a little above the current listing at the same order of
+    magnitude as the anchor must pass through untouched."""
+    policy = load_policy()
+    v = apply_guardrails(proposed=750, listed=700, anchor=690,
+                         demand_strength=0.2, policy=policy)
+    assert v.action != "sanity_ceiling"
+    assert not v.blocked
+
+
+def test_limit_run_scope_withholds_largest_moves_first():
+    """REGRESSION: this hard invariant (max_nights_changed_per_run /
+    max_pct_of_open_nights_per_run, AUTONOMY.md) had zero direct test coverage —
+    only exercised indirectly via the CLI push command. A run that wants to move
+    more of the calendar than allowed must withhold the BIGGEST swings for human
+    review, not an arbitrary subset, since the largest moves are the ones most
+    likely to be a data fault rather than a real opportunity."""
+
+    @dataclass
+    class _Rec:
+        listed_price_at_run: float | None
+        recommended_price: float
+
+    policy = copy.deepcopy(load_policy())
+    policy["guardrails"]["max_nights_changed_per_run"] = 40
+    policy["guardrails"]["max_pct_of_open_nights_per_run"] = 1.0
+    # 5 recommendations with distinct move sizes; cap to 3 via open_nights * pct.
+    recs = [
+        _Rec(listed_price_at_run=500.0, recommended_price=505.0),   # $5 move
+        _Rec(listed_price_at_run=500.0, recommended_price=550.0),   # $50 move (largest)
+        _Rec(listed_price_at_run=500.0, recommended_price=520.0),   # $20 move
+        _Rec(listed_price_at_run=500.0, recommended_price=510.0),   # $10 move
+        _Rec(listed_price_at_run=500.0, recommended_price=530.0),   # $30 move
+    ]
+    policy["guardrails"]["max_pct_of_open_nights_per_run"] = 3 / 10  # 3 allowed of 10 open
+    pushable, withheld = limit_run_scope(recs, open_nights=10, policy=policy)
+
+    assert len(pushable) == 3
+    assert len(withheld) == 2
+    pushable_moves = sorted(abs(r.recommended_price - r.listed_price_at_run) for r in pushable)
+    withheld_moves = sorted(abs(r.recommended_price - r.listed_price_at_run) for r in withheld)
+    assert pushable_moves == [5.0, 10.0, 20.0]
+    assert withheld_moves == [30.0, 50.0], "the two largest moves must be withheld, not pushed"
+
+
+def test_limit_run_scope_ignores_sub_dollar_noise_and_missing_listed_price():
+    @dataclass
+    class _Rec:
+        listed_price_at_run: float | None
+        recommended_price: float
+
+    policy = load_policy()
+    recs = [
+        _Rec(listed_price_at_run=500.0, recommended_price=500.5),  # < $1, not a "change"
+        _Rec(listed_price_at_run=None, recommended_price=600.0),   # no listed price at all
+        _Rec(listed_price_at_run=500.0, recommended_price=510.0),  # a real $10 change
+    ]
+    pushable, withheld = limit_run_scope(recs, open_nights=100, policy=policy)
+    assert len(pushable) == 1
+    assert pushable[0].recommended_price == 510.0
+    assert withheld == []
+
+
 def test_autonomy_is_demoted_by_unhealthy_data(db: Path):
     """The operator chose auto-push AND scraper-first comps. Autonomy must be a
     computed function of data health, not a setting."""
@@ -250,6 +349,146 @@ def test_health_grace_is_asymmetric_and_fail_closed(db: Path):
         record_health(conn, "recovered", recovered)
         conn.commit()
         assert assess_data_health(conn, policy).granted_level == "handle"
+
+
+def test_health_demotes_on_pacing_gap(tmp_path: Path):
+    """REGRESSION: a hole in the middle of the pacing window must demote autonomy
+    even when the distinct-day COUNT already clears `pacing_min_snapshot_days`.
+
+    14 snapshot days with a missing day in the middle is not the same evidence as
+    14 consecutive days — the missing day is a hole in the pacing curve that
+    src/pacing's own docstring calls "permanently unrecoverable". Counting distinct
+    `as_of` values alone cannot see this; only `verify_snapshots` can.
+    """
+    from src.db import connect as _connect
+    from src.db import init_db as _init_db
+
+    policy = load_policy()
+    db_path = tmp_path / "gap.db"
+    _init_db(db_path, seed_markets=False)
+
+    pid = "gap_house"
+    today = date.today()
+    span_days = 20  # > pacing_min_snapshot_days(14) even after one gap day
+    start = today - timedelta(days=span_days - 1)
+    gap_day = start + timedelta(days=10)
+
+    with connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO properties (property_id, name, bedrooms, bathrooms, amenities,
+                base_ceiling_rate, min_floor_rate, max_ceiling_rate, pms_listing_id, created_at)
+            VALUES (?, ?, 5, 4.0, '[]', 900, 400, 1800, 'guesty-123', ?)
+            """,
+            (pid, pid, f"{start.isoformat()} 12:00:00"),
+        )
+        conn.execute(
+            """
+            INSERT INTO nightly_inventory (property_id, stay_date, listed_price, status, updated_at)
+            VALUES (?, ?, 500, 'available', datetime('now'))
+            """,
+            (pid, (today + timedelta(days=30)).isoformat()),
+        )
+        conn.execute(
+            "INSERT INTO comps (comp_id, name, active) VALUES (?, ?, 1)", ("c1", "Comp One")
+        )
+        conn.execute(
+            "INSERT INTO comps (comp_id, name, active) VALUES (?, ?, 1)", ("c2", "Comp Two")
+        )
+        conn.execute(
+            "INSERT INTO comps (comp_id, name, active) VALUES (?, ?, 1)", ("c3", "Comp Three")
+        )
+        for cid in ("c1", "c2", "c3"):
+            conn.execute(
+                "INSERT INTO comp_set_members (property_id, comp_id) VALUES (?, ?)", (pid, cid)
+            )
+            conn.execute(
+                """
+                INSERT INTO comp_snapshots (comp_id, as_of, stay_date, listed_price, scrape_status)
+                VALUES (?, datetime('now'), ?, 480, 'ok')
+                """,
+                (cid, (today + timedelta(days=30)).isoformat()),
+            )
+        for i in range(span_days):
+            as_of = start + timedelta(days=i)
+            if as_of == gap_day:
+                continue  # the deliberate hole
+            conn.execute(
+                """
+                INSERT INTO pacing_snapshots (as_of, property_id, stay_date, days_out, status, listed_price)
+                VALUES (?, ?, ?, 30, 'available', 500)
+                """,
+                (as_of.isoformat(), pid, (today + timedelta(days=30)).isoformat()),
+            )
+        conn.commit()
+
+        # Sanity: the day COUNT alone already clears the threshold.
+        distinct_days = conn.execute(
+            "SELECT COUNT(DISTINCT as_of) AS c FROM pacing_snapshots WHERE property_id = ?", (pid,)
+        ).fetchone()["c"]
+        assert distinct_days == span_days - 1 >= int(policy["data_health"]["pacing_min_snapshot_days"])
+
+        health = assess_data_health(conn, policy, property_ids=[pid])
+
+    assert not health.can_push, (
+        f"pacing gap on {gap_day} must demote despite {distinct_days} distinct snapshot "
+        f"days; failures={health.failures}"
+    )
+    assert any("gap" in f.lower() for f in health.failures), health.failures
+
+    # Control: same setup with the gap filled must NOT fail on pacing at all.
+    db_path2 = tmp_path / "nogap.db"
+    _init_db(db_path2, seed_markets=False)
+    with connect(db_path2) as conn:
+        conn.execute(
+            """
+            INSERT INTO properties (property_id, name, bedrooms, bathrooms, amenities,
+                base_ceiling_rate, min_floor_rate, max_ceiling_rate, pms_listing_id, created_at)
+            VALUES (?, ?, 5, 4.0, '[]', 900, 400, 1800, 'guesty-123', ?)
+            """,
+            (pid, pid, f"{start.isoformat()} 12:00:00"),
+        )
+        conn.execute(
+            """
+            INSERT INTO nightly_inventory (property_id, stay_date, listed_price, status, updated_at)
+            VALUES (?, ?, 500, 'available', datetime('now'))
+            """,
+            (pid, (today + timedelta(days=30)).isoformat()),
+        )
+        conn.execute(
+            "INSERT INTO comps (comp_id, name, active) VALUES (?, ?, 1)", ("c1", "Comp One")
+        )
+        conn.execute(
+            "INSERT INTO comps (comp_id, name, active) VALUES (?, ?, 1)", ("c2", "Comp Two")
+        )
+        conn.execute(
+            "INSERT INTO comps (comp_id, name, active) VALUES (?, ?, 1)", ("c3", "Comp Three")
+        )
+        for cid in ("c1", "c2", "c3"):
+            conn.execute(
+                "INSERT INTO comp_set_members (property_id, comp_id) VALUES (?, ?)", (pid, cid)
+            )
+            conn.execute(
+                """
+                INSERT INTO comp_snapshots (comp_id, as_of, stay_date, listed_price, scrape_status)
+                VALUES (?, datetime('now'), ?, 480, 'ok')
+                """,
+                (cid, (today + timedelta(days=30)).isoformat()),
+            )
+        for i in range(span_days):
+            as_of = start + timedelta(days=i)
+            conn.execute(
+                """
+                INSERT INTO pacing_snapshots (as_of, property_id, stay_date, days_out, status, listed_price)
+                VALUES (?, ?, ?, 30, 'available', 500)
+                """,
+                (as_of.isoformat(), pid, (today + timedelta(days=30)).isoformat()),
+            )
+        conn.commit()
+        health_ok = assess_data_health(conn, policy, property_ids=[pid])
+
+    assert not any("gap" in f.lower() for f in health_ok.failures), health_ok.failures
+    assert health_ok.can_push, health_ok.failures
 
 
 def test_assess_data_health_raise_is_fail_closed(db: Path, monkeypatch: pytest.MonkeyPatch):
@@ -332,6 +571,36 @@ def test_recommendations_respect_bounds_and_explain_themselves(db: Path):
         assert rec.expected_revpan is not None
         assert rec.rule_version and rec.inputs_hash
         assert rec.autonomy_level in ("watch", "suggest", "handle", "escalate")
+
+
+def test_corrupted_listed_price_does_not_reach_a_real_recommendation(db: Path):
+    """Adversarial end-to-end trace (Stage D's job): a single corrupted PMS row —
+    the kind a bad Guesty sync or a fat-fingered manual entry produces — must not
+    survive the full ceiling -> compose -> guardrails chain as a five-figure
+    recommendation. Before the sanity-ceiling guardrail existed, this exact
+    scenario clamped OUT to ~$49,750 via 'clamped_decrease' (within 15% of the
+    corrupted $50,000 listed price), i.e. the guardrail made the corruption
+    worse instead of catching it."""
+    policy = load_policy()
+    with connect(db) as conn:
+        conn.execute(
+            "UPDATE nightly_inventory SET listed_price = 50000 "
+            "WHERE property_id = 'aspen_glow' AND stay_date = '2026-12-05'"
+        )
+        conn.commit()
+        recs, health = generate_recommendations(
+            conn, date(2026, 12, 5), date(2026, 12, 5),
+            property_ids=["aspen_glow"], policy=policy, persist=False,
+        )
+    assert len(recs) == 1
+    rec = recs[0]
+    assert rec.recommended_price < 5_000, (
+        f"corrupted $50,000 listed price leaked through as ${rec.recommended_price:.0f} "
+        f"(action={rec.guardrail_action})"
+    )
+    assert rec.guardrail_action == "sanity_ceiling"
+    assert rec.status == "blocked"
+    assert rec.autonomy_level == "escalate"
 
 
 def test_shoulder_nights_are_not_priced_off_peak_history(db: Path):

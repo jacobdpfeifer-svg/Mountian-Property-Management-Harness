@@ -225,6 +225,11 @@ guardrails:
   max_pct_of_open_nights_per_run: 0.35
   # A price below this fraction of the seasonal anchor is treated as a bug, not a bid.
   sanity_min_ratio_to_anchor: 0.40
+  # A price above this MULTIPLE of the seasonal anchor is treated as a bug, not a
+  # bid — checked on the price actually being returned (post move-cap), because a
+  # corrupted `listed` price can otherwise pull the move-cap band itself far above
+  # a sane value. See src/guardrails.apply_guardrails.
+  sanity_max_ratio_to_anchor: 3.0
 
 # ------------------------------------------------------------------ data health
 # Autonomy is DERIVED from these. See docs/rules/AUTONOMY.md.
