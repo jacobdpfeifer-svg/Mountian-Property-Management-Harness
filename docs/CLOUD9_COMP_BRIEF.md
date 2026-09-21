@@ -1,8 +1,14 @@
 # Cloud 9 Chalet — Comp Discovery Brief
 
-Purpose: Find 5–10 ideal comparable vacation rentals for Cloud 9 Chalet in Winter Park, CO.
+Purpose: Find 5–10 ideal comparable vacation rentals for Cloud 9 Chalet.
 Comps feed a RevPAN pricing engine that uses the **75th percentile** of comp listed nightly
 rates (when fresh and ≥60% coverage) to inform rate ceilings. Quality matters more than quantity.
+
+**How the set is produced:** `wp-price discover-comps` sweeps the `grand_home` bbox
+(Winter Park / Fraser / Tabernash). A human then applies this rubric (accept ≥70) and
+writes keepers to `data/cloud9/comps.csv`. Nightly rates refresh automatically via the
+same `wp-price scrape-comps` job as Summit Haus and Overlook Ridge. This brief is the
+filter, not a one-time hand-built catalog.
 
 ## Subject Property Profile
 
@@ -10,7 +16,8 @@ rates (when fresh and ≥60% coverage) to inform rate ceilings. Quality matters 
 |-------|-------|
 | Property ID | `cloud_9` |
 | Name | Cloud 9 Chalet |
-| Address | 1615 Pioneer Trail, Winter Park, CO 80482 |
+| Address | 1615 Pioneer Trail, Winter Park, CO 80482 (Guesty mailing city) |
+| Town (operator-confirmed) | Fraser, CO — adjacent to Winter Park; same `grand_home` market |
 | Guesty listing ID | `6a8e355230f5b5007c81df4b` |
 | Bedrooms / baths | 6 bed / 4–4.5 ba |
 | Sleeps | 18 |
@@ -23,12 +30,14 @@ rates (when fresh and ≥60% coverage) to inform rate ceilings. Quality matters 
 
 **Product positioning:** Cloud 9 is a large-group luxury whole-home chalet — the buyer persona
 is multi-family ski trips, corporate retreats, and friend groups needing 16–18+ beds, not couples
-or small families. It competes in the upper-mid to ultra-luxury large-home segment of Winter Park
-STR, not the 3–4BR cabin tier.
+or small families. It competes in the upper-mid to ultra-luxury large-home segment of the
+Winter Park / Fraser STR market, not the 3–4BR cabin tier.
 
 ## Geographic Market Definition
 
 **Primary market (must be in this area):** Winter Park / Fraser / Tabernash, Grand County, CO
+(`market_id: grand_home` in `config/policies/markets.yaml`). Fraser is scored 85/100 on
+proximity vs Pioneer/Lakota/Grand Park at 100 — comps may span both towns on purpose.
 
 Bounding box (scraper): NE 39.95°N, -105.70°W · SW 39.85°N, -105.82°W (~280 bookable Airbnb listings)
 
@@ -84,28 +93,35 @@ Field rules: `comp_id` snake_case; `for_properties` must include `cloud_9`; pipe
 - Include 1 ultra-luxury anchor (Brooky-tier) and 1 value floor (Deer/Rifle Shot-tier)
 - Max 1–2 ski-in/ski-out premium anchors balanced with valley large homes
 
-## Live Comp Set (curated 2026-09-01)
+## Live Comp Set (scraper-reviewed 2026-09-20)
 
-See [`data/cloud9/VALIDATION_MATRIX.md`](../data/cloud9/VALIDATION_MATRIX.md) for scoring decisions.
+See [`data/cloud9/VALIDATION_MATRIX.md`](../data/cloud9/VALIDATION_MATRIX.md) for scoring
+and the 2026-09-20 overlap vs rejects. Membership is not frozen: re-run discovery, apply
+this rubric, ingest, and let `scrape-comps` refresh prices.
 
 | Tier | comp_id | Name |
 |------|---------|------|
 | Core | comp_ranch_creek | Ranch Creek Log Home |
 | Core | comp_family_friendly | Family Friendly 6BR |
 | Core | comp_the_views | The Views 6BR Chalet |
-| Core | comp_grand_park_retreat | Luxury Grand Park Retreat |
-| Core | comp_lakota_reserve | Lakota Reserve |
-| Value floor | comp_deer | Deer |
-| Premium anchor | comp_brooky | Brooky |
+| Core | comp_lakota_reserve | Lakota Reserve (direct) |
+| Value floor | comp_deer | Deer (direct) |
+| Premium anchor | comp_brooky | Brooky (direct) |
 | Premium SISO | comp_wp_ski_house | Winter Park Ski House |
+
+`comp_grand_park_retreat` is inactive (live 4BR townhouse).
 
 ## Discovery Commands
 
 ```bash
-wp-price discover-comps --date 2026-12-18 --min-price 800
-wp-price discover-comps --date 2026-12-05 --min-price 700
-wp-price discover-comps --date 2026-02-15 --min-price 700
+wp-price discover-comps --date 2026-12-18 --min-price 800 --min-bedrooms 5 --min-sleeps 16
+wp-price discover-comps --date 2026-12-05 --min-price 650 --min-bedrooms 5 --min-sleeps 16
+wp-price discover-comps --date 2026-02-15 --min-price 700 --min-bedrooms 5 --min-sleeps 16
 ```
+
+`--min-sleeps 16` is Cloud 9’s hard filter. The twins default (`scrape.group_size.min_sleeps: 14`)
+is too loose for this listing. Listings with unknown sleeps but bedrooms ≥ 5 still print for
+review — keep only if a guest choosing Cloud 9 would realistically book them.
 
 ## Dec 2023 Candidate Pool
 

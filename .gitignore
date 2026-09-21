@@ -1,5 +1,8 @@
 data/*.db
+data/*.db.archived
+data/*.db.icloud-backup
 data/exports/
+data/logs/
 .venv/
 __pycache__/
 *.pyc

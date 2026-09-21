@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import time
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date
@@ -32,6 +33,7 @@ class PushResult:
     ok: bool
     result: str          # applied | failed | dry_run
     error: str | None = None
+    request_id: str | None = None
 
 
 class PMSAdapter(ABC):
@@ -105,8 +107,11 @@ class GuestyAdapter(PMSAdapter):
         except KeyError as exc:
             return PushResult(property_id, stay_date, None, price, False, "failed", str(exc))
         ok, error = self.client.set_rate(listing_id, stay_date, price, min_stay)
+        request_id = None
+        if ok and error and error.startswith("request_id="):
+            request_id, error = error.split("=", 1)[1], None
         return PushResult(property_id, stay_date, None, price, ok,
-                          "applied" if ok else "failed", error)
+                          "applied" if ok else "failed", error, request_id)
 
 
 class HostawayAdapter(PMSAdapter):
@@ -132,6 +137,52 @@ class HostawayAdapter(PMSAdapter):
 
 
 ADAPTERS = {"dry_run": DryRunAdapter, "guesty": GuestyAdapter, "hostaway": HostawayAdapter}
+
+
+def _channel_price_matches(adapter: PMSAdapter, rec: Any) -> bool:
+    """True when the PMS calendar already shows the recommended price.
+
+    Used after a failed write: a timeout can mean Guesty applied the PUT but the
+    client never saw 200. Matching the live listed price is the source of truth.
+    """
+    try:
+        days = adapter.fetch_calendar(rec.property_id, rec.stay_date, rec.stay_date)
+    except Exception:
+        return False
+    target = round(float(rec.recommended_price), 2)
+    for day in days or []:
+        if not isinstance(day, dict):
+            continue
+        raw_date = day.get("date")
+        try:
+            stay = date.fromisoformat(str(raw_date)[:10]) if raw_date else None
+        except ValueError:
+            stay = None
+        if stay != rec.stay_date:
+            continue
+        price = day.get("price")
+        if price is None:
+            return False
+        return abs(float(price) - target) <= 0.01
+    return False
+
+
+def _apply_local_inventory(
+    conn: sqlite3.Connection, rec: Any, min_stay: int | None
+) -> None:
+    if min_stay is not None:
+        conn.execute(
+            "UPDATE nightly_inventory SET listed_price=?, min_stay=?, "
+            "updated_at=datetime('now') WHERE property_id=? AND stay_date=?",
+            (rec.recommended_price, min_stay, rec.property_id,
+             rec.stay_date.isoformat()),
+        )
+    else:
+        conn.execute(
+            "UPDATE nightly_inventory SET listed_price=?, updated_at=datetime('now') "
+            "WHERE property_id=? AND stay_date=?",
+            (rec.recommended_price, rec.property_id, rec.stay_date.isoformat()),
+        )
 
 
 def push_recommendations(
@@ -167,8 +218,6 @@ def push_recommendations(
         if rec.status == "blocked" or rec.autonomy_level != "handle":
             counts["skipped_autonomy"] += 1
             continue
-        counts["attempted"] += 1
-
         min_stay = getattr(rec, "recommended_min_stay", None)
         source = getattr(rec, "min_stay_source", None)
         if min_stay is not None:
@@ -177,39 +226,88 @@ def push_recommendations(
             elif source == "policy" and not policy_min_enabled:
                 min_stay = None
 
-        res = adapter.push_rate(
-            rec.property_id, rec.stay_date, rec.recommended_price, min_stay=min_stay
-        )
+        # Final write-boundary validation. Recommendations normally arrive from
+        # compose(), but adapters must never become an escape hatch around the
+        # safety contract. Keep the move-cap check here even if a caller bypasses
+        # the normal compose path; enforce the floor for every write, while
+        # allowing a gradual move that is temporarily above the model ceiling.
+        candidate = float(rec.recommended_price)
+        boundary_error = None
+        if not math.isfinite(candidate) or candidate <= 0:
+            boundary_error = "write-boundary rejected non-positive or non-finite price"
+        elif candidate + 0.01 < float(rec.floor_price):
+            boundary_error = (
+                f"write-boundary rejected price below floor ${float(rec.floor_price):.0f}"
+            )
+        if boundary_error is None and rec.listed_price_at_run is not None and rec.listed_price_at_run > 0:
+            g = policy.get("guardrails", {})
+            listed = float(rec.listed_price_at_run)
+            upper = min(listed * (1 + float(g.get("max_increase_pct", 0.12))),
+                        listed + float(g.get("max_abs_move", 250)))
+            lower = max(listed * (1 - float(g.get("max_decrease_pct", 0.15))),
+                        listed - float(g.get("max_abs_move", 250)))
+            if not (lower - 0.01 <= candidate <= upper + 0.01):
+                boundary_error = "write-boundary guardrail rejected candidate"
+        if boundary_error is not None:
+            rec_id = conn.execute(
+                "SELECT id FROM price_recommendations WHERE run_id=? AND property_id=? AND stay_date=?",
+                (rec.run_id, rec.property_id, rec.stay_date.isoformat()),
+            ).fetchone()
+            conn.execute(
+                """INSERT INTO rate_changes (
+                    recommendation_id, property_id, stay_date, old_price, new_price,
+                    actor, autonomy_level, result, error, rule_version, model_version,
+                    inputs_hash)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'failed', ?, ?, ?, ?)""",
+                (rec_id["id"] if rec_id else None, rec.property_id,
+                 rec.stay_date.isoformat(), rec.listed_price_at_run,
+                 rec.recommended_price, adapter.name, autonomy_level,
+                 boundary_error, rec.rule_version,
+                 rec.model_version, rec.inputs_hash),
+            )
+            counts["skipped_autonomy"] += 1
+            continue
+        counts["attempted"] += 1
+        try:
+            res = adapter.push_rate(
+                rec.property_id, rec.stay_date, rec.recommended_price, min_stay=min_stay
+            )
+        except Exception as exc:  # adapter failures must become audit rows
+            res = PushResult(rec.property_id, rec.stay_date, rec.listed_price_at_run,
+                             rec.recommended_price, False, "failed",
+                             f"{type(exc).__name__}: {str(exc)[:300]}")
         rec_id = conn.execute(
             "SELECT id FROM price_recommendations WHERE run_id=? AND property_id=? AND stay_date=?",
             (rec.run_id, rec.property_id, rec.stay_date.isoformat()),
         ).fetchone()
+        result = res.result
+        error = res.error
+        if result == "failed" and _channel_price_matches(adapter, rec):
+            result = "applied"
+            prior = error or "write reported failure"
+            error = f"reconciled after write failure ({prior})"
+            res = PushResult(
+                rec.property_id, rec.stay_date, rec.listed_price_at_run,
+                rec.recommended_price, True, "applied", error,
+                getattr(res, "request_id", None),
+            )
         conn.execute(
             """
             INSERT INTO rate_changes (recommendation_id, property_id, stay_date,
-                old_price, new_price, actor, autonomy_level, result, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                old_price, new_price, actor, autonomy_level, result, error,
+                rule_version, model_version, inputs_hash, request_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (rec_id["id"] if rec_id else None, rec.property_id, rec.stay_date.isoformat(),
              rec.listed_price_at_run, rec.recommended_price, adapter.name,
-             autonomy_level, res.result, res.error),
+             autonomy_level, result, error,
+             rec.rule_version, rec.model_version, rec.inputs_hash,
+             getattr(res, "request_id", None)),
         )
-        if res.result == "applied":
+        if result == "applied":
             counts["applied"] += 1
-            if min_stay is not None:
-                conn.execute(
-                    "UPDATE nightly_inventory SET listed_price=?, min_stay=?, "
-                    "updated_at=datetime('now') WHERE property_id=? AND stay_date=?",
-                    (rec.recommended_price, min_stay, rec.property_id,
-                     rec.stay_date.isoformat()),
-                )
-            else:
-                conn.execute(
-                    "UPDATE nightly_inventory SET listed_price=?, updated_at=datetime('now') "
-                    "WHERE property_id=? AND stay_date=?",
-                    (rec.recommended_price, rec.property_id, rec.stay_date.isoformat()),
-                )
-        elif res.result == "failed":
+            _apply_local_inventory(conn, rec, min_stay)
+        elif result == "failed":
             counts["failed"] += 1
     conn.commit()
     return counts

@@ -13,7 +13,7 @@ import hashlib
 import json
 import sqlite3
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
@@ -21,9 +21,15 @@ import numpy as np
 
 from src import bookprob
 from src.ceiling import CeilingResult, compute_ceiling
+from src.comps import CompEvidence, comp_evidence
 from src.config import load_policy
 from src.elasticity import elasticity_context, maybe_soften
 from src.explain import Reason, select_top_reasons
+from src.explain.present import (
+    owner_evidence_count,
+    owner_price_range,
+    serialize_owner_reason,
+)
 from src.features import NightFeatures, build_features
 from src.guardrails import DataHealth, apply_guardrails, assess_data_health, record_health
 from src.leakage import apply_leakage_price, scan_leakage
@@ -54,6 +60,10 @@ class Recommendation:
     min_stay_source: str | None = None
     per_person_nightly: float | None = None
     max_occupancy: int | None = None
+    # Display-only. Derived from ceiling confidence + search bounds; not a CI.
+    range_low: float | None = None
+    range_high: float | None = None
+    evidence_count: int = 0
 
 
 def _property_occupancy(conn: sqlite3.Connection, property_id: str) -> int | None:
@@ -111,9 +121,13 @@ def recommend_night(
     run_id: str = "adhoc",
     *,
     as_of: date | None = None,
+    include_booked: bool = False,
 ) -> Recommendation | None:
     if feat.status != "available":
-        return None
+        if not include_booked or feat.status != "booked":
+            return None
+        listed = feat.listed_price if feat.listed_price is not None else feat.booked_price
+        feat = replace(feat, status="available", listed_price=listed)
 
     policy = policy or load_policy()
     g = policy.get("global", {})
@@ -132,7 +146,7 @@ def recommend_night(
     if access_cfg.get("enabled", True) and signal_status_at_least(
         store, "cdot.access_risk", "shadow"
     ):
-        risk = get_access_risk(store, "grand_home", decision_date)
+        risk = get_access_risk(store, feat.market_id, decision_date)
 
     ceiling = compute_ceiling(conn, feat, policy, as_of=decision_date)
     floor, ceil = _search_bounds(feat, ceiling, policy)
@@ -203,13 +217,13 @@ def recommend_night(
     if resort_cfg.get("enabled", True) and feat.lead_time_days is not None:
         from src.signals.features.resort_ops import compute_resort_ops
 
-        ops = compute_resort_ops(store, "grand_home", feat.stay_date, decision_date)
+        ops = compute_resort_ops(store, feat.market_id, feat.stay_date, decision_date)
         escalate_lead = int(resort_cfg.get("escalate_when_closed_lead_days", 3))
         closure_thresh = float(resort_cfg.get("closure_risk_threshold", 0.80))
         resort_closed = store.latest_observation(
             as_of=decision_date,
             signal_key="resort.resort_open",
-            market_id="grand_home",
+            market_id=feat.market_id,
             effective_date=decision_date,
         )
         is_closed = (
@@ -228,6 +242,13 @@ def recommend_night(
     # ---- attribution -------------------------------------------------------
     listed = feat.listed_price
     reasons: list[Reason] = []
+    ev: CompEvidence | None = comp_evidence(conn, feat, policy)
+    leak_codes = {
+        "peak_underprice": "ceiling_gap",
+        "orphan_gap": "gap_night",
+        "shoulder_over_discount": "shoulder_floor",
+        "access_cliff": "access_cliff",
+    }
 
     if listed is not None:
         reasons.append(Reason(
@@ -235,12 +256,18 @@ def recommend_night(
             f"E[RevPAN] peaks at ${optimum:.0f} (P(book)={bp.prob_at(optimum):.0%}, "
             f"beta={bp.beta:.2f}, bucket {bp.bucket} n={bp.sample_size})",
             contribution=optimum - listed,
+            facts={"optimum": optimum, "book_prob": bp.prob_at(optimum)},
         ))
     reasons.append(Reason(
         "base_compose",
         f"Ceiling ${ceiling.ceiling_price:.0f} via {ceiling.method} "
         f"(n={ceiling.sample_size}, confidence {ceiling.confidence:.0%})",
         contribution=0.0,
+        facts={
+            "ceiling": ceiling.ceiling_price,
+            "season": feat.season,
+            "thin": ceiling.is_thin,
+        },
     ))
     if ceiling.is_thin:
         reasons.append(Reason(
@@ -248,12 +275,21 @@ def recommend_night(
             f"Thin {feat.season} history — ceiling blended {1 - ceiling.confidence:.0%} "
             f"toward the ${ceiling.anchor_price:.0f} seasonal anchor",
             contribution=(ceiling.ceiling_price - ceiling.anchor_price) * (1 - ceiling.confidence),
+            facts={
+                "kind": "thin_pool",
+                "season": feat.season,
+                "anchor": ceiling.anchor_price,
+            },
         ))
     if ceiling.comp_price is not None:
         reasons.append(Reason(
             "comp_move",
             f"Comp set p75 ${ceiling.comp_price:.0f} (weight {ceiling.comp_weight:.0%})",
             contribution=(ceiling.comp_price - ceiling.anchor_price) * ceiling.comp_weight,
+            facts={
+                "comp_price": ceiling.comp_price,
+                "comp_observed": ev.observed if ev is not None else 0,
+            },
         ))
     if ceiling.substitution_reduction_pct > 0 and ceiling.substitution_index is not None:
         drop = ceiling.ceiling_price * ceiling.substitution_reduction_pct
@@ -262,38 +298,61 @@ def recommend_night(
             f"Substitutes cheaper per SQI (index {ceiling.substitution_index:.2f}) — "
             f"ceiling capped −{ceiling.substitution_reduction_pct:.0%}",
             contribution=-drop,
+            facts={"reduction_pct": ceiling.substitution_reduction_pct},
         ))
     if feat.demand_event and feat.demand_strength >= 0.5:
         reasons.append(Reason(
             "event_boost",
             f"{feat.demand_event} (demand {feat.demand_strength:.2f})",
             contribution=0.0,
+            facts={"event": feat.demand_event},
         ))
     if bp.pacing_ratio is not None:
         reasons.append(Reason(
             "pacing",
             f"Pacing {bp.pacing_ratio:.2f}x the portfolio norm at this lead time",
             contribution=0.0,
+            facts={"pacing_ratio": bp.pacing_ratio},
         ))
+    shoulder_cfg = (policy.get("leakage") or {}).get("shoulder_over_discount") or {}
+    shoulder_floor = ceiling.floor_price * float(shoulder_cfg.get("floor_ratio", 0.95))
+    standing_min = min_stay.policy_min_stay if min_stay.policy_min_stay is not None else feat.min_stay
     for f in findings:
-        code = {
-            "peak_underprice": "ceiling_gap",
-            "orphan_gap": "gap_night",
-            "shoulder_over_discount": "shoulder_floor",
-            "access_cliff": "access_cliff",
-        }.get(f.kind)
+        code = leak_codes.get(f.kind)
         if code:
-            reasons.append(Reason(code, f.detail,
-                                  contribution=f.suggested_adjustment - optimum))
+            reasons.append(Reason(
+                code,
+                f.detail,
+                contribution=f.suggested_adjustment - optimum,
+                facts={
+                    "listed": listed,
+                    "ceiling": ceiling.ceiling_price,
+                    "event": feat.demand_event or "high demand",
+                    "gap_size": feat.gap_size,
+                    "standing_min_stay": standing_min,
+                    "shoulder_floor": shoulder_floor,
+                    "lead_days": feat.lead_time_days,
+                },
+            ))
     if min_stay.recommended_min_stay is not None:
         reasons.append(Reason(
             "min_stay",
             min_stay.detail,
             contribution=0.0,
             always_show=min_stay.gap_override,
+            facts={
+                "nights": min_stay.recommended_min_stay,
+                "source": min_stay.source,
+                "gap_override": min_stay.gap_override,
+            },
         ))
     if ctx.soften_upward:
-        reasons.append(Reason("inquiry_soft", ctx.note, contribution=softened - leaked_price))
+        reasons.append(Reason(
+            "inquiry_soft",
+            ctx.note,
+            contribution=softened - leaked_price,
+            facts={"conversion_rate": ctx.conversion_rate},
+        ))
     if abs(deference_shift) >= 1.0:
         reasons.append(Reason(
             "thin_history",
@@ -301,16 +360,37 @@ def recommend_night(
             f"{1 - max(float(dcfg.get('min_model_weight', 0.25)), ceiling.confidence):.0%} "
             f"toward your listed ${feat.listed_price:.0f}",
             contribution=deference_shift,
+            facts={"kind": "deference", "listed": feat.listed_price},
         ))
     if verdict.action:
-        reasons.append(Reason("guardrail",
-                              f"{verdict.action}: {verdict.detail}",
-                              contribution=verdict.price - pre_guard,
-                              always_show=True))
+        reasons.append(Reason(
+            "guardrail",
+            f"{verdict.action}: {verdict.detail}",
+            contribution=verdict.price - pre_guard,
+            always_show=True,
+            facts={"action": verdict.action},
+        ))
 
     top = select_top_reasons(reasons, max_n=max_reasons)
     occupancy = _property_occupancy(conn, feat.property_id)
     per_person = _per_person_nightly(recommended, occupancy, policy)
+    range_low, range_high = owner_price_range(
+        recommended=recommended,
+        floor=floor,
+        ceiling=ceil,
+        confidence=ceiling.confidence,
+        round_to=round_to,
+    )
+    evidence_count = owner_evidence_count(
+        own_history_nights=ceiling.sample_size,
+        comp_usable=bool(ev is not None and ev.usable),
+        comp_observed=ev.observed if ev is not None else 0,
+        demand_event=bool(feat.demand_event and feat.demand_strength >= 0.5),
+        pacing_present=bp.pacing_ratio is not None,
+        substitution_applied=ceiling.substitution_reduction_pct > 0,
+        inquiry_softened=ctx.soften_upward,
+        access_capped=any(f.kind == "access_cliff" for f in findings),
+    )
     payload = {
         "property_id": feat.property_id, "stay_date": feat.stay_date.isoformat(),
         "listed": listed, "optimum": optimum, "ceiling": ceiling.ceiling_price,
@@ -331,7 +411,7 @@ def recommend_night(
         ceiling_confidence=ceiling.confidence,
         autonomy_level=level,
         guardrail_action=verdict.action,
-        reasons=[r.as_dict() for r in top],
+        reasons=[serialize_owner_reason(r) for r in top],
         rule_version=str(policy.get("rule_version", "unknown")),
         model_version=str(policy.get("model_version", "rules_v2")),
         inputs_hash=_inputs_hash(payload),
@@ -341,6 +421,9 @@ def recommend_night(
         min_stay_source=min_stay.source,
         per_person_nightly=per_person,
         max_occupancy=occupancy,
+        range_low=range_low,
+        range_high=range_high,
+        evidence_count=evidence_count,
     )
 
 
@@ -351,8 +434,9 @@ def persist_recommendation(conn: sqlite3.Connection, rec: Recommendation) -> int
             run_id, property_id, stay_date, recommended_price, ceiling_price, floor_price,
             listed_price_at_run, expected_book_prob, expected_revpan, ceiling_confidence,
             autonomy_level, guardrail_action, reasons, rule_version, model_version,
-            inputs_hash, status, recommended_min_stay, min_stay_source, per_person_nightly
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            inputs_hash, status, recommended_min_stay, min_stay_source, per_person_nightly,
+            range_low, range_high, evidence_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(run_id, property_id, stay_date) DO UPDATE SET
             recommended_price=excluded.recommended_price,
             expected_book_prob=excluded.expected_book_prob,
@@ -361,13 +445,17 @@ def persist_recommendation(conn: sqlite3.Connection, rec: Recommendation) -> int
             reasons=excluded.reasons, status=excluded.status,
             recommended_min_stay=excluded.recommended_min_stay,
             min_stay_source=excluded.min_stay_source,
-            per_person_nightly=excluded.per_person_nightly
+            per_person_nightly=excluded.per_person_nightly,
+            range_low=excluded.range_low,
+            range_high=excluded.range_high,
+            evidence_count=excluded.evidence_count
         """,
         (rec.run_id, rec.property_id, rec.stay_date.isoformat(), rec.recommended_price,
          rec.ceiling_price, rec.floor_price, rec.listed_price_at_run, rec.expected_book_prob,
          rec.expected_revpan, rec.ceiling_confidence, rec.autonomy_level, rec.guardrail_action,
          json.dumps(rec.reasons), rec.rule_version, rec.model_version, rec.inputs_hash, rec.status,
-         rec.recommended_min_stay, rec.min_stay_source, rec.per_person_nightly),
+         rec.recommended_min_stay, rec.min_stay_source, rec.per_person_nightly,
+         rec.range_low, rec.range_high, rec.evidence_count),
     )
     return int(cur.lastrowid)
 
@@ -386,11 +474,11 @@ def generate_recommendations(
 ) -> tuple[list[Recommendation], DataHealth]:
     policy = policy or load_policy()
     run_id = run_id or uuid.uuid4().hex[:12]
-    health = assess_data_health(conn, policy)
+    health = assess_data_health(conn, policy, property_ids=property_ids)
     if persist:
         record_health(conn, run_id, health)
 
-    features = build_features(conn, start, end, property_ids=property_ids, policy=policy)
+    features = build_features(conn, start, end, property_ids=property_ids, policy=policy, as_of=as_of)
     if not allow_past:
         # Pricing a night that has already happened is always a bug in a live run.
         # Backtests must opt in explicitly.

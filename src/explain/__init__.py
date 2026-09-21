@@ -12,7 +12,7 @@ displaces one that moved it by $80.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 ReasonCode = Literal[
@@ -31,6 +31,8 @@ ReasonCode = Literal[
     "thin_history",
     "pacing",
     "min_stay",
+    "substitution_bleed",
+    "access_cliff",
 ]
 
 
@@ -40,6 +42,8 @@ class Reason:
     message: str
     contribution: float = 0.0   # signed dollars this factor moved the final price
     always_show: bool = False   # guardrails/blocks must never be ranked out
+    # Owner-facing template variables only. Never used by select_top_reasons.
+    facts: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {

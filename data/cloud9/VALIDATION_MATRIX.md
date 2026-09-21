@@ -26,15 +26,35 @@
 | comp_wp_ski_house | Winter Park Ski House | 78 | Premium SISO | **Include** | 16 sleep ski-in/ski-out; $2004 Dec 5 / $1652 Feb 15 |
 | comp_grand_park_retreat | Luxury Grand Park Retreat | 80 | Core | **Include** | Grand Park new-build cluster; $1425 Dec 18 peak; replaces Rifle Shot for scrape coverage |
 
-## Final Live Set (8 comps)
+## Final Live Set (8 comps on 2026-09-01; 7 after 2026-09-20 refresh)
 
 | Tier | Count | Comps |
 |------|-------|-------|
-| Core | 5 | Ranch Creek, Family Friendly, The Views, Grand Park Retreat, Lakota Reserve |
+| Core | 4 (was 5) | Ranch Creek, Family Friendly, The Views, Lakota Reserve. Grand Park Retreat dropped (4BR townhouse). |
 | Value floor | 1 | Deer |
-| Premium anchor | 2 | Brooky (ultra-luxury), Winter Park Ski House (SISO) |
+| Premium anchor | 2 | Brooky (ultra-luxury, direct), Winter Park Ski House (SISO, Airbnb) |
 
-**Coverage design:** 5 Airbnb scrapeable + 3 direct manual = 8 total (62.5% scrape-only floor; 100% with fresh manual snapshots)
+See **2026-09-20 scraper refresh** below for the live-sweep overlap and rejects.
+
+## 2026-09-20 scraper refresh
+
+Live `wp-price discover-comps` against the same `grand_home` bbox (Winter Park / Fraser / Tabernash), with bedrooms parsed from Airbnb `structuredContent` and Cloud 9 hard filters (`bd≥5`, `sleeps≥16` when known).
+
+| room_id | Name | Decision | Why |
+|---------|------|----------|-----|
+| 897819634480326640 | Ranch Creek Log Home | **Keep** | Overlap with manual set. Title `Home in Fraser`, 5BR. Substitutable Fraser large-group luxury. |
+| 28918989 | Family Friendly 6BR | **Keep** | Overlap. Title `Home in Winter Park`, 6BR / sleeps 16 in name. |
+| 22769369 | The Views 6BR | **Keep** | Overlap. Title `Home in Fraser`, 6BR / sleeps 16. Missed a `--min-price 700` pass at $696 that night — price floor is not a delist signal. |
+| 998026465866480254 | Winter Park Ski House | **Keep** | Overlap. Sole SISO premium anchor. |
+| 1761114119243255736 | Luxury Grand Park Retreat | **Drop (inactive)** | Live payload is **4BR townhouse in Fraser**. Fails bedrooms ≥ 5. Original “sleeps 18 est” does not hold. |
+| 1408168171167279157 | Slopeside Luxury Chalet | **Reject** | Twins-tier SISO; sleeps 14 in twins notes; Cloud 9 already has one SISO. |
+| 1473395104176598155 | Secluded Ranch Creek | **Reject** | Live 4BR Fraser; twins keep at sleeps 14. |
+| 48424415 | Downtown WP Timber Top | **Reject** | Title `Home in Granby` — Granby is out of primary market. |
+| 1134265223418214424 | WP Resort Villa 510 | **Reject** | Resort-villa product; sleeps unknown; would-a-guest-choose-Cloud-9 bar not met vs valley chalets. |
+| 1044902831329968565 | Moose Lodge | **Reject** | Same downtown-Moose judgment as 2026-09-01 (geo weaker than Pioneer/Fraser valley). |
+| 1767097517715247917 | Sleeps 18 / 2 hot tubs | **Reject** | Capacity match, but Christmas $2,957 is Brooky-tier ultra; Cloud 9 already has Brooky as the ceiling anchor. Adding it would pull p75. |
+
+**Live set after refresh:** 4 Airbnb (scrape-comps) + 3 direct (weekly CSV) = 7. Direct comps are not in the Airbnb sweep by design.
 
 ## Rate Sources (2025–26)
 

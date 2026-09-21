@@ -165,7 +165,7 @@ def estimate(
             from src.signals.features.sqi import compute_sqi
             from src.signals.store import SignalStore
 
-            res = compute_sqi(SignalStore(conn), "grand_home", stay, stay, conditions)
+            res = compute_sqi(SignalStore(conn), feat.market_id, stay, as_of or date.today(), conditions)
             if not res.components_used:
                 return "all"
             if res.sqi < 0.75:
@@ -249,7 +249,7 @@ def estimate(
         from src.signals.promotion import signal_status_at_least
 
         if signal_status_at_least(store, "cdot.access_risk", "shadow"):
-            risk = access_risk(store, "grand_home", decision)
+            risk = access_risk(store, feat.market_id, decision)
             threshold = float(access_cfg.get("beta_scale_when_risk_above", 0.5))
             lead = feat.lead_time_days if feat.lead_time_days is not None else 999
             if risk > threshold and lead <= 7:
@@ -291,7 +291,7 @@ def _adjust_p_ref_with_signals(
         row = store.latest_observation(
             as_of=decision,
             signal_key="intent.search_interest",
-            market_id="grand_home",
+            market_id=feat.market_id,
             effective_date=decision,
         )
         if row and row["value"] is not None:

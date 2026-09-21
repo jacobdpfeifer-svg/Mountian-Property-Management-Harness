@@ -34,6 +34,7 @@ class RevpanReport:
     # found". Only nights whose recommendation actually reached a channel are counted.
     expected_revpan_delta: float | None
     measurable_nights: int
+    owner_id: str | None = None
 
 
 def record_outcomes_from_inventory(
@@ -126,12 +127,18 @@ def compute_revpan(
     start: date,
     end: date,
     property_id: str | None = None,
+    property_ids: list[str] | None = None,
+    owner_id: str | None = None,
 ) -> RevpanReport:
+    ids = list(property_ids) if property_ids is not None else (
+        [property_id] if property_id else None
+    )
     params: list[Any] = [start.isoformat(), end.isoformat()]
     prop_filter = ""
-    if property_id:
-        prop_filter = " AND property_id = ?"
-        params.append(property_id)
+    if ids:
+        placeholders = ",".join("?" for _ in ids)
+        prop_filter = f" AND property_id IN ({placeholders})"
+        params.extend(ids)
 
     inv = conn.execute(
         f"""
@@ -160,9 +167,10 @@ def compute_revpan(
 
     rec_params: list[Any] = [start.isoformat(), end.isoformat()]
     rec_filter = ""
-    if property_id:
-        rec_filter = " AND r.property_id = ?"
-        rec_params.append(property_id)
+    if ids:
+        placeholders = ",".join("?" for _ in ids)
+        rec_filter = f" AND r.property_id IN ({placeholders})"
+        rec_params.extend(ids)
     recs = conn.execute(
         f"""
         SELECT r.recommended_price, r.listed_price_at_run, r.status,
@@ -197,8 +205,11 @@ def compute_revpan(
 
     avg_delta = sum(deltas) / len(deltas) if deltas else None
 
+    label_pid = property_id
+    if label_pid is None and ids and len(ids) == 1 and not owner_id:
+        label_pid = ids[0]
     return RevpanReport(
-        property_id=property_id,
+        property_id=label_pid,
         start=start,
         end=end,
         available_nights=available,
@@ -214,11 +225,17 @@ def compute_revpan(
         avg_recommended_vs_listed=avg_delta,
         expected_revpan_delta=revpan_delta if measurable else None,
         measurable_nights=measurable,
+        owner_id=owner_id,
     )
 
 
 def format_report(report: RevpanReport) -> str:
-    prop = report.property_id or "ALL"
+    if report.property_id:
+        prop = report.property_id
+    elif report.owner_id:
+        prop = f"owner:{report.owner_id}"
+    else:
+        prop = "ALL"
     lines = [
         f"RevPAN report — {prop} — {report.start} → {report.end}",
         f"  Available nights (open): {report.available_nights}",
@@ -248,11 +265,26 @@ def portfolio_reports(
     conn: sqlite3.Connection,
     start: date,
     end: date,
+    property_ids: list[str] | None = None,
+    owner_id: str | None = None,
 ) -> list[RevpanReport]:
-    props = [
-        r["property_id"]
-        for r in conn.execute("SELECT property_id FROM properties ORDER BY property_id").fetchall()
-    ]
-    reports = [compute_revpan(conn, start, end, pid) for pid in props]
-    reports.append(compute_revpan(conn, start, end, None))
+    if property_ids is None:
+        if owner_id:
+            from src.db import resolve_property_ids
+
+            property_ids = resolve_property_ids(conn, owner_id=owner_id) or []
+        else:
+            property_ids = [
+                r["property_id"]
+                for r in conn.execute(
+                    "SELECT property_id FROM properties ORDER BY property_id"
+                ).fetchall()
+            ]
+    reports = [compute_revpan(conn, start, end, pid) for pid in property_ids]
+    if owner_id:
+        reports.append(
+            compute_revpan(conn, start, end, property_ids=property_ids, owner_id=owner_id)
+        )
+    elif len(property_ids) != 1:
+        reports.append(compute_revpan(conn, start, end, None))
     return reports

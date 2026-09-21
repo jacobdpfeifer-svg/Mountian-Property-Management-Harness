@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -46,12 +47,36 @@ def _int_or_none(value: Any) -> int | None:
         return None
 
 
+_BEDROOM_LINE = re.compile(r"^(\d+)\s+bedrooms?\b", re.I)
+_SLEEPS_TEXT = re.compile(r"sleeps?\s*(\d+)", re.I)
+_BEDROOMS_TEXT = re.compile(r"(\d+)\s*(?:br|bedrooms?)\b", re.I)
+_N_BED_TEXT = re.compile(r"(\d+)\s+bed\b", re.I)
+
+
+def _structured_bodies(item: dict[str, Any]) -> list[str]:
+    content = item.get("structuredContent")
+    if not isinstance(content, dict):
+        return []
+    bodies: list[str] = []
+    for key in ("primaryLine", "mapPrimaryLine", "secondaryLine"):
+        lines = content.get(key) or []
+        if not isinstance(lines, list):
+            continue
+        for line in lines:
+            if isinstance(line, dict) and line.get("body"):
+                bodies.append(str(line["body"]))
+    return bodies
+
+
 def _listing_size(item: dict[str, Any]) -> tuple[int | None, int | None]:
-    """Best-effort bedrooms / sleeps from Airbnb search payloads."""
+    """Best-effort bedrooms / sleeps from Airbnb search payloads.
+
+    Live `search_all` results do not expose personCapacity. Bedrooms land in
+    structuredContent as "6 bedrooms"; guest capacity often only in the name
+    ("Sleeps 16"). "15 beds" is furniture count and is not occupancy.
+    """
     room = item.get("room") if isinstance(item.get("room"), dict) else {}
-    bedrooms = _int_or_none(
-        item.get("bedrooms") or item.get("beds") or room.get("bedrooms")
-    )
+    bedrooms = _int_or_none(item.get("bedrooms") or room.get("bedrooms"))
     sleeps = _int_or_none(
         item.get("personCapacity")
         or item.get("person_capacity")
@@ -59,6 +84,26 @@ def _listing_size(item: dict[str, Any]) -> tuple[int | None, int | None]:
         or item.get("guests")
         or room.get("personCapacity")
     )
+    for body in _structured_bodies(item):
+        m = _BEDROOM_LINE.match(body.strip())
+        if m and bedrooms is None:
+            bedrooms = int(m.group(1))
+        m = _SLEEPS_TEXT.search(body)
+        if m and sleeps is None:
+            sleeps = int(m.group(1))
+    blob = f"{item.get('name') or ''} {item.get('title') or ''}"
+    if sleeps is None:
+        m = _SLEEPS_TEXT.search(blob)
+        if m:
+            sleeps = int(m.group(1))
+    if bedrooms is None:
+        m = _BEDROOMS_TEXT.search(blob)
+        if m:
+            bedrooms = int(m.group(1))
+        else:
+            m = _N_BED_TEXT.search(blob)
+            if m:
+                bedrooms = int(m.group(1))
     return bedrooms, sleeps
 
 

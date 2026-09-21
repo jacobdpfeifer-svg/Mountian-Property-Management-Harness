@@ -9,18 +9,20 @@ stops a thin-history model from overruling the operator.
 
 from __future__ import annotations
 
+import ast
 import sqlite3
+import time
 from datetime import date, timedelta
 from pathlib import Path
-
 import pytest
+import requests
 
 from src.ceiling import compute_ceiling, demand_tier, seasonal_anchor
 from src.compose import recommend_night
 from src.config import load_policy
 from src.db import connect, init_db
 from src.features import build_features_for_property
-from src.pms.guesty import GuestyListing, parse_guesty_date
+from src.pms.guesty import GuestyClient, GuestyListing, parse_guesty_date
 from src.pms.sync import SyncReport, _floor_and_ceiling, recalibrate_bounds
 
 
@@ -55,6 +57,9 @@ def test_property_id_is_a_stable_slug():
     assert _listing(nickname="Cloud 9").property_id == "cloud_9"
     assert _listing(nickname="Café / Lodge!").property_id == "cafe_lodge"
     assert _listing(nickname="   ").property_id == "abc123"  # falls back to listing id
+    assert _listing(
+        listing_id="6a8e355230f5b5007c81df4b", nickname="Cloud 9 Chalet"
+    ).property_id == "cloud_9"
 
 
 def test_parse_guesty_date_handles_iso_timestamps():
@@ -193,3 +198,142 @@ def test_peak_nights_never_auto_push(db: Path):
     assert rec.status == "blocked"
     assert rec.autonomy_level == "escalate"
     assert rec.guardrail_action == "peak_blackout"
+
+
+# ---------------------------------------------------------- write-path safety
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+
+
+def _py_files():
+    return [p for p in SRC.rglob("*.py") if p.is_file()]
+
+
+def test_set_rate_is_unreachable_without_push_recommendations():
+    """REGRESSION: the only .set_rate( call in production is GuestyAdapter.push_rate,
+    which is only invoked from push_recommendations after generate_recommendations
+    (and therefore apply_guardrails). A 'quick fix' CLI write must fail this test.
+    """
+    call_sites: list[tuple[str, int, str]] = []
+    for path in _py_files():
+        rel = str(path.relative_to(ROOT))
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = None
+            if isinstance(func, ast.Attribute):
+                name = func.attr
+            elif isinstance(func, ast.Name):
+                name = func.id
+            if name == "set_rate":
+                line = path.read_text(encoding="utf-8").splitlines()[node.lineno - 1].strip()
+                call_sites.append((rel, node.lineno, line))
+    assert len(call_sites) == 1, f"unexpected set_rate callers: {call_sites}"
+    assert call_sites[0][0] == "src/pms/__init__.py"
+    assert "self.client.set_rate" in call_sites[0][2]
+
+    push_rate_callers: list[tuple[str, int]] = []
+    for path in _py_files():
+        rel = str(path.relative_to(ROOT))
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = func.attr if isinstance(func, ast.Attribute) else (
+                func.id if isinstance(func, ast.Name) else None
+            )
+            if name != "push_rate":
+                continue
+            push_rate_callers.append((rel, node.lineno))
+    assert len(push_rate_callers) == 1, (
+        f"unexpected push_rate callers (bypass of apply_guardrails): {push_rate_callers}"
+    )
+    assert push_rate_callers[0][0] == "src/pms/__init__.py"
+
+    for rel in ("src/cli/main.py", "src/pms/sync.py"):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        assert ".set_rate(" not in text
+        assert "set_rate(" not in text
+
+
+class _Resp:
+    def __init__(self, status: int, payload: dict | None = None, headers: dict | None = None):
+        self.status_code = status
+        self.headers = headers or {}
+        self._payload = payload or {}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            err = requests.HTTPError(f"{self.status_code}", response=self)
+            raise err
+
+    def json(self):
+        return self._payload
+
+
+def _client() -> GuestyClient:
+    c = GuestyClient(client_id="id", client_secret="secret", use_token_cache=False)
+    c._token = "tok"
+    c._expires_at = time.time() + 10_000
+    return c
+
+
+def test_set_rate_retries_transient_failures_then_succeeds(monkeypatch: pytest.MonkeyPatch):
+    client = _client()
+    sleeps: list[float] = []
+    monkeypatch.setattr("src.pms.guesty.time.sleep", lambda s: sleeps.append(s))
+    attempts = {"n": 0}
+
+    def fake_put(*_a, **_k):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise requests.Timeout("timed out")
+        if attempts["n"] == 2:
+            return _Resp(503)
+        return _Resp(200, headers={"x-request-id": "abc"})
+
+    monkeypatch.setattr("requests.put", fake_put)
+    ok, err = client.set_rate("listing1", date(2026, 12, 10), 555.0)
+    assert ok is True
+    assert attempts["n"] == 3
+    assert sleeps  # backoff between retries
+    assert err == "request_id=abc"
+
+
+def test_set_rate_does_not_retry_client_errors(monkeypatch: pytest.MonkeyPatch):
+    client = _client()
+    monkeypatch.setattr("src.pms.guesty.time.sleep", lambda *_a, **_k: None)
+    puts = {"n": 0}
+
+    def fake_put(*_a, **_k):
+        puts["n"] += 1
+        return _Resp(400)
+
+    monkeypatch.setattr("requests.put", fake_put)
+    monkeypatch.setattr("requests.get", lambda *_a, **_k: _Resp(200, {"data": {"days": []}}))
+    ok, err = client.set_rate("listing1", date(2026, 12, 10), 555.0)
+    assert ok is False
+    assert puts["n"] == 1
+    assert err is not None
+
+
+def test_set_rate_reconciles_timeout_after_server_side_success(monkeypatch: pytest.MonkeyPatch):
+    """Timeout after Guesty applied the PUT must not leave listed_price stale."""
+    client = _client()
+    monkeypatch.setattr("src.pms.guesty.time.sleep", lambda *_a, **_k: None)
+
+    def fake_put(*_a, **_k):
+        raise requests.Timeout("timed out after the write")
+
+    def fake_get(*_a, **_k):
+        return _Resp(200, {"data": {"days": [{"date": "2026-12-10", "price": 555.0}]}})
+
+    monkeypatch.setattr("requests.put", fake_put)
+    monkeypatch.setattr("requests.get", fake_get)
+    ok, err = client.set_rate("listing1", date(2026, 12, 10), 555.0)
+    assert ok is True
+    assert err is not None and "reconciled" in err

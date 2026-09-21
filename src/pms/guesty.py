@@ -44,6 +44,15 @@ def load_dotenv(path: Path | str | None = None) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+# Listing ids confirmed in docs/LOCKED_INPUTS.md. Nickname changes must not
+# fork a second property_id (Cloud 9 → "Cloud 9 Chalet" would otherwise).
+LOCKED_LISTING_PROPERTY_IDS: dict[str, str] = {
+    "69f3fce1fd7011001188056e": "summit_haus",
+    "69f14a198a424c00146db9d8": "overlook_ridge",
+    "6a8e355230f5b5007c81df4b": "cloud_9",
+}
+
+
 @dataclass
 class GuestyListing:
     listing_id: str
@@ -74,6 +83,9 @@ class GuestyListing:
         """
         import unicodedata
 
+        locked = LOCKED_LISTING_PROPERTY_IDS.get(self.listing_id)
+        if locked:
+            return locked
         raw = (self.nickname or self.title or self.listing_id).lower()
         folded = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore").decode()
         slug = "".join(c if c.isalnum() else "_" for c in folded)
@@ -212,13 +224,43 @@ class GuestyClient:
         )
         return (body.get("data") or {}).get("days") or []
 
+    def current_rate(self, listing_id: str, stay_date: date) -> float | None:
+        """Listed price Guesty currently shows for one night, or None if unread."""
+        for day in self.calendar(listing_id, stay_date, stay_date):
+            if parse_guesty_date(day.get("date")) != stay_date:
+                continue
+            price = day.get("price")
+            if price is None:
+                return None
+            return float(price)
+        return None
+
     # -- reservations -------------------------------------------------------
-    def reservations(self, limit: int = 100) -> Iterator[dict[str, Any]]:
-        fields = ("_id listingId checkIn checkOut nightsCount status source "
-                  "confirmedAt money.fareAccommodation money.hostPayout")
+    def reservations(self, limit: int = 100, *,
+                     check_in_from: str = "2020-01-01",
+                     check_in_to: str | None = None) -> Iterator[dict[str, Any]]:
+        # Default listing is *upcoming* only (~17 rows on this tenant). A checkIn
+        # lower bound is required to retrieve finished stays. confirmedAt is the
+        # leak-free cutoff for ceiling history. guestsCount is reporting-only.
+        fields = (
+            "_id listingId checkIn checkOut nightsCount status source "
+            "confirmedAt createdAt guestsCount "
+            "money.fareAccommodation money.hostPayout"
+        )
+        filt: list[dict[str, str]] = [
+            {"field": "checkIn", "operator": "$gte", "value": check_in_from},
+        ]
+        if check_in_to:
+            filt.append({"field": "checkIn", "operator": "$lte", "value": check_in_to})
         skip = 0
         while True:
-            body = self._get("/v1/reservations", limit=limit, skip=skip, fields=fields)
+            body = self._get(
+                "/v1/reservations",
+                limit=limit,
+                skip=skip,
+                fields=fields,
+                filters=json.dumps(filt),
+            )
             results = body.get("results", [])
             yield from results
             skip += limit
@@ -232,25 +274,60 @@ class GuestyClient:
 
         Guesty applies the change to the inclusive [startDate, endDate] range, so a
         single night is expressed as the same date twice.
+
+        PUT is idempotent (absolute price, not a delta), so transient timeouts and
+        5xx are retried. A timeout after Guesty actually applied the write is then
+        reconciled against the live calendar so we do not log a false failure.
         """
         import requests
 
+        target = round(float(price), 2)
         body: dict[str, Any] = {
             "startDate": stay_date.isoformat(),
             "endDate": stay_date.isoformat(),
-            "price": round(float(price), 2),
+            "price": target,
         }
         if min_nights is not None:
             body["minNights"] = int(min_nights)
+        url = f"{BASE}/v1/availability-pricing/api/calendar/listings/{listing_id}"
+        last_error: Exception | None = None
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                resp = requests.put(url, json=body, headers=self._headers(), timeout=self.timeout)
+                status = resp.status_code
+                if status == 429 or status >= 500:
+                    last_error = requests.HTTPError(
+                        f"{status} for url: {url}", response=resp
+                    )
+                    if attempt == max_attempts - 1:
+                        break
+                    retry_after = float(resp.headers.get("Retry-After", "0") or 0)
+                    time.sleep(min(max(retry_after, 0.5 * (2 ** attempt)), 8.0))
+                    continue
+                resp.raise_for_status()
+                request_id = resp.headers.get("x-request-id") or resp.headers.get("requestId")
+                return True, None if not request_id else f"request_id={request_id}"
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                last_error = exc
+                if attempt == max_attempts - 1:
+                    break
+                time.sleep(min(0.5 * (2 ** attempt), 8.0))
+            except Exception as exc:  # must be recorded, never raised into the run
+                last_error = exc
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                retryable = status == 429 or (status is not None and status >= 500)
+                if attempt == max_attempts - 1 or not retryable:
+                    break
+                time.sleep(min(0.5 * (2 ** attempt), 8.0))
+        err = f"{type(last_error).__name__}: {str(last_error)[:200]}" if last_error else "write failed"
         try:
-            resp = requests.put(
-                f"{BASE}/v1/availability-pricing/api/calendar/listings/{listing_id}",
-                json=body, headers=self._headers(), timeout=self.timeout,
-            )
-            resp.raise_for_status()
-        except Exception as exc:  # noqa: BLE001 — must be recorded, never raised into the run
-            return False, f"{type(exc).__name__}: {str(exc)[:200]}"
-        return True, None
+            live = self.current_rate(listing_id, stay_date)
+        except Exception:
+            live = None
+        if live is not None and abs(live - target) <= 0.01:
+            return True, f"reconciled after write failure ({err})"
+        return False, err
 
 
 def parse_guesty_date(value: Any) -> date | None:
@@ -261,3 +338,31 @@ def parse_guesty_date(value: Any) -> date | None:
         return datetime.strptime(text, "%Y-%m-%d").date()
     except ValueError:
         return None
+
+
+def parse_guesty_datetime(value: Any) -> str | None:
+    """Keep the original ISO timestamp when present; else None."""
+    if not value:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def reservation_guest_count(raw: dict[str, Any]) -> int | None:
+    for key in ("guestsCount", "numberOfGuests"):
+        value = raw.get(key)
+        if value is not None:
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
+    guests = raw.get("guests")
+    if isinstance(guests, dict):
+        for key in ("numberOfGuests", "count"):
+            value = guests.get(key)
+            if value is not None:
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    continue
+    return None

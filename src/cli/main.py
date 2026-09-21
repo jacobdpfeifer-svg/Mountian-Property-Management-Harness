@@ -10,11 +10,12 @@ from pathlib import Path
 
 from src.compose import generate_recommendations
 from src.config import load_policy
-from src.db import DEFAULT_DB_PATH, connect, init_db
+from src.db import DEFAULT_DB_PATH, connect, init_db, resolve_property_ids
 from src.eval import format_report, portfolio_reports, record_outcomes_from_inventory
+from src.explain.present import format_owner_recommendation
 from src.guardrails import assess_data_health, limit_run_scope
 from src.ingest import CsvIngestAdapter, ICalIngestAdapter
-from src.pacing import backfill_from_inventory, take_snapshot
+from src.pacing import backfill_from_inventory, take_snapshot, verify_snapshots
 from src.pms import ADAPTERS, push_recommendations
 from src.scrape import discover_comps, run_scrape
 from src.scrape.properties import discover_owned_listings, persist_room_ids, scrape_properties
@@ -96,14 +97,29 @@ def cmd_scrape_properties(args: argparse.Namespace) -> int:
     return 0 if rep.properties else 1
 
 
+def _resolve_scope(conn, args: argparse.Namespace) -> list[str] | None:
+    props = None
+    raw = getattr(args, "property", None)
+    if raw:
+        props = [p.strip() for p in raw.split(",") if p.strip()]
+    try:
+        return resolve_property_ids(
+            conn,
+            property_ids=props,
+            owner_id=getattr(args, "owner", None),
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
 def cmd_export(args: argparse.Namespace) -> int:
     from src.eval.export import export_recommendations_csv
 
     start = parse_date(args.start)
     end = parse_date(args.end)
-    props = args.property.split(",") if args.property else None
     out = Path(args.output)
     with connect(args.db) as conn:
+        props = _resolve_scope(conn, args)
         n = export_recommendations_csv(conn, start, end, out, property_ids=props)
     print(f"Exported {n} rows to {out}")
     return 0
@@ -114,9 +130,9 @@ def cmd_audit(args: argparse.Namespace) -> int:
 
     start = parse_date(args.start)
     end = parse_date(args.end)
-    props = args.property.split(",") if args.property else None
     policy = load_policy()
     with connect(args.db) as conn:
+        props = _resolve_scope(conn, args)
         report = run_audit(conn, start, end, property_ids=props, policy=policy)
     text = format_audit(report)
     print(text)
@@ -147,6 +163,10 @@ def cmd_seed_sample(args: argparse.Namespace) -> int:
 
 
 def cmd_ingest_csv(args: argparse.Namespace) -> int:
+    if not any([args.properties, args.inventory, args.comps, args.demand, args.inquiries]):
+        print("Need at least one of --properties, --inventory, --comps, --demand, --inquiries",
+              file=sys.stderr)
+        return 1
     init_db(args.db)
     adapter = CsvIngestAdapter(
         properties_csv=args.properties,
@@ -164,10 +184,19 @@ def cmd_ingest_csv(args: argparse.Namespace) -> int:
 def cmd_snapshot(args: argparse.Namespace) -> int:
     """Daily pacing capture. Every day this does not run is unrecoverable."""
     with connect(args.db) as conn:
+        if args.verify:
+            since = parse_date(args.since) if args.since else None
+            report = verify_snapshots(conn, since=since)
+            print(json.dumps(report, indent=2))
+            if report["status"] != "ok":
+                print("  Pacing coverage will stay degraded until every (property, as_of) "
+                      "day since first Guesty sync is present — skipped days are unrecoverable.")
+            return 0 if report["status"] == "ok" else 1
         if args.backfill:
             print(json.dumps(backfill_from_inventory(conn, days=args.backfill), indent=2))
-        print(json.dumps(take_snapshot(conn), indent=2))
-    return 0
+        result = take_snapshot(conn)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("status") == "ok" else 1
 
 
 def _make_provider(args: argparse.Namespace, policy: dict):
@@ -189,10 +218,46 @@ def cmd_sync_guesty(args: argparse.Namespace) -> int:
         rep = sync_all(conn, client, horizon_days=args.horizon, history_days=args.history)
     print(f"Synced {rep.listings} listing(s) from Guesty")
     print(f"  Calendar nights:        {rep.nights}")
+    print(f"  Calendar span:          {rep.calendar_min} → {rep.calendar_max}")
     print(f"  Reservations:           {rep.reservations}")
+    print(f"  Reservation check-ins:  {rep.reservation_checkin_min} → {rep.reservation_checkin_max}")
+    print(f"  With confirmedAt:       {rep.reservations_with_confirmed_at}")
     print(f"  Booked nights w/ price: {rep.booked_nights_priced}")
     for w in rep.warnings:
         print(f"  WARNING: {w}")
+    return 0
+
+
+def cmd_backtest_guesty(args: argparse.Namespace) -> int:
+    """Ceiling/comp/leakage retrospective vs Guesty realised prices. Not a pacing proof."""
+    from src.eval.retrospective import (
+        format_markdown,
+        score_history,
+        seed_curated_comps,
+        write_report,
+    )
+
+    init_db(args.db)
+    start = parse_date(args.start) if args.start else None
+    end = parse_date(args.end) if args.end else None
+    policy = load_policy()
+    with connect(args.db) as conn:
+        comps = seed_curated_comps(conn)
+        print(f"Curated comps loaded: {comps}")
+        props = _resolve_scope(conn, args)
+        report = score_history(
+            conn,
+            start=start,
+            end=end,
+            property_ids=props,
+            policy=policy,
+            lead_days=int(args.lead_days),
+        )
+    text = format_markdown(report)
+    if args.output:
+        path = write_report(report, args.output)
+        print(f"Wrote {path}")
+    print(text)
     return 0
 
 
@@ -227,31 +292,42 @@ def cmd_discover_comps(args: argparse.Namespace) -> int:
     cfg = policy.get("scrape", {}).get("discover", {})
     provider = _make_provider(args, policy)
     check_in = parse_date(args.date) if args.date else date.today() + timedelta(days=45)
-    rows = discover_comps(provider, check_in, int(policy["scrape"]["window_nights"]),
-                          min_price=args.min_price or float(cfg.get("min_price", 400)),
-                          limit=args.limit or int(cfg.get("limit", 40)),
-                          policy=policy)
+    gcfg = policy.get("scrape", {}).get("group_size", {})
+    min_bedrooms = args.min_bedrooms if args.min_bedrooms is not None else None
+    min_sleeps = args.min_sleeps if args.min_sleeps is not None else None
+    rows = discover_comps(
+        provider,
+        check_in,
+        int(policy["scrape"]["window_nights"]),
+        min_price=args.min_price or float(cfg.get("min_price", 400)),
+        limit=args.limit or int(cfg.get("limit", 40)),
+        min_bedrooms=min_bedrooms,
+        min_sleeps=min_sleeps,
+        policy=policy,
+    )
     if not rows:
         print("No listings returned — the sweep failed or nothing cleared the price/size floor.")
         return 1
-    gcfg = policy.get("scrape", {}).get("group_size", {})
-    print(f"Top {len(rows)} Winter Park listings by nightly rate for {check_in} "
-          f"(group-size filter: bd>={gcfg.get('min_bedrooms', '?')}, "
-          f"sleeps>={gcfg.get('min_sleeps', '?')}):\n")
+    bd_floor = min_bedrooms if min_bedrooms is not None else gcfg.get("min_bedrooms", "?")
+    sl_floor = min_sleeps if min_sleeps is not None else gcfg.get("min_sleeps", "?")
+    print(f"Top {len(rows)} Winter Park / Fraser listings by nightly rate for {check_in} "
+          f"(group-size filter: bd>={bd_floor}, sleeps>={sl_floor}):\n")
     print(f"{'room_id':22}{'$/night':>9}{'bd':>4}{'slp':>5}  name")
     for r in rows:
         bd = "" if r.get("bedrooms") is None else str(r["bedrooms"])
         sl = "" if r.get("sleeps") is None else str(r["sleeps"])
         print(f"{r['room_id']:22}{r['nightly_price']:>9.0f}{bd:>4}{sl:>5}  {(r['name'] or '')[:48]}")
-    print("\nAdd the ones you want to data/sample/comps.csv (or your own comps CSV) with")
-    print("columns comp_id,name,airbnb_room_id,for_properties, then run `wp-price ingest-csv`.")
+    print("\nReview against docs/CLOUD9_COMP_BRIEF.md (score ≥70, substitutable).")
+    print("Add keepers to data/cloud9/comps.csv (for_properties=cloud_9) or data/scrape/comps.csv,")
+    print("then `wp-price ingest-csv --comps <file>` so scrape-comps can refresh them.")
     return 0
 
 
 def cmd_health(args: argparse.Namespace) -> int:
     policy = load_policy()
     with connect(args.db) as conn:
-        h = assess_data_health(conn, policy)
+        props = _resolve_scope(conn, args)
+        h = assess_data_health(conn, policy, property_ids=props)
     print(f"Granted autonomy level: {h.granted_level.upper()}")
     print(f"  PMS data age:   {h.pms_age_hours:.1f}h" if h.pms_age_hours is not None else "  PMS data age:   unknown")
     print(f"  Comp data age:  {h.comp_age_hours:.1f}h" if h.comp_age_hours is not None else "  Comp data age:  none")
@@ -266,32 +342,9 @@ def cmd_health(args: argparse.Namespace) -> int:
     return 0
 
 
-def _print_recs(recs, limit: int) -> None:
+def _print_recs(recs, limit: int, *, technical: bool = False) -> None:
     for rec in recs[:limit]:
-        listed = f"${rec.listed_price_at_run:.0f}" if rec.listed_price_at_run is not None else "-"
-        delta = ""
-        if rec.listed_price_at_run:
-            pct = (rec.recommended_price - rec.listed_price_at_run) / rec.listed_price_at_run
-            delta = f" ({pct:+.1%})"
-        flag = f"  [{rec.status.upper()}]" if rec.status == "blocked" else ""
-        los = ""
-        if getattr(rec, "recommended_min_stay", None) is not None:
-            src = getattr(rec, "min_stay_source", "") or ""
-            los = f"  minStay={rec.recommended_min_stay}({src})"
-        pp = ""
-        if getattr(rec, "per_person_nightly", None) is not None:
-            occ = getattr(rec, "max_occupancy", None)
-            pp = f"  ${rec.per_person_nightly:.0f}/person"
-            if occ:
-                pp += f"/{occ}"
-        print(
-            f"  {rec.property_id:14} {rec.stay_date}  {listed:>7} -> "
-            f"${rec.recommended_price:.0f}{delta}  "
-            f"P(book)={rec.expected_book_prob:.0%}  {rec.autonomy_level}{los}{pp}{flag}"
-        )
-        for r in rec.reasons:
-            c = f"{r['contribution']:+.0f}" if r.get("contribution") else "  ."
-            print(f"      {c:>7}  {r['message']}")
+        print(format_owner_recommendation(rec, technical=technical))
     if len(recs) > limit:
         print(f"  ... {len(recs) - limit} more")
 
@@ -300,8 +353,8 @@ def cmd_recommend(args: argparse.Namespace) -> int:
     start = parse_date(args.start)
     end = parse_date(args.end)
     policy = load_policy()
-    props = args.property.split(",") if args.property else None
     with connect(args.db) as conn:
+        props = _resolve_scope(conn, args)
         recs, health = generate_recommendations(
             conn, start, end, property_ids=props, policy=policy,
             persist=not args.dry_run, allow_past=args.allow_past,
@@ -314,7 +367,7 @@ def cmd_recommend(args: argparse.Namespace) -> int:
     print(f"Autonomy granted: {health.granted_level.upper()}"
           + (f"  [{len(health.failures)} gate failure(s) — run `wp-price health`]" if health.failures else ""))
     print(f"Guardrails: {clamped} clamped, {blocked} blocked/escalated")
-    _print_recs(recs, args.limit)
+    _print_recs(recs, args.limit, technical=args.technical)
     return 0
 
 
@@ -323,18 +376,23 @@ def cmd_push(args: argparse.Namespace) -> int:
     start = parse_date(args.start)
     end = parse_date(args.end)
     policy = load_policy()
-    props = args.property.split(",") if args.property else None
     with connect(args.db) as conn:
+        props = _resolve_scope(conn, args)
         adapter = (ADAPTERS[args.adapter](conn) if args.adapter == "guesty"
                    else ADAPTERS[args.adapter]())
         recs, health = generate_recommendations(
             conn, start, end, property_ids=props, policy=policy, persist=True
         )
-        open_nights = conn.execute(
+        open_sql = (
             "SELECT COUNT(*) AS c FROM nightly_inventory WHERE status='available' "
-            "AND stay_date >= ? AND stay_date <= ?",
-            (start.isoformat(), end.isoformat()),
-        ).fetchone()["c"]
+            "AND stay_date >= ? AND stay_date <= ?"
+        )
+        open_params: list[object] = [start.isoformat(), end.isoformat()]
+        if props:
+            placeholders = ",".join("?" for _ in props)
+            open_sql += f" AND property_id IN ({placeholders})"
+            open_params.extend(props)
+        open_nights = conn.execute(open_sql, open_params).fetchone()["c"]
         pushable, withheld = limit_run_scope(recs, int(open_nights or 0), policy)
         print(f"Autonomy granted: {health.granted_level.upper()}")
         for f in health.failures:
@@ -353,9 +411,12 @@ def cmd_report(args: argparse.Namespace) -> int:
     start = parse_date(args.start)
     end = parse_date(args.end)
     with connect(args.db) as conn:
+        props = _resolve_scope(conn, args)
         n = record_outcomes_from_inventory(conn, start, end)
         print(f"Recorded/updated {n} recommendation outcomes")
-        reports = portfolio_reports(conn, start, end)
+        reports = portfolio_reports(
+            conn, start, end, property_ids=props, owner_id=getattr(args, "owner", None)
+        )
     for report in reports:
         print(format_report(report))
         print()
@@ -377,8 +438,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_seed_sample)
 
     s = sub.add_parser("ingest-csv", help="Ingest operator CSV exports")
-    s.add_argument("--properties", required=True)
-    s.add_argument("--inventory", required=True)
+    s.add_argument("--properties")
+    s.add_argument("--inventory")
     s.add_argument("--comps")
     s.add_argument("--demand")
     s.add_argument("--inquiries")
@@ -386,14 +447,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("snapshot", help="Daily pacing capture (run before ingest)")
     s.add_argument("--backfill", type=int, default=0, help="Bootstrap N prior days (biased)")
+    s.add_argument("--verify", action="store_true",
+                   help="Check pacing_snapshots for missing (property_id, as_of) days; "
+                        "exit 1 if degraded or failed")
+    s.add_argument("--since", help="Verify window start (default: earliest Guesty sync date)")
     s.set_defaults(func=cmd_snapshot)
 
     s = sub.add_parser("sync-guesty", help="Pull listings/calendar/reservations from Guesty")
     s.add_argument("--horizon", type=int, default=365, help="Days forward to pull")
-    s.add_argument("--history", type=int, default=540, help="Days back to pull")
+    s.add_argument("--history", type=int, default=730, help="Days back to pull")
     s.set_defaults(func=cmd_sync_guesty)
 
+    s = sub.add_parser(
+        "backtest-guesty",
+        help="Honest retrospective vs Guesty realised prices (ceiling/leakage; not pacing)",
+    )
+    s.add_argument("--from", dest="start", help="First stay date (default: earliest inventory)")
+    s.add_argument("--to", dest="end", help="Last stay date (default: yesterday)")
+    s.add_argument("--property", help="Comma-separated property_id filter")
+    s.add_argument("--owner", help="Owner id filter (properties.owner_id)")
+    s.add_argument("--lead-days", type=int, default=30, help="Decision date = stay minus this")
+    s.add_argument("--output", "-o", default="docs/reports/GUESTY_RETROSPECTIVE.md")
+    s.set_defaults(func=cmd_backtest_guesty)
+
     s = sub.add_parser("health", help="Show data health and the autonomy level it grants")
+    s.add_argument("--owner", help="Owner id filter (properties.owner_id)")
+    s.add_argument("--property", help="Comma-separated property_id filter")
     s.set_defaults(func=cmd_health)
 
     def _scrape_args(sp):
@@ -413,6 +492,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--date", help="Check-in date to price (default: today + 45d)")
     s.add_argument("--min-price", type=float)
     s.add_argument("--limit", type=int)
+    s.add_argument("--min-bedrooms", type=int,
+                   help="Override scrape.group_size.min_bedrooms for this sweep")
+    s.add_argument("--min-sleeps", type=int,
+                   help="Override scrape.group_size.min_sleeps (Cloud 9 brief: 16)")
     s.set_defaults(func=cmd_discover_comps)
 
     s = _scrape_args(sub.add_parser("discover-properties", help="Find owned listings in market sweeps"))
@@ -433,6 +516,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--from", dest="start", required=True)
     s.add_argument("--to", dest="end", required=True)
     s.add_argument("--property", help="Comma-separated property_id filter")
+    s.add_argument("--owner", help="Owner id filter (properties.owner_id)")
     s.add_argument("--output", "-o", default="data/exports/recommendations.csv")
     s.set_defaults(func=cmd_export)
 
@@ -440,6 +524,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--from", dest="start", required=True)
     s.add_argument("--to", dest="end", required=True)
     s.add_argument("--property", help="Comma-separated property_id filter")
+    s.add_argument("--owner", help="Owner id filter (properties.owner_id)")
     s.add_argument("--output", "-o", help="Write markdown report to file")
     s.set_defaults(func=cmd_audit)
 
@@ -447,6 +532,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--from", dest="start", required=True)
     s.add_argument("--to", dest="end", required=True)
     s.add_argument("--property")
+    s.add_argument("--owner", help="Owner id filter (properties.owner_id)")
     s.add_argument("--adapter", default="dry_run", choices=sorted(ADAPTERS))
     s.set_defaults(func=cmd_push)
 
@@ -454,15 +540,23 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--from", dest="start", required=True)
     s.add_argument("--to", dest="end", required=True)
     s.add_argument("--property", help="Comma-separated property_id filter")
+    s.add_argument("--owner", help="Owner id filter (properties.owner_id)")
     s.add_argument("--dry-run", action="store_true")
     s.add_argument("--allow-past", action="store_true",
                    help="Price nights in the past (backtesting only)")
     s.add_argument("--limit", type=int, default=20)
+    s.add_argument(
+        "--technical",
+        action="store_true",
+        help="Show internal reason strings (beta, sample counts) instead of owner language",
+    )
     s.set_defaults(func=cmd_recommend)
 
     s = sub.add_parser("report", help="Offline RevPAN report + outcomes join")
     s.add_argument("--from", dest="start", required=True)
     s.add_argument("--to", dest="end", required=True)
+    s.add_argument("--property", help="Comma-separated property_id filter")
+    s.add_argument("--owner", help="Owner id filter (properties.owner_id)")
     s.set_defaults(func=cmd_report)
 
     # --- Pfeifer Optimization -------------------------------------------------

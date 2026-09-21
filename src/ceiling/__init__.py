@@ -140,9 +140,10 @@ def compute_ceiling(
     policy: dict[str, Any],
     *,
     as_of: date | None = None,
-    market_id: str = "grand_home",
+    market_id: str | None = None,
 ) -> CeilingResult:
     cfg = policy.get("ceiling", {})
+    market_id = market_id or getattr(feat, "market_id", "grand_home")
     pct = float(cfg.get("percentile", 0.90))
     min_n = int(cfg.get("min_history_nights", 5))
     allow_cross = bool(cfg.get("allow_cross_season_fallback", False))
@@ -157,7 +158,7 @@ def compute_ceiling(
 
     rows = conn.execute(
         """
-        SELECT stay_date, booked_price, day_of_week
+        SELECT stay_date, booked_price, day_of_week, booked_at
         FROM nightly_inventory
         WHERE property_id = ?
           AND status = 'booked'
@@ -167,10 +168,14 @@ def compute_ceiling(
         (feat.property_id, feat.stay_date.isoformat()),
     ).fetchall()
 
+    cutoff = (as_of or decision_date).isoformat()
     same_season: list[tuple[date, float]] = []
     same_season_dow: list[tuple[date, float]] = []
     for row in rows:
         stay = parse_date(row["stay_date"])
+        booked_at = row["booked_at"] if "booked_at" in row.keys() else None
+        if booked_at and str(booked_at)[:10] > cutoff:
+            continue
         season, _ = season_for(stay, seasons)
         if season != feat.season:
             continue
@@ -248,7 +253,7 @@ def compute_ceiling(
 
     blended = confidence * raw + (1.0 - confidence) * anchor
 
-    ev: CompEvidence | None = comp_evidence(conn, feat, policy)
+    ev: CompEvidence | None = comp_evidence(conn, feat, policy, as_of=as_of)
     comp_price = None
     comp_w = 0.0
     if ev is not None and ev.usable:

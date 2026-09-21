@@ -32,6 +32,7 @@ class NightFeatures:
     max_ceiling_rate: float
     base_ceiling_rate: float
     min_stay: int | None = None
+    market_id: str = "grand_home"
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -136,6 +137,7 @@ def build_features_for_property(
     start: date,
     end: date,
     policy: dict[str, Any] | None = None,
+    as_of: date | None = None,
 ) -> list[NightFeatures]:
     policy = policy or load_policy()
     prop = conn.execute(
@@ -166,7 +168,11 @@ def build_features_for_property(
     seasons = policy.get("seasons", {})
     dow_mults = {int(k): float(v) for k, v in policy.get("dow_multipliers", {}).items()}
     lead_curves = policy.get("lead_time_curves", [])
-    as_of = date.today()
+    as_of = as_of or date.today()
+    try:
+        market_id = str(prop["market_id"] or "grand_home")
+    except (IndexError, KeyError):
+        market_id = "grand_home"
 
     features: list[NightFeatures] = []
     for row in rows:
@@ -204,6 +210,7 @@ def build_features_for_property(
                 max_ceiling_rate=float(prop["max_ceiling_rate"]),
                 base_ceiling_rate=float(prop["base_ceiling_rate"]),
                 min_stay=int(row["min_stay"]) if row["min_stay"] is not None else None,
+                market_id=market_id,
             )
         )
     return features
@@ -215,6 +222,7 @@ def build_features(
     end: date,
     property_ids: list[str] | None = None,
     policy: dict[str, Any] | None = None,
+    as_of: date | None = None,
 ) -> list[NightFeatures]:
     if property_ids is None:
         property_ids = [
@@ -223,5 +231,5 @@ def build_features(
         ]
     out: list[NightFeatures] = []
     for pid in property_ids:
-        out.extend(build_features_for_property(conn, pid, start, end, policy=policy))
+        out.extend(build_features_for_property(conn, pid, start, end, policy=policy, as_of=as_of))
     return out

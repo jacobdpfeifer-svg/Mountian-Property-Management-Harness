@@ -16,11 +16,18 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
-from src.pms.guesty import GuestyClient, GuestyListing, parse_guesty_date
+from src.pms.guesty import (
+    GuestyClient,
+    GuestyListing,
+    parse_guesty_date,
+    parse_guesty_datetime,
+    reservation_guest_count,
+)
 
 # Guesty calendar day status -> our three-state model.
 _STATUS = {
@@ -37,6 +44,11 @@ class SyncReport:
     nights: int = 0
     reservations: int = 0
     booked_nights_priced: int = 0
+    reservations_with_confirmed_at: int = 0
+    calendar_min: str | None = None
+    calendar_max: str | None = None
+    reservation_checkin_min: str | None = None
+    reservation_checkin_max: str | None = None
     horizon_days: int = 0
     history_days: int = 0
     warnings: list[str] = field(default_factory=list)
@@ -124,6 +136,9 @@ def sync_listings(conn: sqlite3.Connection, client: GuestyClient,
                 "no weekend differential configured in Guesty"
             )
     report.listings = len(listings)
+    from src.db import _seed_owner_ids
+
+    _seed_owner_ids(conn)
     conn.commit()
     return listings
 
@@ -160,6 +175,11 @@ def sync_calendar(conn: sqlite3.Connection, client: GuestyClient,
                      status, stay.weekday(), day.get("minNights")),
                 )
                 report.nights += 1
+                iso = stay.isoformat()
+                if report.calendar_min is None or iso < report.calendar_min:
+                    report.calendar_min = iso
+                if report.calendar_max is None or iso > report.calendar_max:
+                    report.calendar_max = iso
             cur = chunk_end + timedelta(days=1)
     conn.commit()
 
@@ -181,22 +201,67 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
         # Accommodation fare / nights is the realised nightly rate. Host payout is net
         # of channel fees and cleaning, so it is the wrong basis for a price ceiling.
         nightly = (float(fare) / nights) if fare and nights > 0 else None
+        confirmed = parse_guesty_datetime(res.get("confirmedAt") or res.get("createdAt"))
+        created = parse_guesty_datetime(res.get("createdAt"))
+        guests = reservation_guest_count(res)
+        if confirmed:
+            report.reservations_with_confirmed_at += 1
+        ci_iso = ci.isoformat()
+        if report.reservation_checkin_min is None or ci_iso < report.reservation_checkin_min:
+            report.reservation_checkin_min = ci_iso
+        if report.reservation_checkin_max is None or ci_iso > report.reservation_checkin_max:
+            report.reservation_checkin_max = ci_iso
+        conn.execute(
+            """
+            INSERT INTO reservations (
+                reservation_id, property_id, listing_id, check_in, check_out, nights,
+                status, source, confirmed_at, created_at_pms, guest_count,
+                fare_accommodation, nightly_rate, raw_json, synced_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(reservation_id) DO UPDATE SET
+                property_id=excluded.property_id,
+                check_in=excluded.check_in,
+                check_out=excluded.check_out,
+                nights=excluded.nights,
+                status=excluded.status,
+                source=excluded.source,
+                confirmed_at=COALESCE(excluded.confirmed_at, reservations.confirmed_at),
+                created_at_pms=COALESCE(excluded.created_at_pms, reservations.created_at_pms),
+                guest_count=COALESCE(excluded.guest_count, reservations.guest_count),
+                fare_accommodation=COALESCE(excluded.fare_accommodation, reservations.fare_accommodation),
+                nightly_rate=COALESCE(excluded.nightly_rate, reservations.nightly_rate),
+                synced_at=datetime('now')
+            """,
+            (
+                res.get("_id"), pid, res.get("listingId"), ci_iso, co.isoformat(), nights,
+                res.get("status"), res.get("source") or "guesty", confirmed, created, guests,
+                float(fare) if fare is not None else None, nightly,
+                json.dumps({
+                    "status": res.get("status"), "source": res.get("source"),
+                    "confirmedAt": res.get("confirmedAt"), "createdAt": res.get("createdAt"),
+                    "guestsCount": guests,
+                }),
+            ),
+        )
         for i in range(nights):
             stay = ci + timedelta(days=i)
             conn.execute(
                 """
                 INSERT INTO nightly_inventory (property_id, stay_date, listed_price,
-                    booked_price, status, day_of_week, channel, reservation_id, updated_at)
-                VALUES (?, ?, NULL, ?, 'booked', ?, ?, ?, datetime('now'))
+                    booked_price, status, day_of_week, channel, reservation_id,
+                    booked_at, guest_count, updated_at)
+                VALUES (?, ?, NULL, ?, 'booked', ?, ?, ?, ?, ?, datetime('now'))
                 ON CONFLICT(property_id, stay_date) DO UPDATE SET
                     booked_price=COALESCE(excluded.booked_price, nightly_inventory.booked_price),
                     status='booked',
                     channel=COALESCE(excluded.channel, nightly_inventory.channel),
                     reservation_id=excluded.reservation_id,
+                    booked_at=COALESCE(excluded.booked_at, nightly_inventory.booked_at),
+                    guest_count=COALESCE(excluded.guest_count, nightly_inventory.guest_count),
                     updated_at=datetime('now')
                 """,
                 (pid, stay.isoformat(), nightly, stay.weekday(),
-                 res.get("source") or "guesty", res.get("_id")),
+                 res.get("source") or "guesty", res.get("_id"), confirmed, guests),
             )
             if nightly:
                 report.booked_nights_priced += 1
@@ -206,13 +271,23 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
 def sync_all(conn: sqlite3.Connection, client: GuestyClient,
              horizon_days: int = 365, history_days: int = 540) -> SyncReport:
     report = SyncReport(horizon_days=horizon_days, history_days=history_days)
-    today = date.today()
-    listings = sync_listings(conn, client, report)
-    sync_calendar(conn, client, listings,
-                  today - timedelta(days=history_days),
-                  today + timedelta(days=horizon_days), report)
-    sync_reservations(conn, client, listings, report)
-    recalibrate_bounds(conn, report)
+    run_id = uuid.uuid4().hex[:16]
+    conn.execute("INSERT INTO sync_runs (run_id, status) VALUES (?, 'running')", (run_id,))
+    try:
+        today = date.today()
+        listings = sync_listings(conn, client, report)
+        sync_calendar(conn, client, listings,
+                      today - timedelta(days=history_days),
+                      today + timedelta(days=horizon_days), report)
+        sync_reservations(conn, client, listings, report)
+        recalibrate_bounds(conn, report)
+    except Exception as exc:
+        conn.execute(
+            "UPDATE sync_runs SET finished_at=datetime('now'), status='failed', errors=? WHERE run_id=?",
+            (json.dumps([f"{type(exc).__name__}: {str(exc)[:300]}"]), run_id),
+        )
+        conn.commit()
+        raise
 
     booked = conn.execute(
         "SELECT COUNT(*) c FROM nightly_inventory WHERE status='booked' AND booked_price IS NOT NULL"
@@ -222,4 +297,11 @@ def sync_all(conn: sqlite3.Connection, client: GuestyClient,
             f"only {booked} booked nights carry a realised price — the ceiling model will "
             "lean on seasonal anchors and comps until history accumulates"
         )
+    conn.execute(
+        """UPDATE sync_runs SET finished_at=datetime('now'), status=?, listings=?,
+           calendar_nights=?, reservations=?, errors=? WHERE run_id=?""",
+        ("degraded" if report.warnings else "ok", report.listings, report.nights,
+         report.reservations, json.dumps(report.warnings), run_id),
+    )
+    conn.commit()
     return report

@@ -3,7 +3,20 @@
 
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS tenants (
+    tenant_id  TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    website    TEXT,
+    timezone   TEXT NOT NULL DEFAULT 'America/Denver',
+    active     INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO tenants (tenant_id, name, website)
+VALUES ('mont_luxe_collection', 'Mont Luxe Collection', 'https://montluxecollection.com');
+
 CREATE TABLE IF NOT EXISTS properties (
+    tenant_id         TEXT NOT NULL DEFAULT 'mont_luxe_collection',
     property_id       TEXT PRIMARY KEY,
     name              TEXT NOT NULL,
     bedrooms          INTEGER NOT NULL,
@@ -16,6 +29,10 @@ CREATE TABLE IF NOT EXISTS properties (
     target_alos       REAL NOT NULL DEFAULT 3.0,
     timezone          TEXT NOT NULL DEFAULT 'America/Denver',
     pms_listing_id    TEXT,
+    -- Portfolio owner slug from config/portfolio/mont_luxe.yaml (`northwoods`,
+    -- `cloud9`). Scopes `wp-price recommend --owner` / `report --owner`.
+    owner_id          TEXT,
+    market_id         TEXT NOT NULL DEFAULT 'grand_home',
     -- Guesty `accommodates` / advertised sleeps. Used for display framing and
     -- group-size comp filters; never for RevPAN math.
     max_occupancy     INTEGER,
@@ -59,9 +76,62 @@ CREATE TABLE IF NOT EXISTS nightly_inventory (
     channel         TEXT,
     reservation_id  TEXT,
     min_stay        INTEGER,
+    -- Guesty confirmation timestamp (date the stay converted). Used for
+    -- leak-free ceiling history: a booking confirmed after the decision date
+    -- must not inform that decision. Calendar listed_price is NOT this.
+    booked_at       TEXT,
+    guest_count     INTEGER,
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (property_id, stay_date)
 );
+
+-- Finished reservations as Guesty returned them. nightly_inventory is the
+-- night-level view; this table keeps booking-date / guest-count / fare so a
+-- retrospective can cut history at confirmation time rather than stay date.
+CREATE TABLE IF NOT EXISTS reservations (
+    reservation_id  TEXT PRIMARY KEY,
+    property_id     TEXT NOT NULL REFERENCES properties(property_id),
+    listing_id      TEXT,
+    check_in        TEXT NOT NULL,
+    check_out       TEXT NOT NULL,
+    nights          INTEGER,
+    status          TEXT,
+    source          TEXT,
+    confirmed_at    TEXT,
+    created_at_pms  TEXT,
+    guest_count     INTEGER,
+    fare_accommodation REAL,
+    nightly_rate    REAL,
+    raw_json        TEXT,
+    synced_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_reservations_property ON reservations(property_id, check_in);
+
+CREATE TABLE IF NOT EXISTS sync_runs (
+    run_id       TEXT PRIMARY KEY,
+    started_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    finished_at  TEXT,
+    status       TEXT NOT NULL DEFAULT 'running'
+        CHECK (status IN ('running', 'ok', 'degraded', 'failed')),
+    listings     INTEGER NOT NULL DEFAULT 0,
+    calendar_nights INTEGER NOT NULL DEFAULT 0,
+    reservations INTEGER NOT NULL DEFAULT 0,
+    errors       TEXT NOT NULL DEFAULT '[]'
+);
+
+-- At-least-once Guesty deliveries are recorded before any refresh is queued.
+-- The unique event id makes retries and duplicate webhook deliveries harmless.
+CREATE TABLE IF NOT EXISTS pms_webhook_events (
+    event_id     TEXT PRIMARY KEY,
+    event_type   TEXT NOT NULL,
+    listing_id   TEXT,
+    start_date   TEXT,
+    end_date     TEXT,
+    payload_json TEXT NOT NULL,
+    received_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_listing_dates
+    ON pms_webhook_events(listing_id, start_date, end_date);
 
 -- ---------------------------------------------------------------------------
 -- Daily immutable capture of on-the-books state. THE highest-value table in the
@@ -179,7 +249,7 @@ CREATE TABLE IF NOT EXISTS price_recommendations (
     reasons             TEXT NOT NULL DEFAULT '[]',
     rule_version        TEXT NOT NULL,
     model_version       TEXT NOT NULL,
-    inputs_hash         TEXT,
+    inputs_hash         TEXT NOT NULL,
     status              TEXT NOT NULL DEFAULT 'suggested'
         CHECK (status IN ('suggested', 'accepted', 'overridden', 'blocked')),
     -- Engine-owned LOS decision (policy table and/or gap override). Null = no change.
@@ -187,6 +257,11 @@ CREATE TABLE IF NOT EXISTS price_recommendations (
     min_stay_source      TEXT,         -- policy | gap_override | inventory | none
     -- Display-only framing: recommended_price / max_occupancy. Never used in RevPAN.
     per_person_nightly   REAL,
+    -- Owner-facing band around recommended_price. Derived from ceiling confidence
+    -- and clipped to search bounds — not a statistical interval. See src/explain/present.py.
+    range_low            REAL,
+    range_high           REAL,
+    evidence_count       INTEGER NOT NULL DEFAULT 0,
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     -- One recommendation per property/night per run. The v1 constraint included
     -- created_at (second resolution) and therefore deduplicated nothing.
@@ -206,6 +281,12 @@ CREATE TABLE IF NOT EXISTS rate_changes (
     result            TEXT NOT NULL DEFAULT 'pending'
         CHECK (result IN ('pending', 'applied', 'failed', 'dry_run')),
     error             TEXT,
+    -- Denormalized from the Recommendation at write time. Do not rely on joining
+    -- price_recommendations: recommendation_id can miss and become NULL.
+    rule_version      TEXT,
+    model_version     TEXT,
+    inputs_hash       TEXT,
+    request_id        TEXT,
     pushed_at         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -392,6 +473,7 @@ CREATE TABLE IF NOT EXISTS signal_scores (
 -- market_id column on legacy region tables (additive; region string kept for shim)
 -- SQLite cannot ADD COLUMN IF NOT EXISTS portably; init_db applies migrations.
 
+CREATE INDEX IF NOT EXISTS idx_properties_owner  ON properties(owner_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_date    ON nightly_inventory(stay_date);
 CREATE INDEX IF NOT EXISTS idx_inventory_status  ON nightly_inventory(status);
 CREATE INDEX IF NOT EXISTS idx_pacing_stay       ON pacing_snapshots(property_id, stay_date);

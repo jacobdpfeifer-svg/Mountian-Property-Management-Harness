@@ -51,13 +51,15 @@ def _json_list(value: Any) -> str:
 def upsert_property(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
     occ = row.get("max_occupancy") or row.get("accommodates") or row.get("sleeps")
     occ_i = int(occ) if occ not in (None, "") else None
+    owner = str(row.get("owner_id") or row.get("owner_name") or "").strip() or None
     conn.execute(
         """
         INSERT INTO properties (
             property_id, name, bedrooms, bathrooms, amenities,
             base_ceiling_rate, min_floor_rate, max_ceiling_rate,
-            luxury_tier, target_alos, timezone, max_occupancy, airbnb_room_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            luxury_tier, target_alos, timezone, max_occupancy, airbnb_room_id,
+            owner_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(property_id) DO UPDATE SET
             name=excluded.name,
             bedrooms=excluded.bedrooms,
@@ -70,7 +72,8 @@ def upsert_property(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
             target_alos=excluded.target_alos,
             timezone=excluded.timezone,
             max_occupancy=COALESCE(excluded.max_occupancy, properties.max_occupancy),
-            airbnb_room_id=COALESCE(excluded.airbnb_room_id, properties.airbnb_room_id)
+            airbnb_room_id=COALESCE(excluded.airbnb_room_id, properties.airbnb_room_id),
+            owner_id=COALESCE(excluded.owner_id, properties.owner_id)
         """,
         (
             row["property_id"],
@@ -86,6 +89,7 @@ def upsert_property(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
             row.get("timezone") or "America/Denver",
             occ_i,
             _room_id(row),
+            owner,
         ),
     )
 
@@ -138,19 +142,21 @@ def upsert_inventory(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
 class CsvIngestAdapter(IngestAdapter):
     def __init__(
         self,
-        properties_csv: Path | str,
-        inventory_csv: Path | str,
+        properties_csv: Path | str | None = None,
+        inventory_csv: Path | str | None = None,
         comps_csv: Path | str | None = None,
         demand_csv: Path | str | None = None,
         inquiries_csv: Path | str | None = None,
     ):
-        self.properties_csv = Path(properties_csv)
-        self.inventory_csv = Path(inventory_csv)
+        self.properties_csv = Path(properties_csv) if properties_csv else None
+        self.inventory_csv = Path(inventory_csv) if inventory_csv else None
         self.comps_csv = Path(comps_csv) if comps_csv else None
         self.demand_csv = Path(demand_csv) if demand_csv else None
         self.inquiries_csv = Path(inquiries_csv) if inquiries_csv else None
 
     def load_properties(self, conn: sqlite3.Connection) -> int:
+        if not self.properties_csv or not self.properties_csv.exists():
+            return 0
         n = 0
         with self.properties_csv.open(newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
@@ -159,6 +165,8 @@ class CsvIngestAdapter(IngestAdapter):
         return n
 
     def load_inventory(self, conn: sqlite3.Connection) -> int:
+        if not self.inventory_csv or not self.inventory_csv.exists():
+            return 0
         n = 0
         with self.inventory_csv.open(newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):

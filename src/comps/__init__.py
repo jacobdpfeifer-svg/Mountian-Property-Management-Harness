@@ -33,13 +33,15 @@ class CompEvidence:
     exact_date: bool = True  # False when nearby same-weekday-class nights were used
 
 
-def _age_hours(as_of: str | None) -> float | None:
+def _age_hours(as_of: str | None, now: datetime | None = None) -> float | None:
     if not as_of:
         return None
     text = str(as_of)
+    now = now or datetime.now()
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
-            return max(0.0, (datetime.now() - datetime.strptime(text[:19], fmt)).total_seconds() / 3600.0)
+            snap = datetime.strptime(text[:19] if "T" in text or " " in text else text[:10], fmt)
+            return max(0.0, (now - snap).total_seconds() / 3600.0)
         except ValueError:
             continue
     return None
@@ -49,13 +51,34 @@ def comp_evidence(
     conn: sqlite3.Connection,
     feat: NightFeatures,
     policy: dict[str, Any],
+    *,
+    as_of: datetime | None = None,
+    allow_stale: bool = False,
 ) -> CompEvidence | None:
-    """Percentile of comp-set listed prices for this night, with a usability verdict."""
+    """Percentile of comp-set listed prices for this night, with a usability verdict.
+
+    When ``as_of`` is set, only snapshots dated on or before that instant are read
+    (leak-free). Freshness is measured against ``as_of``, not wall-clock now.
+    ``allow_stale`` skips the max-age filter — used only for an explicitly labelled
+    reconstruction from today's comp set, never as silent evidence.
+    """
+    from datetime import date as date_cls
+
     health = policy.get("data_health", {})
     max_age = float(health.get("comp_max_staleness_hours", 48))
     min_cov = float(health.get("comp_min_coverage", 0.60))
     min_members = int(health.get("comp_min_members", 3))
     pct = float(policy.get("ceiling", {}).get("comp_percentile", 0.75))
+
+    if isinstance(as_of, date_cls) and not isinstance(as_of, datetime):
+        as_of_dt = datetime.combine(as_of, datetime.min.time())
+        as_of_iso = as_of.isoformat() + "T23:59:59"
+    elif isinstance(as_of, datetime):
+        as_of_dt = as_of
+        as_of_iso = as_of.isoformat(sep=" ", timespec="seconds")
+    else:
+        as_of_dt = datetime.now()
+        as_of_iso = None
 
     members_rows = conn.execute(
         """
@@ -98,6 +121,11 @@ def comp_evidence(
         either as evidence would let a degrading scraper quietly move the ceiling.
         """
         dph = ",".join("?" for _ in stay_dates)
+        as_of_clause = ""
+        extra: list[Any] = []
+        if as_of_iso is not None:
+            as_of_clause = " AND substr(as_of, 1, 10) <= ?"
+            extra = [as_of_iso[:10]]
         return conn.execute(
             f"""
             SELECT s.comp_id, s.listed_price, s.as_of, s.stay_date
@@ -107,21 +135,22 @@ def comp_evidence(
                 FROM comp_snapshots
                 WHERE stay_date IN ({dph}) AND comp_id IN ({placeholders})
                   AND scrape_status = 'ok' AND listed_price IS NOT NULL
+                  {as_of_clause}
                 GROUP BY comp_id
             ) l ON l.comp_id = s.comp_id AND l.mx = s.as_of
             WHERE s.stay_date IN ({dph}) AND s.listed_price IS NOT NULL
               AND s.scrape_status = 'ok'
             GROUP BY s.comp_id
             """,
-            [*stay_dates, *members, *stay_dates],
+            [*stay_dates, *members, *extra, *stay_dates],
         ).fetchall()
 
     def _collect(rows: list[Any]) -> tuple[list[float], list[float]]:
         px: list[float] = []
         ag: list[float] = []
         for r in rows:
-            age = _age_hours(r["as_of"])
-            if age is not None and age > max_age:
+            age = _age_hours(r["as_of"], now=as_of_dt)
+            if not allow_stale and age is not None and age > max_age:
                 continue
             px.append(float(r["listed_price"]))
             if age is not None:
@@ -173,6 +202,8 @@ def market_percentile(
     conn: sqlite3.Connection,
     stay_date: Any,
     percentile: str = "p75",
+    *,
+    as_of: Any | None = None,
 ) -> tuple[float | None, int]:
     """Whole-market level for a night, independent of the curated comp set.
 
@@ -180,10 +211,21 @@ def market_percentile(
     and does not degrade when the curated set is incomplete. Used to detect a comp
     set that has drifted away from the market it is supposed to represent.
     """
+    # The percentile is used in retrospective diagnostics as well as live
+    # recommendations.  Without the cutoff, a later market sweep leaks future
+    # information into a historical decision.
+    if percentile not in {"p25", "p50", "p75", "p90"}:
+        raise ValueError(f"unsupported market percentile: {percentile}")
+    stay = stay_date.isoformat() if hasattr(stay_date, "isoformat") else str(stay_date)
+    params: list[Any] = [stay]
+    cutoff = ""
+    if as_of is not None:
+        cutoff = " AND as_of <= ?"
+        params.append(as_of.isoformat(sep=" ") if hasattr(as_of, "isoformat") else str(as_of))
     row = conn.execute(
         f"SELECT {percentile} AS v, listings FROM market_snapshots "
-        "WHERE stay_date = ? ORDER BY as_of DESC LIMIT 1",
-        (stay_date.isoformat() if hasattr(stay_date, "isoformat") else str(stay_date),),
+        "WHERE stay_date = ?" + cutoff + " ORDER BY as_of DESC LIMIT 1",
+        params,
     ).fetchone()
     if row is None or row["v"] is None:
         return None, 0

@@ -67,20 +67,51 @@ def _age_hours(text: str | None) -> float | None:
     return None
 
 
-def assess_data_health(conn: sqlite3.Connection, policy: dict[str, Any]) -> DataHealth:
+def assess_data_health(
+    conn: sqlite3.Connection,
+    policy: dict[str, Any],
+    property_ids: list[str] | None = None,
+) -> DataHealth:
     cfg = policy.get("data_health", {})
     max_level = policy.get("autonomy", {}).get("max_level", "suggest")
     failures: list[str] = []
 
-    row = conn.execute("SELECT MAX(updated_at) AS mx FROM nightly_inventory").fetchone()
+    prop_clause = ""
+    prop_params: list[Any] = []
+    if property_ids:
+        placeholders = ",".join("?" for _ in property_ids)
+        prop_clause = f" WHERE property_id IN ({placeholders})"
+        prop_params = list(property_ids)
+    row = conn.execute(
+        f"SELECT MAX(updated_at) AS mx FROM nightly_inventory{prop_clause}", prop_params
+    ).fetchone()
     pms_age = _age_hours(row["mx"] if row else None)
     if pms_age is None:
         failures.append("no PMS data timestamp")
     elif pms_age > float(cfg.get("pms_max_staleness_hours", 24)):
         failures.append(f"PMS data {pms_age:.0f}h old (max {cfg.get('pms_max_staleness_hours')}h)")
+    try:
+        sync = conn.execute(
+            "SELECT status FROM sync_runs ORDER BY started_at DESC LIMIT 1"
+        ).fetchone()
+        if sync and sync["status"] in {"failed", "degraded", "running"}:
+            failures.append(f"latest PMS sync status is {sync['status']}")
+    except sqlite3.OperationalError:
+        failures.append("PMS sync status unavailable")
 
+    comp_clause = ""
+    comp_params: list[Any] = []
+    if property_ids:
+        placeholders = ",".join("?" for _ in property_ids)
+        comp_clause = (
+            " AND comp_id IN (SELECT csm.comp_id FROM comp_set_members csm "
+            f"WHERE csm.property_id IN ({placeholders}))"
+        )
+        comp_params = list(property_ids)
     row = conn.execute(
-        "SELECT MAX(as_of) AS mx FROM comp_snapshots WHERE scrape_status = 'ok'"
+        "SELECT MAX(as_of) AS mx FROM comp_snapshots "
+        "WHERE scrape_status = 'ok'" + comp_clause,
+        comp_params,
     ).fetchone()
     comp_age = _age_hours(row["mx"] if row else None)
     if comp_age is None:
@@ -90,19 +121,31 @@ def assess_data_health(conn: sqlite3.Connection, policy: dict[str, Any]) -> Data
 
     # Distinct comps on both sides. comp_set_members holds (property, comp) PAIRS, so
     # counting rows there compares pairs against comps and understates coverage.
-    members = conn.execute(
-        "SELECT COUNT(DISTINCT comp_id) AS c FROM comp_set_members"
-    ).fetchone()["c"] or 0
+    if property_ids:
+        placeholders = ",".join("?" for _ in property_ids)
+        members = conn.execute(
+            f"SELECT COUNT(DISTINCT comp_id) AS c FROM comp_set_members "
+            f"WHERE property_id IN ({placeholders})", property_ids,
+        ).fetchone()["c"] or 0
+    else:
+        members = conn.execute(
+            "SELECT COUNT(DISTINCT comp_id) AS c FROM comp_set_members"
+        ).fetchone()["c"] or 0
     observed = conn.execute(
         "SELECT COUNT(DISTINCT comp_id) AS c FROM comp_snapshots "
-        "WHERE listed_price IS NOT NULL AND scrape_status = 'ok'"
+        "WHERE listed_price IS NOT NULL AND scrape_status = 'ok'" + comp_clause,
+        comp_params,
     ).fetchone()["c"] or 0
     coverage = (observed / members) if members else 0.0
+    min_members = int(cfg.get("comp_min_members", 3))
+    if members < min_members:
+        failures.append(f"only {members} comp members (need {min_members})")
     if coverage < float(cfg.get("comp_min_coverage", 0.60)):
         failures.append(f"comp coverage {coverage:.0%} below {float(cfg.get('comp_min_coverage', 0.6)):.0%}")
 
     pacing_days = conn.execute(
-        "SELECT COUNT(DISTINCT as_of) AS c FROM pacing_snapshots"
+        "SELECT COUNT(DISTINCT as_of) AS c FROM pacing_snapshots" + prop_clause,
+        prop_params,
     ).fetchone()["c"] or 0
     if pacing_days < int(cfg.get("pacing_min_snapshot_days", 14)):
         failures.append(f"only {pacing_days}d of pacing history (need {cfg.get('pacing_min_snapshot_days')})")
@@ -115,8 +158,11 @@ def assess_data_health(conn: sqlite3.Connection, policy: dict[str, Any]) -> Data
         from src.signals.store import SignalStore
 
         failures.extend(signal_freshness_failures(SignalStore(conn), _date.today()))
-    except Exception:
-        pass  # signals tables may be absent on very old DBs
+    except Exception as exc:
+        # A health check that cannot run is not healthy.  Swallowing this error
+        # could accidentally leave a run at `handle` during a schema or signal
+        # regression.
+        failures.append(f"signal health unavailable: {type(exc).__name__}")
 
     granted = max_level if not failures else "suggest"
     return DataHealth(granted, pms_age, comp_age, coverage, int(pacing_days), failures)

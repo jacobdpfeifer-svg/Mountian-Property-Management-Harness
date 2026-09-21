@@ -22,7 +22,7 @@ from src.guardrails import assess_data_health
 from src.ingest import CsvIngestAdapter
 from src.scrape import plan_windows, run_scrape
 from src.scrape.parse import nightly_price, validate_observation, validate_sweep
-from src.scrape.providers import FixtureProvider
+from src.scrape.providers import FixtureProvider, _listing_size
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = ROOT / "data" / "sample"
@@ -63,6 +63,21 @@ def test_nightly_price_falls_back_to_qualifier():
 
 def test_nightly_price_returns_none_when_absent():
     assert nightly_price({"price": {}}, 2) is None
+
+
+def test_listing_size_reads_structured_content_not_bed_count():
+    bedrooms, sleeps = _listing_size({
+        "name": "Family Friendly! 6BR/Sleeps 16/King Beds. Hot Tub!",
+        "title": "Home in Winter Park",
+        "structuredContent": {
+            "primaryLine": [
+                {"body": "6 bedrooms", "type": "BEDINFO"},
+                {"body": "15 beds", "type": "BEDINFO"},
+            ]
+        },
+    })
+    assert bedrooms == 6
+    assert sleeps == 16
 
 
 # ----------------------------------------------------------------- validation

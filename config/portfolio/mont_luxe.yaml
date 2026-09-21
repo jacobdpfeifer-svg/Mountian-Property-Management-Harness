@@ -1,0 +1,39 @@
+# Mont Luxe Collection portfolio identity.
+# Guesty remains the system of record; this file describes ownership and
+# market context used by the pricing engine.
+tenant_id: mont_luxe_collection
+name: Mont Luxe Collection
+website: https://montluxecollection.com
+timezone: America/Denver
+
+owners:
+  # TODO(placeholder names): replace with the real owner names before any
+  # owner-facing report (statements, dashboards, emails) ships. Confirmed
+  # 2026-09-20 with the operator that these are intentionally left as
+  # placeholders for now, not an oversight.
+  northwoods:
+    name: Northwoods owner  # TODO: replace with real owner name
+    properties: [summit_haus, overlook_ridge]
+  cloud9:
+    name: Cloud 9 owner  # TODO: replace with real owner name
+    properties: [cloud_9]
+
+properties:
+  summit_haus:
+    owner_id: northwoods
+    market_id: grand_home
+    display_name: 312 Northwoods
+  overlook_ridge:
+    owner_id: northwoods
+    market_id: grand_home
+    display_name: 300 Northwoods
+  cloud_9:
+    owner_id: cloud9
+    # Fraser, CO physically; Guesty mailing city is Winter Park. Both sit in
+    # markets.yaml grand_home ("Winter Park / Fraser / Tabernash") — not a
+    # separate Fraser market. Comp geography already spans that trio.
+    # Operator-confirmed 2026-09-20: keep shared, do not split.
+    market_id: grand_home
+    town: Fraser
+    mailing_address: 1615 Pioneer Trail, Winter Park, CO 80482
+    display_name: Cloud 9

@@ -156,6 +156,30 @@ def test_discover_comps_filters_by_group_size(tmp_path: Path):
     assert "small" not in ids
 
 
+def test_discover_comps_cloud9_sleeps_floor_excludes_twins_tier():
+    """Cloud 9 brief hard-filter is sleeps ≥16; twins policy default is ≥14."""
+    from src.scrape.providers import Listing, SweepResult
+
+    class _Prov:
+        name = "fixture"
+
+        def sweep(self, check_in, nights):
+            return SweepResult(
+                check_in=check_in,
+                nights=nights,
+                ok=True,
+                listings=[
+                    Listing("c9", 1100, "Cloud9 peer", 6, 18),
+                    Listing("twin14", 1400, "Twins peer", 5, 14),
+                ],
+            )
+
+    rows = discover_comps(
+        _Prov(), date(2026, 12, 18), 2, min_price=800, min_sleeps=16, min_bedrooms=5
+    )
+    assert {r["room_id"] for r in rows} == {"c9"}
+
+
 def test_max_occupancy_loaded_from_sample(db: Path):
     with connect(db) as conn:
         row = conn.execute(

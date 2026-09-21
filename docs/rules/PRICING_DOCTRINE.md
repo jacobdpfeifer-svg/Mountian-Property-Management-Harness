@@ -70,3 +70,5 @@ softens upward moves when it is clearly weak at the quoted rate.
 ## Explainability
 
 Every recommended price must show its top 2–3 contributing reasons from the fixed taxonomy. No black-box numbers.
+
+The default owner/CLI surface is a **price range**, an honest **evidence-stream count**, and **plain-English drivers** (`src/explain/present.py`). Dollar ranking stays in `select_top_reasons`. Internal strings (beta, SQI, bucket, sample n=) remain on each reason as `technical_message` for operator debugging (`wp-price recommend --technical`).

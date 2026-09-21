@@ -112,7 +112,8 @@ ceiling:
   comp_percentile: 0.75
 
 # --------------------------------------------------------------- booking model
-# Pooled, transparent booking-probability model. p(P) = p_ref * (P / P_ref) ** beta
+# Pooled, transparent booking-probability model. The implementation uses a
+# first-order linear demand curve around P_ref; beta is its local slope.
 # beta is elasticity BY SEASON: luxury peak inventory is inelastic, shoulder is not.
 # This is what makes RevPAN a real objective instead of a label.
 booking_probability:
@@ -201,6 +202,11 @@ scrape:
     limit: 40
     # Inherit scrape.group_size unless overridden here.
     apply_group_size_filter: true
+
+# ------------------------------------------------------------- post-run audit
+audit:
+  twin_listed_max_pct: 0.15   # twins compared only when listed prices within this band
+  twin_max_delta: 50          # max recommended-price gap on comparable twin nights
 
 # ------------------------------------------------------------------ guardrails
 # Hard invariants. NO autonomy level may override these.

@@ -1,6 +1,8 @@
-# Winter Park STR Pricing & Optimization Engine
+# Mont Luxe Collection STR Pricing & Optimization Engine
 
-Rules-first RevPAN optimizer for a 4-property luxury short-term rental portfolio in Winter Park, Colorado.
+Rules-first RevPAN optimizer for Mont Luxe Collection's three luxury homes in the
+Winter Park / Fraser market: 312 Northwoods, 300 Northwoods, and Cloud 9.
+Guesty is the system of record and Airbnb is a connected distribution channel.
 
 **Not a Vantory clone.** Ceiling-relative pricing, leakage detection, and explainable recommendations — sized for a small portfolio, owned code, markdown-governed policy.
 
@@ -15,6 +17,10 @@ Confirmed by the operator 2026-08-27. Full detail in `docs/LOCKED_INPUTS.md`.
 | History | 6–12 months — one ski season, no year-over-year |
 | Objective | **RevPAN**, by maximizing `P × P(book\|P)` |
 | Authority | **Auto-push within guardrails**, gated on measured data health |
+
+Ownership is explicit in `config/portfolio/mont_luxe.yaml`: 312 and 300
+Northwoods share one owner; Cloud 9 is a separate owner. This separation is
+used for reporting and is not a pricing advantage granted to either property.
 
 ## Quick start
 
@@ -91,12 +97,13 @@ booking probability and expected RevPAN behind it.
 
 ## Comp data
 
-One market-wide search sweep per date window returns every bookable Winter Park
-listing with a parseable nightly rate (~280 listings, 100% parse rate measured), so
-comp prices and the whole-market distribution both come from ~1 request instead of
-one per comp per night. Sweeps are validated against constant-parser and blocked-sweep
-signatures and discarded wholesale if suspect; `scrape_status` separates "checked and
-unavailable" from "could not check". Details in `docs/rules/COMP_DATA.md`.
+One market-wide search sweep per date window returns every bookable Winter Park /
+Fraser listing with a parseable nightly rate (~280 listings), so Cloud 9 and the
+twins share one daily `wp-price scrape-comps` job (`scripts/daily_scrape.sh`,
+07:00 launchd). Comp membership is the post-sweep filter. Sweeps are validated
+against constant-parser and blocked-sweep signatures and discarded wholesale if
+suspect; `scrape_status` separates "checked and unavailable" from "could not check".
+Details in `docs/rules/COMP_DATA.md` and `docs/CLOUD9_RUNBOOK.md`.
 
 Install the scraper extra: `pip install -e ".[dev,scrape]"`.
 
