@@ -24,7 +24,7 @@ from src.ceiling import CeilingResult, compute_ceiling
 from src.comps import CompEvidence, comp_evidence
 from src.config import load_policy
 from src.elasticity import elasticity_context, maybe_soften
-from src.explain import Reason, select_top_reasons
+from src.explain import Reason, ReasonCode, select_top_reasons
 from src.explain.present import (
     owner_evidence_count,
     owner_price_range,
@@ -243,7 +243,10 @@ def recommend_night(
     listed = feat.listed_price
     reasons: list[Reason] = []
     ev: CompEvidence | None = comp_evidence(conn, feat, policy)
-    leak_codes = {
+    # Typed explicitly against the ReasonCode taxonomy so a future new LeakKind
+    # with no mapping here fails mypy instead of silently reaching src/explain
+    # with an unlisted code.
+    leak_codes: dict[str, ReasonCode] = {
         "peak_underprice": "ceiling_gap",
         "orphan_gap": "gap_night",
         "shoulder_over_discount": "shoulder_floor",
@@ -457,7 +460,22 @@ def persist_recommendation(conn: sqlite3.Connection, rec: Recommendation) -> int
          rec.recommended_min_stay, rec.min_stay_source, rec.per_person_nightly,
          rec.range_low, rec.range_high, rec.evidence_count),
     )
-    return int(cur.lastrowid)
+    # cur.lastrowid is unreliable here: on the ON CONFLICT DO UPDATE branch
+    # sqlite does not update last_insert_rowid(), so it would silently return
+    # the id of a PRIOR, unrelated insert rather than this row's id (or None
+    # before any row has ever been inserted on this connection). Nothing
+    # currently consumes this return value, but a future caller (e.g. audit
+    # linking) must get the real id, not a stale one.
+    row = conn.execute(
+        "SELECT id FROM price_recommendations WHERE run_id = ? AND property_id = ? AND stay_date = ?",
+        (rec.run_id, rec.property_id, rec.stay_date.isoformat()),
+    ).fetchone()
+    if row is None:
+        raise RuntimeError(
+            f"persist_recommendation: no row found after upsert for "
+            f"{rec.run_id}/{rec.property_id}/{rec.stay_date}"
+        )
+    return int(row["id"])
 
 
 def generate_recommendations(

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date as _date, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -52,7 +52,7 @@ def comp_evidence(
     feat: NightFeatures,
     policy: dict[str, Any],
     *,
-    as_of: datetime | None = None,
+    as_of: datetime | _date | None = None,
     allow_stale: bool = False,
 ) -> CompEvidence | None:
     """Percentile of comp-set listed prices for this night, with a usability verdict.
@@ -61,6 +61,10 @@ def comp_evidence(
     (leak-free). Freshness is measured against ``as_of``, not wall-clock now.
     ``allow_stale`` skips the max-age filter — used only for an explicitly labelled
     reconstruction from today's comp set, never as silent evidence.
+
+    ``as_of`` accepts a bare ``date`` (callers in src/ceiling and src/eval pass one)
+    as well as a ``datetime``; a bare date is treated as end-of-day (23:59:59) for
+    the snapshot cutoff, matching "as of that calendar day" rather than midnight.
     """
     from datetime import date as date_cls
 

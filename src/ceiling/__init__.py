@@ -43,9 +43,9 @@ def demand_tier(strength: float, policy: dict[str, Any]) -> str:
     return "low"
 
 
-def demand_index(conn: sqlite3.Connection) -> dict[date, tuple]:
+def demand_index(conn: sqlite3.Connection) -> dict[date, float]:
     """date -> demand strength, from events.yaml plus any DB signals (shim)."""
-    index = {d: v[0] for d, v in _demand_index(load_events()).items()}
+    index: dict[date, float] = {d: v[0] for d, v in _demand_index(load_events()).items()}
     index.update({d: v[0] for d, v in _db_demand(conn).items()})
     return index
 
@@ -177,7 +177,7 @@ def compute_ceiling(
     market_id: str | None = None,
 ) -> CeilingResult:
     cfg = policy.get("ceiling", {})
-    market_id = market_id or getattr(feat, "market_id", "grand_home")
+    market_id = market_id or getattr(feat, "market_id", None) or "grand_home"
     pct = float(cfg.get("percentile", 0.90))
     min_n = int(cfg.get("min_history_nights", 5))
     allow_cross = bool(cfg.get("allow_cross_season_fallback", False))
@@ -253,10 +253,14 @@ def compute_ceiling(
             # so existing regressions and empty DBs are unchanged.
             if not res.components_used or res.method == "default_no_components":
                 use_sqi = False
+                # Not actually applying SQI this call — don't leave a stray
+                # confidence value on the result that implies otherwise.
+                sqi_conf = None
             else:
                 sqi_target = res.sqi
         except Exception:
             use_sqi = False
+            sqi_conf = None
 
     pool_yoy = _pool_prices(same_season_dow_yoy)
     pool_dow = _pool_prices(same_season_dow)
@@ -307,9 +311,14 @@ def compute_ceiling(
     blended = confidence * raw + (1.0 - confidence) * anchor
 
     ev: CompEvidence | None = comp_evidence(conn, feat, policy, as_of=as_of)
-    comp_price = None
+    comp_price: float | None = None
     comp_w = 0.0
-    if ev is not None and ev.usable:
+    # CompEvidence.price is typed float | None because most `usable=False`
+    # returns carry price=None; but every `usable=True` return (src/comps
+    # comp_evidence) always sets a real float price. ev.price is not None
+    # here is therefore always true at runtime — the explicit check below
+    # makes that invariant visible to mypy instead of asserting past it.
+    if ev is not None and ev.usable and ev.price is not None:
         comp_price = ev.price
         comp_w = float(cfg.get("comp_blend_weight", 0.30)) * ev.coverage
         blended = (1.0 - comp_w) * blended + comp_w * comp_price
