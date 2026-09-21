@@ -86,13 +86,16 @@ seasons:
 ceiling:
   percentile: 0.90
   min_history_nights: 5
-  # Cross-season fallback is FORBIDDEN. With 6-12mo of history, whole-history
-  # percentiles are ~98% peak-ski and produced +22% median recommendations on
-  # shoulder nights in the v1 build. Fall back to the seasonal anchor instead.
+  # Multi-year same-season window (locked 2026-09-20). Use prior years of THIS
+  # season; do not discard them at 12 months. Cross-season mixing stays forbidden:
+  # five years of peak-ski still cannot price a shoulder night.
+  history_lookback_years: 5
+  yoy_calendar_window_days: 14
   allow_cross_season_fallback: false
   # Confidence by which method produced the ceiling. Drives blending toward the
   # seasonal anchor and caps how far guardrails will let a price move.
   confidence:
+    season_dow_yoy: 1.00
     season_dow: 1.00
     season: 0.80
     seasonal_anchor: 0.45
@@ -231,6 +234,7 @@ data_health:
   comp_min_coverage: 0.60       # fraction of comp set with a usable snapshot
   comp_min_members: 3
   pacing_min_snapshot_days: 14  # days of pacing history before pacing signals are trusted
+  demotion_grace_runs: 2        # consecutive failed runs before handle demotes
 
 autonomy:
   # Ladder: watch < suggest < handle < escalate

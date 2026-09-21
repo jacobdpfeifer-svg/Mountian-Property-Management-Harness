@@ -1,14 +1,15 @@
 # Locked inputs (v1)
 
-**Confirmed by the operator on 2026-08-27.** These supersede the plan defaults that the
-first build assumed. Any module contradicting this table is a bug.
+**Confirmed by the operator on 2026-08-27; history window amended 2026-09-20.** These
+supersede the plan defaults that the first build assumed. Any module contradicting this
+table is a bug.
 
 | Decision | Value | Consequence |
 |---|---|---|
 | System of record | **Guesty** (Open API, LIVE) | Connected and syncing 2026-08-29. `wp-price sync-guesty` pulls listings, calendar and reservations. Credentials in gitignored `.env`. CSV/iCal remain demo-only. |
 | Comp data | **Scraper-first**, hybrid AirDNA/Key Data fallback if the scraper proves weak | Built: `src/scrape` market sweep via pyairbnb. Comp features remain an *unreliable dependency* — every number carries freshness + coverage, validated hard, and a degraded run demotes autonomy. See `docs/rules/COMP_DATA.md`. |
-| History available | **6–12 months** | One ski season, no YoY. Season-scoped history is thin by construction — the ceiling MUST NOT silently fall back to whole-history statistics. See `docs/rules/PRICING_DOCTRINE.md` §Ceiling. |
-| Authority | **Auto-push within guardrails** | Guardrails and the data-health gate are load-bearing safety code, not decoration. Nothing pushes without passing `src/guardrails`. |
+| History available | **Multi-year, up to ~5 years as a starting target** (amended 2026-09-20 — originally locked at 6–12 months / one ski season, no YoY) | The system uses as much *same-season* history as Guesty/scrape data actually provides inside `ceiling.history_lookback_years` (~5), preferring year-over-year nights in `yoy_calendar_window_days`. It does not discard prior years of this season, and it still does not mix seasons: cross-season fallback remains forbidden. See `docs/rules/PRICING_DOCTRINE.md` §Ceiling. |
+| Authority | **Auto-push within guardrails**, with a grace period before a failing health gate demotes `handle`→`suggest` (amended 2026-09-20) | Guardrails and the data-health gate are load-bearing safety code, not decoration. Nothing pushes without passing `src/guardrails`. The grace period only changes *how many consecutive bad readings* it takes to demote — it does not loosen any individual threshold and does not apply symmetrically to re-arming `handle`. Implemented in `src/guardrails/` with a fail-closed first-run baseline. |
 | Objective | **RevPAN** | Price is chosen by maximizing `P × P(book|P)`, not by applying multipliers and hoping. |
 
 ## The risk this combination creates

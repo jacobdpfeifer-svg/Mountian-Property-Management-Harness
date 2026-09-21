@@ -14,15 +14,23 @@ it. Autonomy is computed per run, never configured per run. See `AUTONOMY.md`.
 ## Ceiling
 
 Each property has its own realistic revenue ceiling: the high end of what *this* unit
-has achieved on comparable nights (season x day-of-week). Comp evidence adjusts it by
-at most `ceiling.comp_blend_weight`, and only when comps are fresh and cover enough of
-the set; competitor rates inform the number, they do not set it.
+has achieved on comparable nights (season × day-of-week, including prior years of that
+same season). Comp evidence adjusts it by at most `ceiling.comp_blend_weight`, and only
+when comps are fresh and cover enough of the set; competitor rates inform the number,
+they do not set it.
 
-**Cross-season fallback is forbidden.** With 6-12 months of history, whole-history
-statistics are ~98% peak-ski. Applying that to a shoulder night licenses a move the
-night cannot support — measured at a median +22.4% (max +43.6%) on early-December
-nights before this rule existed. Thin seasonal history falls back to the *seasonal
-anchor* (`base_ceiling_rate x season_multiplier`), and the resulting ceiling carries a
+**Use multi-year same-season history. Do not mix seasons.** The 2026-09-20 lock widened
+the history window from 6–12 months to about five years (`ceiling.history_lookback_years`).
+That extra depth is for *this* season across years — year-over-year nights in a
+`yoy_calendar_window_days` band of the target, then the rest of season × weekday, then
+the rest of the season. It is not permission to pool the whole calendar.
+
+**Cross-season fallback stays forbidden.** The v1 defect was unlike-with-unlike, not
+sample size: whole-history statistics were ~98% peak-ski and licensed a median +22.4%
+(max +43.6%) on early-December nights. Five years of Christmas bookings make that
+contamination worse, not better. Thin *same-season* history still falls back to the
+*seasonal anchor* (`base_ceiling_rate × season_multiplier` or listed same-season
+percentiles), never to another season's booked prices. The resulting ceiling carries a
 confidence below 1.0 which blends it toward that anchor and caps autonomy.
 
 Booked prices are censored — you only observe prices that converted — so a ceiling

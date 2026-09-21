@@ -14,7 +14,7 @@ Confirmed by the operator 2026-08-27. Full detail in `docs/LOCKED_INPUTS.md`.
 |---|---|
 | System of record | **Guesty** Open API (live, syncing); CSV/iCal demo-only |
 | Comp data | **Scraper-first** market sweep (built); AirDNA/Key Data hybrid in reserve |
-| History | 6–12 months — one ski season, no year-over-year |
+| History | Multi-year — up to ~5 years as a starting target, not capped at one ski season |
 | Objective | **RevPAN**, by maximizing `P × P(book\|P)` |
 | Authority | **Auto-push within guardrails**, gated on measured data health |
 
@@ -74,7 +74,7 @@ src/features/            Nightly feature builder
 src/pms/                 Guesty client, sync, adapters, rate writer
 src/scrape/              Market sweep, parsing, validation, run audit
 src/comps/               Comp-set evidence with freshness + coverage
-src/ceiling/             Season-scoped ceiling engine
+src/ceiling/             Same-season ceiling engine (multi-year YoY, no cross-season mix)
 src/bookprob/            Pooled booking-probability model
 src/leakage/             Peak / shoulder / orphan-gap scanners
 src/elasticity/          First-party conversion override

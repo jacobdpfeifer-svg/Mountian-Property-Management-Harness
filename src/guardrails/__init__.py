@@ -42,6 +42,9 @@ class DataHealth:
     comp_coverage: float
     pacing_days: int
     failures: list[str] = field(default_factory=list)
+    scope_key: str = "portfolio"
+    consecutive_failed_runs: int = 0
+    grace_active: bool = False
 
     @property
     def can_push(self) -> bool:
@@ -75,6 +78,7 @@ def assess_data_health(
     cfg = policy.get("data_health", {})
     max_level = policy.get("autonomy", {}).get("max_level", "suggest")
     failures: list[str] = []
+    scope_key = "portfolio" if not property_ids else "properties:" + ",".join(sorted(property_ids))
 
     prop_clause = ""
     prop_params: list[Any] = []
@@ -164,23 +168,56 @@ def assess_data_health(
         # regression.
         failures.append(f"signal health unavailable: {type(exc).__name__}")
 
-    granted = max_level if not failures else "suggest"
-    return DataHealth(granted, pms_age, comp_age, coverage, int(pacing_days), failures)
+    if not failures:
+        return DataHealth(max_level, pms_age, comp_age, coverage, int(pacing_days), [], scope_key)
+
+    # Fail closed for a new scope, then tolerate only the configured number of
+    # consecutive bad readings. Recovery is immediate; there is no re-arm grace.
+    try:
+        prior_rows = conn.execute(
+            "SELECT failures FROM data_health_runs WHERE scope_key = ? "
+            "ORDER BY rowid DESC LIMIT 100", (scope_key,)
+        ).fetchall()
+    except sqlite3.OperationalError:
+        prior_rows = []
+    consecutive = 0
+    for prior in prior_rows:
+        try:
+            prior_failures = json.loads(prior["failures"] or "[]")
+        except (TypeError, json.JSONDecodeError):
+            prior_failures = ["unparseable prior health record"]
+        if not prior_failures:
+            break
+        consecutive += 1
+    consecutive += 1
+    grace_runs = max(1, int(cfg.get("demotion_grace_runs", 2)))
+    grace_active = bool(prior_rows) and consecutive < grace_runs
+    granted = max_level if grace_active else "suggest"
+    if grace_active:
+        failures.append(
+            f"health grace active: {consecutive}/{grace_runs} consecutive failed run(s); "
+            "autonomy retained temporarily"
+        )
+    return DataHealth(
+        granted, pms_age, comp_age, coverage, int(pacing_days), failures,
+        scope_key, consecutive, grace_active,
+    )
 
 
 def record_health(conn: sqlite3.Connection, run_id: str, health: DataHealth) -> None:
     conn.execute(
         """
         INSERT INTO data_health_runs (run_id, pms_age_hours, comp_age_hours,
-            comp_coverage, pacing_days, granted_level, failures)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            comp_coverage, pacing_days, granted_level, failures, scope_key)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(run_id) DO UPDATE SET
             pms_age_hours=excluded.pms_age_hours, comp_age_hours=excluded.comp_age_hours,
             comp_coverage=excluded.comp_coverage, pacing_days=excluded.pacing_days,
-            granted_level=excluded.granted_level, failures=excluded.failures
+            granted_level=excluded.granted_level, failures=excluded.failures,
+            scope_key=excluded.scope_key
         """,
         (run_id, health.pms_age_hours, health.comp_age_hours, health.comp_coverage,
-         health.pacing_days, health.granted_level, json.dumps(health.failures)),
+        health.pacing_days, health.granted_level, json.dumps(health.failures), health.scope_key),
     )
 
 

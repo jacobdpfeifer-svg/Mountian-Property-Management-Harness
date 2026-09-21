@@ -1,7 +1,7 @@
 # Autonomy ladder
 
-Adapted from Vantory's Watch / Suggest / Handle it / Escalate model, which is the
-best idea on their site: authority is earned per-rule, not switched on globally.
+Mont Luxe Collection's own design: authority is earned per-rule, not switched on
+globally.
 
 | Level | Writes rates? | Meaning |
 |---|---|---|
@@ -29,6 +29,23 @@ Making the level a stored setting would mean one bad scrape day is enough. Makin
 function of measured health means the system degrades to advisory on its own.
 
 Inspect with `wp-price health`. Every run's verdict is persisted to `data_health_runs`.
+
+### Grace period before demotion (amended 2026-09-20)
+
+The configured `data_health.demotion_grace_runs` value implements a short grace period: a
+gate has to fail for `N` consecutive runs before the demotion actually takes effect, so
+one transient scrape hiccup or a one-off stale pull doesn't suggest-only an otherwise-
+healthy run. A scope with no prior health history fails closed until it establishes a
+healthy baseline. This does **not** loosen
+any individual threshold (`pms_max_staleness_hours`, `comp_min_coverage`, etc.) or make
+the level a stored setting again — it only adds hysteresis to *how many consecutive bad
+readings* it takes before the computed level changes. The hard invariants below are
+unaffected regardless of grace-period state; they apply to every push whether the run is
+freshly demoted or not.
+
+Once a demotion does trigger, recovery back to `handle` should still require a genuinely
+healthy run (no equivalent grace period on the way back up) — the asymmetry is
+deliberate: slow to demote a hair-trigger on noise, but not slow to re-arm real autonomy.
 
 ## Hard invariants
 

@@ -37,8 +37,10 @@ does not run is permanently lost. Pfeifer Optimization makes that data condition
    orphan-gap flags, min-stay.
 4. **Comps** (`src/comps`) — comp-set percentile per night, carrying freshness and
    coverage. Treated as an unreliable dependency.
-5. **Ceiling** (`src/ceiling`) — season-scoped percentile, blended toward the seasonal
-   anchor by confidence and toward comps by health. No cross-season fallback.
+5. **Ceiling** (`src/ceiling`) — same-season percentile over up to ~5 years, preferring
+   year-over-year calendar-aligned weekdays, then season × DOW, then the rest of the
+   season; blended toward the seasonal anchor by confidence and toward comps by health.
+   No cross-season fallback.
 6. **Booking probability** (`src/bookprob`) — pooled beta-binomial base rate x linear
    demand with per-season elasticity. This is what makes RevPAN an objective.
 7. **Leakage** (`src/leakage`) — peak underprice, shoulder over-discount, orphan gaps

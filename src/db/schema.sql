@@ -299,7 +299,8 @@ CREATE TABLE IF NOT EXISTS data_health_runs (
     comp_coverage     REAL,
     pacing_days       INTEGER,
     granted_level     TEXT NOT NULL,
-    failures          TEXT NOT NULL DEFAULT '[]'
+    failures          TEXT NOT NULL DEFAULT '[]',
+    scope_key         TEXT NOT NULL DEFAULT 'portfolio'
 );
 
 CREATE TABLE IF NOT EXISTS recommendation_outcomes (

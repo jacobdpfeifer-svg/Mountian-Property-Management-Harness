@@ -36,6 +36,7 @@ _SCHEMA_PATCHES: list[tuple[str, str, str]] = [
     ("rate_changes", "model_version", "TEXT"),
     ("rate_changes", "inputs_hash", "TEXT"),
     ("rate_changes", "request_id", "TEXT"),
+    ("data_health_runs", "scope_key", "TEXT NOT NULL DEFAULT 'portfolio'"),
 ]
 
 

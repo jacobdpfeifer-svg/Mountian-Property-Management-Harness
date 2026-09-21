@@ -25,7 +25,7 @@ from src.db import connect, init_db
 from src.eval import compute_revpan, format_report, record_outcomes_from_inventory
 from src.explain import Reason, select_top_reasons
 from src.features import build_features_for_property
-from src.guardrails import DataHealth, apply_guardrails, assess_data_health
+from src.guardrails import DataHealth, apply_guardrails, assess_data_health, record_health
 from src.ingest import CsvIngestAdapter, ICalIngestAdapter
 from src.leakage import scan_leakage
 from src.pacing import take_snapshot
@@ -107,8 +107,9 @@ def test_ceiling_never_borrows_another_season(db: Path):
 
     The sample history is 308/314 peak-ski nights. v1 fell back to a whole-history
     p90 for early-winter nights, inheriting a Christmas-week ceiling and producing a
-    median +22.4% recommendation on the weakest nights of the year. Thin seasonal
-    history must fall back to the SEASONAL ANCHOR, never across seasons.
+    median +22.4% recommendation on the weakest nights of the year. Multi-year
+    history does not change this: thin same-season history must fall back to the
+    SEASONAL ANCHOR, never across seasons.
     """
     policy = load_policy()
     with connect(db) as conn:
@@ -225,6 +226,30 @@ def test_autonomy_is_demoted_by_unhealthy_data(db: Path):
     assert h.failures, "sample data has no pacing history; gate should fail"
     assert h.granted_level == "suggest"
     assert not h.can_push
+
+
+def test_health_grace_is_asymmetric_and_fail_closed(db: Path):
+    """A transient failure is tolerated only after a healthy baseline; recovery is immediate."""
+    policy = copy.deepcopy(load_policy())
+    with connect(db) as conn:
+        baseline = DataHealth("handle", 0.0, 0.0, 1.0, 30, [])
+        record_health(conn, "baseline", baseline)
+        conn.commit()
+
+        first_bad = assess_data_health(conn, policy)
+        assert first_bad.granted_level == "handle"
+        assert first_bad.grace_active
+        record_health(conn, "first-bad", first_bad)
+        conn.commit()
+
+        second_bad = assess_data_health(conn, policy)
+        assert second_bad.granted_level == "suggest"
+        assert not second_bad.grace_active
+
+        recovered = DataHealth("handle", 0.0, 0.0, 1.0, 30, [])
+        record_health(conn, "recovered", recovered)
+        conn.commit()
+        assert assess_data_health(conn, policy).granted_level == "handle"
 
 
 def test_assess_data_health_raise_is_fail_closed(db: Path, monkeypatch: pytest.MonkeyPatch):

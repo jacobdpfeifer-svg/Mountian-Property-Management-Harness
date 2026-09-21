@@ -334,7 +334,8 @@ def cmd_health(args: argparse.Namespace) -> int:
     print(f"  Comp coverage:  {h.comp_coverage:.0%}")
     print(f"  Pacing history: {h.pacing_days} day(s)")
     if h.failures:
-        print("  Gate failures (autonomy demoted to SUGGEST):")
+        label = "Gate failures (grace period active):" if h.grace_active else "Gate failures (autonomy demoted to SUGGEST):"
+        print(f"  {label}")
         for f in h.failures:
             print(f"    - {f}")
     else:

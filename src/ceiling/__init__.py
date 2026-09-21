@@ -7,14 +7,19 @@ When sqi.enabled (conditions.yaml):
   re-inflate by f(SQI_forecast(target))
 
 Kill switch sqi.enabled=false reverts to the pre–Pfeifer Optimization stationary engine.
-Existing season-contamination invariants are preserved either way.
+
+History is multi-year and same-season: prior years of *this* season (and weekday,
+preferring the calendar anniversary window) may fill a thin bucket. Cross-season
+mixing stays forbidden — more years of peak-ski does not make Christmas a legal
+fallback for a shoulder night. Existing season-contamination invariants hold either
+way.
 """
 
 from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +77,28 @@ def _percentile(values: list[float], q: float) -> float:
     return float(np.percentile(np.array(values, dtype=float), q * 100.0))
 
 
+def lookback_start(as_of: date, years: float) -> date:
+    """Inclusive start of the allowed history window (default ~5 years)."""
+    days = max(0, int(round(float(years) * 365.25)))
+    return as_of - timedelta(days=days)
+
+
+def calendar_distance_days(stay: date, target: date) -> int:
+    """Shortest month-day distance, wrapping the year. Feb 29 maps to Feb 28."""
+    day = 28 if stay.month == 2 and stay.day == 29 else stay.day
+    try:
+        aligned = date(target.year, stay.month, day)
+    except ValueError:
+        aligned = date(target.year, stay.month, 28)
+    delta = abs((aligned - target).days)
+    return min(delta, 365 - delta)
+
+
+def season_year(stay: date) -> int:
+    """July–June year so peak_ski Dec/Jan count as one season-year."""
+    return stay.year if stay.month >= 7 else stay.year - 1
+
+
 def _conditions():
     from src.signals.features.sqi import load_conditions, sqi_enabled
 
@@ -94,6 +121,8 @@ def seasonal_anchor(
     feat: NightFeatures,
     policy: dict[str, Any],
     conn: sqlite3.Connection | None = None,
+    *,
+    as_of: date | None = None,
 ) -> float:
     """Ceiling of last resort for a night with too little realised history."""
     if conn is not None:
@@ -103,13 +132,18 @@ def seasonal_anchor(
         tier_min_n = int(cfg.get("anchor_min_tier_nights", 8))
         seasons = policy.get("seasons", {})
         demand = demand_index(conn)
+        decision = as_of or feat.stay_date
+        window_start = lookback_start(
+            decision, float(cfg.get("history_lookback_years", 5))
+        )
 
         rows = conn.execute(
             """
             SELECT stay_date, listed_price FROM nightly_inventory
             WHERE property_id = ? AND listed_price IS NOT NULL AND listed_price > 0
+              AND stay_date >= ?
             """,
-            (feat.property_id,),
+            (feat.property_id, window_start.isoformat()),
         ).fetchall()
 
         same: list[float] = []
@@ -150,6 +184,10 @@ def compute_ceiling(
     conf_cfg = cfg.get("confidence", {})
     seasons = policy.get("seasons", {})
     decision_date = as_of or feat.stay_date
+    yoy_window = int(cfg.get("yoy_calendar_window_days", 14))
+    window_start = lookback_start(
+        decision_date, float(cfg.get("history_lookback_years", 5))
+    )
 
     from src.signals.features.sqi import load_conditions, sqi_enabled, price_multiplier
 
@@ -164,13 +202,15 @@ def compute_ceiling(
           AND status = 'booked'
           AND booked_price IS NOT NULL
           AND stay_date < ?
+          AND stay_date >= ?
         """,
-        (feat.property_id, feat.stay_date.isoformat()),
+        (feat.property_id, feat.stay_date.isoformat(), window_start.isoformat()),
     ).fetchall()
 
     cutoff = (as_of or decision_date).isoformat()
     same_season: list[tuple[date, float]] = []
     same_season_dow: list[tuple[date, float]] = []
+    same_season_dow_yoy: list[tuple[date, float]] = []
     for row in rows:
         stay = parse_date(row["stay_date"])
         booked_at = row["booked_at"] if "booked_at" in row.keys() else None
@@ -184,6 +224,8 @@ def compute_ceiling(
         dow = int(row["day_of_week"] if row["day_of_week"] is not None else stay.weekday())
         if dow == feat.day_of_week:
             same_season_dow.append((stay, price))
+            if calendar_distance_days(stay, feat.stay_date) <= yoy_window:
+                same_season_dow_yoy.append((stay, price))
 
     def _pool_prices(pairs: list[tuple[date, float]]) -> list[float]:
         if not use_sqi:
@@ -197,7 +239,7 @@ def compute_ceiling(
                 norms.append(price)  # degrade to raw if SQI unavailable for that night
         return norms
 
-    anchor = seasonal_anchor(feat, policy, conn)
+    anchor = seasonal_anchor(feat, policy, conn, as_of=decision_date)
     sqi_target = None
     sqi_conf = None
     target_mult = 1.0
@@ -216,10 +258,21 @@ def compute_ceiling(
         except Exception:
             use_sqi = False
 
+    pool_yoy = _pool_prices(same_season_dow_yoy)
     pool_dow = _pool_prices(same_season_dow)
     pool_season = _pool_prices(same_season)
 
-    if len(pool_dow) >= min_n:
+    if len(pool_yoy) >= min_n:
+        raw_norm = _percentile(pool_yoy, pct)
+        n = len(pool_yoy)
+        yoy_years = {season_year(stay) for stay, _ in same_season_dow_yoy}
+        if len(yoy_years) >= 2:
+            method = f"p{int(pct * 100)}_season_dow_yoy"
+            confidence = float(conf_cfg.get("season_dow_yoy", conf_cfg.get("season_dow", 1.0)))
+        else:
+            method = f"p{int(pct * 100)}_season_dow"
+            confidence = float(conf_cfg.get("season_dow", 1.0))
+    elif len(pool_dow) >= min_n:
         raw_norm = _percentile(pool_dow, pct)
         method = f"p{int(pct * 100)}_season_dow"
         n = len(pool_dow)
