@@ -31,7 +31,12 @@ def run_daily_cycle(
 ) -> dict[str, Any]:
     import src.signals.collectors  # noqa: F401 — register
 
-    schedule = schedule or DEFAULT_SCHEDULE
+    # `schedule=[]` must mean "run no collectors" (e.g. a caller that only wants the
+    # resort_ops feature build below). `schedule or DEFAULT_SCHEDULE` would silently
+    # promote that to the full default schedule because an empty list is falsy —
+    # confirmed by writing a test with schedule=[] that unexpectedly fired every live
+    # collector (SNOTEL/weather/ENSO network calls) instead of running none.
+    schedule = DEFAULT_SCHEDULE if schedule is None else schedule
     collector_kwargs = collector_kwargs or {}
     report: dict[str, Any] = {"as_of": as_of.isoformat(), "runs": [], "failures": []}
 
@@ -41,7 +46,11 @@ def run_daily_cycle(
             continue
         cls = get_collector(collector_id)
         kwargs = collector_kwargs.get(collector_id, {})
-        coll = cls(store, **kwargs)
+        try:
+            coll = cls(store, **kwargs)
+        except Exception as exc:  # noqa: BLE001 — a bad collector must not kill the cycle
+            report["failures"].append(f"{collector_id}: failed to construct: {exc}")
+            continue
         for market_id in markets:
             try:
                 result = coll.run(as_of, market_id)

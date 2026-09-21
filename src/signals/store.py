@@ -13,7 +13,7 @@ import hashlib
 import json
 import sqlite3
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterable
