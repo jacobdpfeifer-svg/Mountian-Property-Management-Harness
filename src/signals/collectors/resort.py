@@ -17,7 +17,11 @@ from src.signals.extractors.winter_park_resort import fetch_resort_report
 from src.signals.store import Observation, QUALITY_OK, QUALITY_UNAVAILABLE
 
 # Intrawest feed IDs and HTML fallbacks by market.
-RESORT_SOURCES = {
+# NB: values are deliberately heterogeneous (feed_id is an int, html_url a str) — an
+# unannotated literal here makes mypy widen every per-market dict to `object`, which
+# turns every `cfg.get(...)` below into a false "object has no attribute get". Annotate
+# explicitly instead of resorting to `Any`, so a real shape error still gets caught.
+RESORT_SOURCES: dict[str, dict[str, str | int]] = {
     "grand_home": {
         "feed_id": WINTER_PARK_FEED_ID,
         "html_url": "https://www.winterparkresort.com/the-mountain/mountain-report",
@@ -56,7 +60,10 @@ class ResortCollector(Collector):
         store,
         *,
         extract_fn: Callable[[str], dict[str, Any]] | None = None,
-        intrawest_fn: Callable[[], list[dict[str, Any]]] | None = None,
+        # NB: this is always called as `self.intrawest_fn(cfg["feed_id"])` below
+        # (never with zero args) — the signature previously said `Callable[[], ...]`,
+        # which every real caller of the default (`fetch_intrawest_lifts`) violated.
+        intrawest_fn: Callable[[int], list[dict[str, Any]]] | None = None,
         fixture_path: Path | None = None,
         intrawest_fixture_path: Path | None = None,
         sleep=None,
@@ -83,7 +90,8 @@ class ResortCollector(Collector):
             ]
 
         data: dict[str, Any] = {}
-        src = cfg.get("html_url") if cfg else None
+        src_val = cfg.get("html_url") if cfg else None
+        src = str(src_val) if src_val is not None else None
 
         # --- Intrawest feed (Winter Park primary) --------------------------------
         lifts_raw: list[dict[str, Any]] | None = None
@@ -93,15 +101,16 @@ class ResortCollector(Collector):
             )
         elif cfg and cfg.get("feed_id") and not self.fixture_path:
             try:
-                lifts_raw = self.intrawest_fn(cfg["feed_id"])
+                lifts_raw = self.intrawest_fn(int(cfg["feed_id"]))
             except Exception:  # noqa: BLE001 — fall through to HTML / fixture
                 lifts_raw = None
 
         if lifts_raw is not None:
-            feed_id = cfg.get("feed_id", WINTER_PARK_FEED_ID) if cfg else WINTER_PARK_FEED_ID
+            feed_id = int(cfg.get("feed_id", WINTER_PARK_FEED_ID)) if cfg else WINTER_PARK_FEED_ID
             parsed = parse_intrawest_payload(lifts_raw, feed_id=feed_id)
             data.update(parsed)
-            src = parsed.get("source_url") or src
+            parsed_src = parsed.get("source_url")
+            src = str(parsed_src) if parsed_src else src
             self.store.write_resort_snapshot(
                 as_of=as_of,
                 market_id=market_id,
@@ -119,7 +128,8 @@ class ResortCollector(Collector):
             data.update(payload.get(market_id) or payload)
 
         # --- HTML fallback for base depth / ticket window -------------------------
-        html_url = cfg.get("html_url") if cfg else None
+        html_url_val = cfg.get("html_url") if cfg else None
+        html_url = str(html_url_val) if html_url_val is not None else None
         if html_url and not self.fixture_path:
             try:
                 html_data = self.extract_fn(html_url)

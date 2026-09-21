@@ -75,7 +75,8 @@ def _listing_size(item: dict[str, Any]) -> tuple[int | None, int | None]:
     structuredContent as "6 bedrooms"; guest capacity often only in the name
     ("Sleeps 16"). "15 beds" is furniture count and is not occupancy.
     """
-    room = item.get("room") if isinstance(item.get("room"), dict) else {}
+    room_raw = item.get("room")
+    room: dict[str, Any] = room_raw if isinstance(room_raw, dict) else {}
     bedrooms = _int_or_none(item.get("bedrooms") or room.get("bedrooms"))
     sleeps = _int_or_none(
         item.get("personCapacity")

@@ -59,8 +59,10 @@ def record_delivery(
     """
     if not event_id:
         raise ValueError("webhook event_id is required")
-    listing = payload.get("listing") if isinstance(payload.get("listing"), dict) else {}
-    calendar = payload.get("calendar") if isinstance(payload.get("calendar"), dict) else {}
+    listing_raw = payload.get("listing")
+    listing: dict[str, Any] = listing_raw if isinstance(listing_raw, dict) else {}
+    calendar_raw = payload.get("calendar")
+    calendar: dict[str, Any] = calendar_raw if isinstance(calendar_raw, dict) else {}
     listing_id = _first(payload, "listingId", "listing_id") or _first(listing, "_id", "id")
     start = _date(_first(payload, "startDate", "start_date")) or _date(_first(calendar, "startDate", "start_date"))
     end = _date(_first(payload, "endDate", "end_date")) or _date(_first(calendar, "endDate", "end_date"))

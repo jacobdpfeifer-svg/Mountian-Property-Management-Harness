@@ -186,32 +186,26 @@ class WeatherCollector(Collector):
 
     def _fetch_archive_and_forecast(self, lat: float, lng: float, as_of: date) -> dict[str, Any]:
         begin = as_of - timedelta(days=60)
-        archive = self.session.get(
-            ARCHIVE_URL,
-            params={
-                "latitude": lat,
-                "longitude": lng,
-                "start_date": begin.isoformat(),
-                "end_date": as_of.isoformat(),
-                "daily": "snowfall_sum,temperature_2m_mean,relative_humidity_2m_mean,wind_gusts_10m_max",
-                "timezone": "America/Denver",
-            },
-            timeout=60,
-        )
+        archive_params: dict[str, Any] = {
+            "latitude": lat,
+            "longitude": lng,
+            "start_date": begin.isoformat(),
+            "end_date": as_of.isoformat(),
+            "daily": "snowfall_sum,temperature_2m_mean,relative_humidity_2m_mean,wind_gusts_10m_max",
+            "timezone": "America/Denver",
+        }
+        archive = self.session.get(ARCHIVE_URL, params=archive_params, timeout=60)
         archive.raise_for_status()
         hist = archive.json()
 
-        forecast = self.session.get(
-            FORECAST_URL,
-            params={
-                "latitude": lat,
-                "longitude": lng,
-                "daily": "snowfall_sum,temperature_2m_max,temperature_2m_min,wind_gusts_10m_max",
-                "forecast_days": 16,
-                "timezone": "America/Denver",
-            },
-            timeout=60,
-        )
+        forecast_params: dict[str, Any] = {
+            "latitude": lat,
+            "longitude": lng,
+            "daily": "snowfall_sum,temperature_2m_max,temperature_2m_min,wind_gusts_10m_max",
+            "forecast_days": 16,
+            "timezone": "America/Denver",
+        }
+        forecast = self.session.get(FORECAST_URL, params=forecast_params, timeout=60)
         forecast.raise_for_status()
         fut = forecast.json()
 

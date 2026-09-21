@@ -315,8 +315,8 @@ class GuestyClient:
                 time.sleep(min(0.5 * (2 ** attempt), 8.0))
             except Exception as exc:  # must be recorded, never raised into the run
                 last_error = exc
-                status = getattr(getattr(exc, "response", None), "status_code", None)
-                retryable = status == 429 or (status is not None and status >= 500)
+                err_status = getattr(getattr(exc, "response", None), "status_code", None)
+                retryable = err_status == 429 or (err_status is not None and err_status >= 500)
                 if attempt == max_attempts - 1 or not retryable:
                     break
                 time.sleep(min(0.5 * (2 ** attempt), 8.0))

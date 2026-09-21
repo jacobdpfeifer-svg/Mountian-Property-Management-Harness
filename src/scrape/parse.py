@@ -18,7 +18,7 @@ _BREAKDOWN = re.compile(r"(\d+)\s*nights?\s*x\s*\$?([\d,]+(?:\.\d+)?)", re.I)
 _QUALIFIER = re.compile(r"(\d+)\s*nights?", re.I)
 
 
-def _to_float(text: str) -> float | None:
+def _to_float(text: Any) -> float | None:
     try:
         return float(str(text).replace(",", "").replace("$", "").strip())
     except (TypeError, ValueError):

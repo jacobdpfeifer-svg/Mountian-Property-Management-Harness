@@ -190,7 +190,8 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
     for res in client.reservations():
         if str(res.get("status", "")).lower() in {"canceled", "cancelled", "declined", "expired"}:
             continue
-        pid = by_listing.get(res.get("listingId"))
+        listing_id = res.get("listingId")
+        pid = by_listing.get(str(listing_id)) if listing_id is not None else None
         ci, co = parse_guesty_date(res.get("checkIn")), parse_guesty_date(res.get("checkOut"))
         if not pid or not ci or not co:
             continue

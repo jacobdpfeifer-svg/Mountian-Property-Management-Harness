@@ -23,7 +23,14 @@ from src.config import load_policy
 from src.db import connect, init_db
 from src.features import build_features_for_property
 from src.pms.guesty import GuestyClient, GuestyListing, parse_guesty_date
-from src.pms.sync import SyncReport, _floor_and_ceiling, recalibrate_bounds
+from src.pms.sync import (
+    SyncReport,
+    _floor_and_ceiling,
+    recalibrate_bounds,
+    sync_calendar,
+    sync_listings,
+    sync_reservations,
+)
 
 
 def _listing(**kw) -> GuestyListing:
@@ -198,6 +205,145 @@ def test_peak_nights_never_auto_push(db: Path):
     assert rec.status == "blocked"
     assert rec.autonomy_level == "escalate"
     assert rec.guardrail_action == "peak_blackout"
+
+
+# -------------------------------------------------------- sync intake (A→B handoff)
+#
+# src/pms/sync.py had the thinnest coverage of any Acquisition module (35% — only
+# _floor_and_ceiling/recalibrate_bounds were exercised). Nothing tested sync_listings
+# / sync_calendar / sync_reservations against a real Guesty response shape end to end,
+# which is exactly the seam the audit protocol asks a stage agent to trace: does a raw
+# Guesty reservation's `fareAccommodation` survive, in the right units (dollars per
+# night, matching `listed_price`), all the way into the `nightly_inventory.booked_price`
+# row that src/features and src/ceiling consume downstream in Stage B/C?
+
+
+class _FakeGuestyClient:
+    """Conforms to the subset of GuestyClient's interface sync.py actually calls."""
+
+    def __init__(self, listings, calendar_days, reservations):
+        self._listings = listings
+        self._calendar_days = calendar_days
+        self._reservations = reservations
+
+    def listings(self, include_inactive: bool = False):
+        return self._listings
+
+    def calendar(self, listing_id, start, end):
+        return self._calendar_days.get(listing_id, [])
+
+    def reservations(self):
+        yield from self._reservations
+
+
+def test_sync_calendar_and_reservations_trace_realised_price_into_nightly_inventory(db: Path):
+    """Traces one realistic value across the Stage A internal handoff:
+    a Guesty reservation's money.fareAccommodation ($1,500 for a 3-night stay) must
+    land as nightly_inventory.booked_price = $500/night (fareAccommodation / nights),
+    NOT the stay total, and the calendar's listed_price must be overwritten by that
+    realised price on the booked night (not left at the pre-booking listed rate) —
+    per the sync.py module docstring's stated contract.
+    """
+    listing = _listing(listing_id="abc123", nickname="Test Haus")
+    calendar_days = {
+        "abc123": [
+            {"date": "2026-12-20", "status": "available", "price": 480, "minNights": 2},
+            {"date": "2026-12-21", "status": "reserved", "price": 480, "minNights": 2},
+            {"date": "2026-12-22", "status": "reserved", "price": 480, "minNights": 2},
+            {"date": "2026-12-23", "status": "unavailable", "price": None, "minNights": None},
+        ]
+    }
+    reservation = {
+        "_id": "res-1",
+        "listingId": "abc123",
+        "checkIn": "2026-12-21",
+        "checkOut": "2026-12-23",
+        "nightsCount": 2,
+        "status": "confirmed",
+        "source": "airbnb",
+        "confirmedAt": "2026-10-01T00:00:00.000Z",
+        "createdAt": "2026-09-28T00:00:00.000Z",
+        "guestsCount": 12,
+        "money": {"fareAccommodation": 1500.0},
+    }
+    client = _FakeGuestyClient([listing], calendar_days, [reservation])
+    report = SyncReport()
+
+    with connect(db) as conn:
+        listings = sync_listings(conn, client, report)
+        sync_calendar(conn, client, listings, date(2026, 12, 20), date(2026, 12, 23), report)
+        sync_reservations(conn, client, listings, report)
+        rows = {
+            r["stay_date"]: r
+            for r in conn.execute(
+                "SELECT stay_date, listed_price, booked_price, status, channel, guest_count "
+                "FROM nightly_inventory WHERE property_id='test_haus' ORDER BY stay_date"
+            ).fetchall()
+        }
+
+    # Unbooked night: untouched calendar listed price, no booked_price.
+    assert rows["2026-12-20"]["status"] == "available"
+    assert rows["2026-12-20"]["listed_price"] == pytest.approx(480.0)
+    assert rows["2026-12-20"]["booked_price"] is None
+
+    # Booked nights: realised nightly rate = fareAccommodation / nightsCount = 750.0,
+    # not the $1,500 stay total and not the pre-booking $480 listed calendar price.
+    for d in ("2026-12-21", "2026-12-22"):
+        assert rows[d]["status"] == "booked"
+        assert rows[d]["booked_price"] == pytest.approx(750.0)
+        assert rows[d]["guest_count"] == 12
+
+    # Guesty's "unavailable" maps to our "blocked" three-state model, not "booked".
+    assert rows["2026-12-23"]["status"] == "blocked"
+
+    assert report.reservations == 1
+    assert report.booked_nights_priced == 2
+    assert report.reservations_with_confirmed_at == 1
+
+
+def test_sync_reservations_skips_cancelled_and_unmatched_listing(db: Path):
+    """Cancelled reservations must not contaminate the ceiling, and a reservation for
+    a listing_id sync hasn't seen yet must be skipped rather than crash the run."""
+    listing = _listing(listing_id="abc123", nickname="Test Haus")
+    client = _FakeGuestyClient(
+        [listing],
+        {},
+        [
+            {
+                "_id": "res-cancelled",
+                "listingId": "abc123",
+                "checkIn": "2026-12-21",
+                "checkOut": "2026-12-22",
+                "status": "cancelled",
+                "money": {"fareAccommodation": 900.0},
+            },
+            {
+                "_id": "res-unknown-listing",
+                "listingId": "does-not-exist",
+                "checkIn": "2026-12-21",
+                "checkOut": "2026-12-22",
+                "status": "confirmed",
+                "money": {"fareAccommodation": 900.0},
+            },
+        ],
+    )
+    report = SyncReport()
+    with connect(db) as conn:
+        listings = sync_listings(conn, client, report)
+        sync_reservations(conn, client, listings, report)
+        count = conn.execute("SELECT COUNT(*) c FROM reservations").fetchone()["c"]
+    assert count == 0
+    assert report.reservations == 0
+
+
+def test_sync_listings_warns_when_no_weekend_differential(db: Path):
+    listing = _listing(listing_id="abc123", nickname="Test Haus",
+                       base_price=500.0, weekend_base_price=500.0)
+    client = _FakeGuestyClient([listing], {}, [])
+    report = SyncReport()
+    with connect(db) as conn:
+        sync_listings(conn, client, report)
+    assert any("no weekend differential" in w for w in report.warnings)
 
 
 # ---------------------------------------------------------- write-path safety

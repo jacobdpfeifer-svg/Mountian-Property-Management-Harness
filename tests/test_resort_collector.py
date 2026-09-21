@@ -69,6 +69,67 @@ def test_resort_rejects_out_of_range(store: SignalStore, tmp_path):
     assert ok == []
 
 
+def test_resort_collector_live_intrawest_and_html_fallback(store: SignalStore):
+    """Exercises the non-fixture path: intrawest_fn(feed_id) + HTML fallback.
+
+    This path was previously untested (0% covered) and carried a latent typing bug:
+    ResortCollector declared `intrawest_fn: Callable[[], list[dict]]` (zero args) but
+    always invoked it as `self.intrawest_fn(cfg["feed_id"])` (one arg) — any caller
+    that supplied a custom collector conforming to the *declared* signature would have
+    crashed with a TypeError at runtime. Fixed in src/signals/collectors/resort.py by
+    correcting the Callable annotation to `Callable[[int], ...]` and by explicitly
+    typing RESORT_SOURCES (which mixed an int feed_id with str URLs and, unannotated,
+    caused mypy to widen every `cfg` to `object`, masking real shape errors).
+    """
+    import src.signals.collectors  # noqa: F401
+
+    calls: list[int] = []
+
+    def fake_intrawest_fn(feed_id: int) -> list[dict]:
+        calls.append(feed_id)
+        return [
+            {
+                "StatusEnglish": "Open",
+                "Trails": [{"Name": "Parkway", "Status": "Open", "Grooming": "Yes"}],
+            },
+            {"StatusEnglish": "Closed", "Trails": []},
+        ]
+
+    def fake_extract_fn(url: str) -> dict:
+        # HTML fallback only supplies fields the feed doesn't have.
+        return {"base_depth_in": 42.0, "lift_ticket_window_usd": 219.0}
+
+    coll = get_collector("resort")(
+        store,
+        intrawest_fn=fake_intrawest_fn,
+        extract_fn=fake_extract_fn,
+        sleep=lambda _s: None,
+    )
+    result = coll.run(date(2025, 12, 20), "grand_home")
+
+    assert result.status == "ok"
+    assert calls == [5]  # WINTER_PARK_FEED_ID, passed as an int not the dict itself
+
+    rows = {
+        r["signal_key"]: float(r["value"])
+        for r in store.read_observations(
+            as_of="2025-12-20", market_id="grand_home", qualities=["ok"]
+        )
+    }
+    assert rows["resort.terrain_open_pct"] == pytest.approx(100.0)  # 1 of 1 open trail
+    assert rows["resort.lifts_open"] == pytest.approx(1.0)
+    # HTML fallback fields land only because the feed didn't supply them.
+    assert rows["resort.base_depth_in"] == pytest.approx(42.0)
+    assert rows["resort.lift_ticket_window_usd"] == pytest.approx(219.0)
+
+    snap = store.conn.execute(
+        "SELECT lift_open, lift_total, trail_open, trail_total FROM resort_snapshots "
+        "WHERE as_of='2025-12-20' AND market_id='grand_home'"
+    ).fetchone()
+    assert snap is not None
+    assert (snap["lift_open"], snap["lift_total"], snap["trail_open"], snap["trail_total"]) == (1, 2, 1, 1)
+
+
 def test_sqi_includes_terrain_when_present(store: SignalStore):
     store.upsert_definition(
         SignalDefinition("snotel.swe_pct_normal", "conditions", "ratio", "daily", "t")
