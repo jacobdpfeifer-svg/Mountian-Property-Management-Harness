@@ -27,13 +27,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-LEVELS = ["watch", "suggest", "handle", "escalate"]
-
-
-def _rank(level: str) -> int:
-    return LEVELS.index(level) if level in LEVELS else 0
-
-
 @dataclass
 class DataHealth:
     granted_level: str
@@ -154,6 +147,30 @@ def assess_data_health(
     if pacing_days < int(cfg.get("pacing_min_snapshot_days", 14)):
         failures.append(f"only {pacing_days}d of pacing history (need {cfg.get('pacing_min_snapshot_days')})")
 
+    # Day COUNT alone can't see a hole in the middle of the window: 14 distinct
+    # as_of values with a 3-day gap between them still reads as "14 days of
+    # history" above, but the pacing curve it feeds is missing a segment. A
+    # skipped snapshot day is permanently unrecoverable (src/pacing docstring),
+    # so a gap is treated as its own health failure, not folded into the count.
+    try:
+        from src.pacing import verify_snapshots
+
+        gap_check = verify_snapshots(conn, property_ids=property_ids)
+        if gap_check["status"] != "ok":
+            gap_n = len(gap_check.get("gaps", []))
+            if gap_n:
+                failures.append(
+                    f"{gap_n} pacing snapshot gap(s) since {gap_check.get('since')} "
+                    "(days with no snapshot row, not just a short history)"
+                )
+            else:
+                # e.g. no Guesty-synced property in scope yet — fail closed rather
+                # than silently skip the check.
+                errs = "; ".join(gap_check.get("errors", [])) or "pacing gap check degraded"
+                failures.append(f"pacing snapshot verification failed: {errs}")
+    except Exception as exc:
+        failures.append(f"pacing gap check unavailable: {type(exc).__name__}")
+
     # Pfeifer Optimization: stale ACTIVE signals demote autonomy (SQI itself is not on the ladder).
     try:
         from datetime import date as _date
@@ -263,12 +280,41 @@ def apply_guardrails(
             price, action = lower, "clamped_decrease"
             detail = f"capped -{max_dn:.0%}/${max_abs:.0f}: ${proposed:.0f} -> ${lower:.0f}"
 
+    # Sanity ceiling. The move cap above is relative to `listed` — but `listed` is
+    # untrusted PMS input, not a Stage C output, and can itself be corrupted (a bad
+    # sync, a unit mismatch, a fat-fingered entry). A "clamped_decrease" that is
+    # merely within 15%/$250 of a wrong number is not a safety check: it can push
+    # the returned price far ABOVE what Stage C actually proposed. Re-validate the
+    # price on its way OUT against the same seasonal-anchor yardstick the sanity
+    # floor uses on the way in, so a corrupted `listed` can pull the output down
+    # towards it but never drag it up past a sane multiple of the anchor.
+    #
+    # This only ever tightens `price`; it never overrides the ACTION label by
+    # itself when the blackout check below is also about to fire on this same
+    # night, so "the highest-demand nights always escalate via peak_blackout"
+    # (AUTONOMY.md) stays the reported reason a human sees for those nights —
+    # the number they review is still sanity-bounded either way.
+    max_ratio = float(g.get("sanity_max_ratio_to_anchor", 3.0))
+    sanity_capped = False
+    if anchor > 0 and price > anchor * max_ratio:
+        sanity_capped = True
+        capped = anchor * max_ratio
+        cause = f" (listed ${listed:.0f} is itself implausible)" if listed else ""
+        sanity_note = f"${price:.0f} is above {max_ratio:.0%} of the ${anchor:.0f} seasonal anchor{cause}"
+        price = capped
+
     if is_blackout:
         note = f"demand {demand_strength:.2f} >= {blackout:.2f} - requires human approval"
+        if sanity_capped:
+            note = f"{note}; also {sanity_note}"
         return GuardrailVerdict(
             price=price, blocked=True, action="peak_blackout",
             detail=f"{note}{'; ' + detail if detail else ''}",
         )
+
+    if sanity_capped:
+        return GuardrailVerdict(price=price, blocked=True, action="sanity_ceiling", detail=sanity_note)
+
     return GuardrailVerdict(price=price, blocked=False, action=action, detail=detail)
 
 

@@ -107,15 +107,23 @@ def verify_snapshots(
     *,
     as_of: date | None = None,
     since: date | None = None,
+    property_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Find missing (property_id, as_of) days since each property's first Guesty sync.
 
     A property-day counts as present if at least one pacing_snapshots row exists
     for that pair. Exit-code contract matches scrape-comps: non-zero when the
     run is degraded or failed so a scheduler can alert without parsing output.
+
+    `property_ids`, when given, scopes the check to that subset — the same scoping
+    `assess_data_health` applies to every other gate, so a gap on a property outside
+    the current run's scope does not demote autonomy for properties unaffected by it.
     """
     as_of = as_of or date.today()
     props = guesty_properties(conn)
+    if property_ids:
+        wanted = set(property_ids)
+        props = [p for p in props if p["property_id"] in wanted]
     if not props:
         return {
             "status": "failed",

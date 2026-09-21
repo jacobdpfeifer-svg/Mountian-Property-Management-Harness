@@ -59,7 +59,7 @@ def _within_effective_bounds(r: sqlite3.Row, g: dict[str, Any]) -> bool:
     if rec < floor - 0.01:
         return False
 
-    if action.startswith("sanity_floor"):
+    if action.startswith("sanity_floor") or action.startswith("sanity_ceiling"):
         return True
 
     if listed is not None and listed > 0:
@@ -207,7 +207,7 @@ def run_audit(
     move_violations = 0
     for r in recs:
         action = r["guardrail_action"] or ""
-        if action.startswith("sanity_floor"):
+        if action.startswith("sanity_floor") or action.startswith("sanity_ceiling"):
             continue
         listed = r["listed_price_at_run"]
         if listed is None or listed <= 0:

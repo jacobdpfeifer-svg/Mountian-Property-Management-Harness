@@ -252,6 +252,12 @@ def _tpl_guardrail(f: dict[str, Any]) -> str:
         return "The suggested decrease was capped so it stays within the allowed move from your current listing."
     if action == "sanity_floor":
         return "The suggested rate was too far below this home's usual seasonal level, so it was raised to a safe floor."
+    if action == "sanity_ceiling":
+        return (
+            "The suggested rate was too far above this home's usual seasonal level "
+            "(often a sign of a data problem, not a real price), so it was capped "
+            "and held for review."
+        )
     if action == "peak_blackout":
         return "This is a peak night that requires a person to approve the rate before it is published."
     return "A pricing safety rule adjusted this rate."
