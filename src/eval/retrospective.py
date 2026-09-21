@@ -518,12 +518,12 @@ def format_markdown(report: RetrospectiveReport) -> str:
     )
     lines.append("|---|---|---:|---:|---:|---:|---:|---:|---:|")
     for pid in sorted(report.by_property):
-        s = report.by_property[pid]
+        ps = report.by_property[pid]
         lines.append(
-            f"| {pid} | {s.owner_id or '—'} | {s.nights} | {s.booked_nights} | "
-            f"{_money(s.realised_revpan)} | {_money(s.naive_cf_revpan)} | "
-            f"{_money(s.naive_delta)} | {_money(s.mean_ceiling_minus_booked)} | "
-            f"{s.peak_underprice_nights} |"
+            f"| {pid} | {ps.owner_id or '—'} | {ps.nights} | {ps.booked_nights} | "
+            f"{_money(ps.realised_revpan)} | {_money(ps.naive_cf_revpan)} | "
+            f"{_money(ps.naive_delta)} | {_money(ps.mean_ceiling_minus_booked)} | "
+            f"{ps.peak_underprice_nights} |"
         )
     lines.append("")
 
@@ -539,11 +539,11 @@ def format_markdown(report: RetrospectiveReport) -> str:
     )
     lines.append("|---|---|---:|---:|---:|---:|")
     for oid in sorted(report.by_owner):
-        s = report.by_owner[oid]
+        ps = report.by_owner[oid]
         props = sorted({n.property_id for n in report.nights if (n.owner_id or "unassigned") == oid})
         lines.append(
-            f"| {oid} | {', '.join(props)} | {s.nights} | "
-            f"{_money(s.realised_revpan)} | {_money(s.naive_cf_revpan)} | {_money(s.naive_delta)} |"
+            f"| {oid} | {', '.join(props)} | {ps.nights} | "
+            f"{_money(ps.realised_revpan)} | {_money(ps.naive_cf_revpan)} | {_money(ps.naive_delta)} |"
         )
     lines.append("")
 
