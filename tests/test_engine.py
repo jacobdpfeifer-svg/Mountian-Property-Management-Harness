@@ -351,6 +351,18 @@ def test_health_grace_is_asymmetric_and_fail_closed(db: Path):
         assert assess_data_health(conn, policy).granted_level == "handle"
 
 
+def test_malformed_health_history_is_alerted(db: Path):
+    policy = load_policy()
+    with connect(db) as conn:
+        conn.execute(
+            "INSERT INTO data_health_runs (run_id, granted_level, failures) "
+            "VALUES ('malformed', 'suggest', 'not-json')"
+        )
+        conn.commit()
+        h = assess_data_health(conn, policy)
+    assert any(f.startswith("ALERT:") for f in h.failures)
+
+
 def test_health_demotes_on_pacing_gap(tmp_path: Path):
     """REGRESSION: a hole in the middle of the pacing window must demote autonomy
     even when the distinct-day COUNT already clears `pacing_min_snapshot_days`.

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from src.db import connect, init_db
-from src.signals.store import Observation, SignalDefinition, SignalStore
+from src.signals.store import Observation, SignalDefinition, SignalStore, _now_iso
 
 
 @pytest.fixture()
@@ -131,3 +131,11 @@ def test_write_observations_idempotent(store: SignalStore):
     )
     assert len(rows) == 1
     assert rows[0]["value"] == 9.7
+
+
+def test_now_iso_is_timezone_aware_and_utc_suffixed():
+    stamp = _now_iso()
+    assert stamp.endswith("Z")
+    assert "T" in stamp
+    store_src = Path(__file__).resolve().parents[1] / "src" / "signals" / "store.py"
+    assert "utcnow" not in store_src.read_text(encoding="utf-8")

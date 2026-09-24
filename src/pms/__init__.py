@@ -1,15 +1,10 @@
 """PMS adapter interface + rate writer.
 
-The operator's system of record is Guesty or Hostaway (vendor still to be confirmed;
-see docs/LOCKED_INPUTS.md). The v1 build assumed CSV/iCal exports and shipped only an
-`IngestAdapter` ABC with two abstract read methods — no write path at all, despite
-auto-push being the chosen authority model.
-
-Both vendors expose reservations, listings, calendar and rate write-back over REST, so
-the interface below is vendor-neutral. `DryRunAdapter` is the default and is the only
-implementation that runs without credentials: it records every intended write to
+The operator's system of record is Guesty. `DryRunAdapter` is the default and is the
+only implementation that runs without credentials: it records every intended write to
 `rate_changes` with result='dry_run' so the full push path is exercised and auditable
-before a real key exists.
+before a real key exists. HostawayAdapter remains an inert interface seam and is not
+selectable from the CLI.
 """
 
 from __future__ import annotations
@@ -204,6 +199,19 @@ def push_recommendations(
     if autonomy_level != "handle":
         return {"attempted": 0, "applied": 0, "failed": 0,
                 "skipped_autonomy": len(recs)}
+
+    if getattr(adapter, "name", "") == "guesty":
+        from src.db import DB_KIND_PRODUCTION, get_db_identity
+
+        ident = get_db_identity(conn)
+        if ident.kind != DB_KIND_PRODUCTION:
+            return {
+                "attempted": 0,
+                "applied": 0,
+                "failed": 0,
+                "skipped_autonomy": len(recs),
+                "refused_db_kind": ident.kind,
+            }
 
     if policy is None:
         from src.config import load_policy

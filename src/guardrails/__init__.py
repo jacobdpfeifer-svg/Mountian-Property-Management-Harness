@@ -198,15 +198,19 @@ def assess_data_health(
     except sqlite3.OperationalError:
         prior_rows = []
     consecutive = 0
+    malformed_prior = False
     for prior in prior_rows:
         try:
             prior_failures = json.loads(prior["failures"] or "[]")
         except (TypeError, json.JSONDecodeError):
-            prior_failures = ["unparseable prior health record"]
+            prior_failures = ["ALERT: unparseable prior health record"]
+            malformed_prior = True
         if not prior_failures:
             break
         consecutive += 1
     consecutive += 1
+    if malformed_prior:
+        failures.append("ALERT: unparseable prior health record")
     grace_runs = max(1, int(cfg.get("demotion_grace_runs", 2)))
     grace_active = bool(prior_rows) and consecutive < grace_runs
     granted = max_level if grace_active else "suggest"

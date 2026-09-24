@@ -20,13 +20,14 @@ import requests
 from src.ceiling import compute_ceiling, demand_tier, seasonal_anchor
 from src.compose import recommend_night
 from src.config import load_policy
-from src.db import connect, init_db
+from src.db import connect, get_db_identity, init_db, resolve_property_ids
 from src.features import build_features_for_property
 from src.pms.guesty import GuestyClient, GuestyListing, parse_guesty_date
 from src.pms.sync import (
     SyncReport,
     _floor_and_ceiling,
     recalibrate_bounds,
+    sync_all,
     sync_calendar,
     sync_listings,
     sync_reservations,
@@ -344,6 +345,27 @@ def test_sync_listings_warns_when_no_weekend_differential(db: Path):
     with connect(db) as conn:
         sync_listings(conn, client, report)
     assert any("no weekend differential" in w for w in report.warnings)
+
+
+def test_sync_keeps_extra_listing_out_of_default_scope(tmp_path: Path):
+    path = tmp_path / "sync-scope.db"
+    init_db(path)
+    locked = _listing(listing_id="69f3fce1fd7011001188056e", nickname="Summit Haus")
+    extra = _listing(listing_id="zzzzzzzzzzzzzzzzzzzzzzzz", nickname="Creekside Haven")
+    client = _FakeGuestyClient([locked, extra], {}, [])
+    with connect(path) as conn:
+        report = sync_all(conn, client, horizon_days=1, history_days=1)
+        assert report.listings == 2
+        ids = {
+            r["property_id"]
+            for r in conn.execute("SELECT property_id FROM properties")
+        }
+        assert "summit_haus" in ids
+        assert "creekside_haven" in ids
+        scoped = resolve_property_ids(conn)
+        assert scoped == ["summit_haus"]
+        assert "creekside_haven" not in scoped
+        assert get_db_identity(conn).kind == "production"
 
 
 # ---------------------------------------------------------- write-path safety

@@ -43,3 +43,21 @@ include = ["src*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["src"]
+branch = false
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+skip_empty = true
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["src"]
+ignore_missing_imports = true
+
+[tool.vulture]
+min_confidence = 80
+paths = ["src", "scripts"]

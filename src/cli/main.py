@@ -10,7 +10,17 @@ from pathlib import Path
 
 from src.compose import generate_recommendations
 from src.config import load_policy
-from src.db import DEFAULT_DB_PATH, connect, init_db, resolve_property_ids
+from src.db import (
+    DEFAULT_DB_PATH,
+    DB_KIND_DEMO,
+    DB_KIND_PRODUCTION,
+    connect,
+    get_db_identity,
+    init_db,
+    locked_portfolio_property_ids,
+    mark_db_identity,
+    resolve_property_ids,
+)
 from src.eval import format_report, portfolio_reports, record_outcomes_from_inventory
 from src.explain.present import format_owner_recommendation
 from src.guardrails import assess_data_health, limit_run_scope
@@ -132,6 +142,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
     end = parse_date(args.end)
     policy = load_policy()
     with connect(args.db) as conn:
+        _print_demo_banner(conn)
         props = _resolve_scope(conn, args)
         report = run_audit(conn, start, end, property_ids=props, policy=policy)
     text = format_audit(report)
@@ -152,7 +163,20 @@ def cmd_seed_sample(args: argparse.Namespace) -> int:
         inquiries_csv=SAMPLE / "booking_inquiries.csv",
     )
     with connect(args.db) as conn:
+        ident = get_db_identity(conn)
+        if ident.kind == DB_KIND_PRODUCTION and not getattr(args, "force_demo", False):
+            print(
+                "Refusing to seed sample data into a production database. "
+                "Pass --force-demo if you really mean to overwrite identity.",
+                file=sys.stderr,
+            )
+            return 1
         counts = adapter.load_all(conn)
+        mark_db_identity(
+            conn, DB_KIND_DEMO, "seed-sample",
+            force=bool(getattr(args, "force_demo", False)),
+        )
+        conn.commit()
     print(f"Seeded sample data: {counts}")
     ical = SAMPLE / "cabin_ridge.ics"
     if ical.exists():
@@ -216,6 +240,9 @@ def cmd_sync_guesty(args: argparse.Namespace) -> int:
     client = GuestyClient()
     with connect(args.db) as conn:
         rep = sync_all(conn, client, horizon_days=args.horizon, history_days=args.history)
+        if rep.listings > 0:
+            mark_db_identity(conn, DB_KIND_PRODUCTION, "sync-guesty")
+            conn.commit()
     print(f"Synced {rep.listings} listing(s) from Guesty")
     print(f"  Calendar nights:        {rep.nights}")
     print(f"  Calendar span:          {rep.calendar_min} → {rep.calendar_max}")
@@ -323,9 +350,16 @@ def cmd_discover_comps(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_demo_banner(conn) -> None:
+    ident = get_db_identity(conn)
+    if ident.kind == DB_KIND_DEMO:
+        print("*** DEMO DATABASE — synthetic sample data, not production health evidence ***")
+
+
 def cmd_health(args: argparse.Namespace) -> int:
     policy = load_policy()
     with connect(args.db) as conn:
+        _print_demo_banner(conn)
         props = _resolve_scope(conn, args)
         h = assess_data_health(conn, policy, property_ids=props)
     print(f"Granted autonomy level: {h.granted_level.upper()}")
@@ -333,6 +367,8 @@ def cmd_health(args: argparse.Namespace) -> int:
     print(f"  Comp data age:  {h.comp_age_hours:.1f}h" if h.comp_age_hours is not None else "  Comp data age:  none")
     print(f"  Comp coverage:  {h.comp_coverage:.0%}")
     print(f"  Pacing history: {h.pacing_days} day(s)")
+    print(f"  Consecutive failed runs: {h.consecutive_failed_runs}")
+    print(f"  Grace state: {'ACTIVE' if h.grace_active else 'not active'}")
     if h.failures:
         label = "Gate failures (grace period active):" if h.grace_active else "Gate failures (autonomy demoted to SUGGEST):"
         print(f"  {label}")
@@ -340,7 +376,7 @@ def cmd_health(args: argparse.Namespace) -> int:
             print(f"    - {f}")
     else:
         print("  All gates passed.")
-    return 0
+    return 0 if h.granted_level == "handle" else 1
 
 
 def _print_recs(recs, limit: int, *, technical: bool = False) -> None:
@@ -355,6 +391,7 @@ def cmd_recommend(args: argparse.Namespace) -> int:
     end = parse_date(args.end)
     policy = load_policy()
     with connect(args.db) as conn:
+        _print_demo_banner(conn)
         props = _resolve_scope(conn, args)
         recs, health = generate_recommendations(
             conn, start, end, property_ids=props, policy=policy,
@@ -378,7 +415,39 @@ def cmd_push(args: argparse.Namespace) -> int:
     end = parse_date(args.end)
     policy = load_policy()
     with connect(args.db) as conn:
+        _print_demo_banner(conn)
+        if args.adapter == "guesty":
+            if not getattr(args, "confirm_live_write", False):
+                print(
+                    "Refusing Guesty write: pass --confirm-live-write after a separately "
+                    "authorized canary. Default remains dry_run.",
+                    file=sys.stderr,
+                )
+                return 1
+            ident = get_db_identity(conn)
+            if ident.kind != DB_KIND_PRODUCTION:
+                print(
+                    f"Refusing Guesty write: database identity is {ident.kind!r}, "
+                    "not production. Sync from Guesty first.",
+                    file=sys.stderr,
+                )
+                return 1
         props = _resolve_scope(conn, args)
+        if args.adapter == "guesty":
+            locked = set(locked_portfolio_property_ids())
+            if not props:
+                print(
+                    "Refusing Guesty write: no locked Mont Luxe properties in scope.",
+                    file=sys.stderr,
+                )
+                return 1
+            extras = [pid for pid in props if pid not in locked]
+            if extras:
+                print(
+                    f"Refusing Guesty write for non-portfolio properties: {extras}",
+                    file=sys.stderr,
+                )
+                return 1
         adapter = (ADAPTERS[args.adapter](conn) if args.adapter == "guesty"
                    else ADAPTERS[args.adapter]())
         recs, health = generate_recommendations(
@@ -436,6 +505,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_seed_scrape)
 
     s = sub.add_parser("seed-sample", help="Load data/sample CSVs (+ optional iCal)")
+    s.add_argument(
+        "--force-demo",
+        action="store_true",
+        help="Allow seeding sample data into a database already marked production",
+    )
     s.set_defaults(func=cmd_seed_sample)
 
     s = sub.add_parser("ingest-csv", help="Ingest operator CSV exports")
@@ -534,7 +608,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--to", dest="end", required=True)
     s.add_argument("--property")
     s.add_argument("--owner", help="Owner id filter (properties.owner_id)")
-    s.add_argument("--adapter", default="dry_run", choices=sorted(ADAPTERS))
+    s.add_argument("--adapter", default="dry_run", choices=["dry_run", "guesty"])
+    s.add_argument(
+        "--confirm-live-write",
+        action="store_true",
+        help="Required for --adapter guesty. Live writes stay unauthorized until a canary.",
+    )
     s.set_defaults(func=cmd_push)
 
     s = sub.add_parser("recommend", help="Generate explainable nightly recommendations")

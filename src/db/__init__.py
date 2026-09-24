@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
@@ -14,6 +15,18 @@ PROPERTY_OWNER_IDS: dict[str, str] = {
     "overlook_ridge": "northwoods",
     "cloud_9": "cloud9",
 }
+
+DB_KIND_DEMO = "demo"
+DB_KIND_PRODUCTION = "production"
+DB_KIND_UNKNOWN = "unknown"
+DB_KINDS = frozenset({DB_KIND_DEMO, DB_KIND_PRODUCTION, DB_KIND_UNKNOWN})
+
+
+@dataclass(frozen=True)
+class DbIdentity:
+    kind: str
+    marked_at: str | None = None
+    source: str | None = None
 
 # Columns added after initial CREATE TABLE IF NOT EXISTS ships. SQLite will not
 # alter existing tables when only the CREATE script changes, so we patch them.
@@ -67,6 +80,7 @@ def connect(db_path: Path | str | None = None) -> sqlite3.Connection:
     )
     _ensure_columns(conn)
     _ensure_reservations_table(conn)
+    _ensure_db_identity(conn)
     conn.commit()
     return conn
 
@@ -158,6 +172,90 @@ def _ensure_reservations_table(conn: sqlite3.Connection) -> None:
             ON pms_webhook_events(listing_id, start_date, end_date);
         """
     )
+
+
+def _ensure_db_identity(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS db_identity (
+            id         INTEGER PRIMARY KEY CHECK (id = 1),
+            kind       TEXT NOT NULL DEFAULT 'unknown'
+                CHECK (kind IN ('demo', 'production', 'unknown')),
+            marked_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            source     TEXT
+        );
+        INSERT OR IGNORE INTO db_identity (id, kind, source) VALUES (1, 'unknown', 'init');
+        """
+    )
+
+
+def get_db_identity(conn: sqlite3.Connection) -> DbIdentity:
+    _ensure_db_identity(conn)
+    row = conn.execute(
+        "SELECT kind, marked_at, source FROM db_identity WHERE id = 1"
+    ).fetchone()
+    if row is None:
+        return DbIdentity(DB_KIND_UNKNOWN)
+    kind = str(row["kind"] or DB_KIND_UNKNOWN)
+    if kind not in DB_KINDS:
+        kind = DB_KIND_UNKNOWN
+    return DbIdentity(kind, row["marked_at"], row["source"])
+
+
+def mark_db_identity(
+    conn: sqlite3.Connection,
+    kind: str,
+    source: str,
+    *,
+    force: bool = False,
+) -> DbIdentity:
+    """Record whether this file is synthetic demo data or a live Guesty sync."""
+    if kind not in DB_KINDS:
+        raise ValueError(f"invalid db identity kind: {kind!r}")
+    current = get_db_identity(conn)
+    if current.kind == DB_KIND_PRODUCTION and kind == DB_KIND_DEMO and not force:
+        raise ValueError(
+            "refusing to mark a production database as demo; pass force=True to override"
+        )
+    conn.execute(
+        """
+        UPDATE db_identity
+        SET kind = ?, marked_at = datetime('now'), source = ?
+        WHERE id = 1
+        """,
+        (kind, source),
+    )
+    return get_db_identity(conn)
+
+
+def locked_portfolio_property_ids() -> list[str]:
+    """Property ids the engine is allowed to price by default.
+
+    Extra Guesty listings (e.g. creekside_haven) may stay in the DB for sync
+    history but must not enter unscoped recommend/health/push runs.
+    """
+    ids = list(PROPERTY_OWNER_IDS.keys())
+    try:
+        from src.config import load_portfolio_config
+
+        cfg = load_portfolio_config()
+        props = list((cfg.get("properties") or {}).keys())
+        if props:
+            return [str(pid) for pid in props]
+    except Exception:
+        pass
+    return ids
+
+
+def _property_ids_in_db(conn: sqlite3.Connection) -> list[str]:
+    if not _table_exists(conn, "properties"):
+        return []
+    return [
+        r["property_id"]
+        for r in conn.execute(
+            "SELECT property_id FROM properties ORDER BY property_id"
+        ).fetchall()
+    ]
 
 
 def _owner_mapping() -> dict[str, str]:
@@ -257,29 +355,39 @@ def resolve_property_ids(
     property_ids: list[str] | None = None,
     owner_id: str | None = None,
 ) -> list[str] | None:
-    """Intersect --property and --owner. None means the full portfolio.
+    """Intersect --property and --owner.
 
-    Raises ValueError if --owner matches no properties.
+    Unscoped runs (no --property / --owner) default to locked Mont Luxe
+    properties when any of those ids exist in the DB, so extra Guesty listings
+    are not priced. Sample databases without those ids still mean "all rows"
+    (None). Raises ValueError if --owner matches no properties.
     """
-    if not owner_id:
-        return property_ids
-    owned = property_ids_for_owner(conn, owner_id)
-    if not owned:
-        known = list_owner_ids(conn)
-        raise ValueError(
-            f"No properties for owner {owner_id!r}. "
-            f"Known owner_id values: {known or '(none)'}"
-        )
-    if property_ids:
-        wanted = set(property_ids)
-        missing = [pid for pid in property_ids if pid not in set(owned)]
-        if missing:
+    if owner_id:
+        owned = property_ids_for_owner(conn, owner_id)
+        if not owned:
+            known = list_owner_ids(conn)
             raise ValueError(
-                f"Properties {missing} are not assigned to owner {owner_id!r} "
-                f"(owner has {owned})"
+                f"No properties for owner {owner_id!r}. "
+                f"Known owner_id values: {known or '(none)'}"
             )
-        return [pid for pid in owned if pid in wanted]
-    return owned
+        if property_ids:
+            wanted = set(property_ids)
+            missing = [pid for pid in property_ids if pid not in set(owned)]
+            if missing:
+                raise ValueError(
+                    f"Properties {missing} are not assigned to owner {owner_id!r} "
+                    f"(owner has {owned})"
+                )
+            return [pid for pid in owned if pid in wanted]
+        return owned
+    if property_ids:
+        return property_ids
+    locked = locked_portfolio_property_ids()
+    present = set(_property_ids_in_db(conn))
+    locked_present = [pid for pid in locked if pid in present]
+    if locked_present:
+        return locked_present
+    return None
 
 
 def init_db(db_path: Path | str | None = None, *, seed_markets: bool = True) -> Path:
@@ -289,6 +397,7 @@ def init_db(db_path: Path | str | None = None, *, seed_markets: bool = True) -> 
         conn.executescript(schema)
         _ensure_columns(conn)
         _ensure_reservations_table(conn)
+        _ensure_db_identity(conn)
         _seed_owner_ids(conn)
         _backfill_market_ids(conn)
         conn.commit()

@@ -111,3 +111,20 @@ def test_resolve_property_ids_rejects_cross_owner(tmp_path: Path):
             raise AssertionError("expected ValueError")
         except ValueError as exc:
             assert "cloud_9" in str(exc)
+
+
+def test_unscoped_resolve_omits_extra_listings(tmp_path: Path):
+    path = tmp_path / "owners.db"
+    init_db(path)
+    with connect(path) as conn:
+        _seed_two_owners(conn)
+        conn.execute(
+            """INSERT INTO properties (property_id,name,bedrooms,bathrooms,amenities,
+               base_ceiling_rate,min_floor_rate,max_ceiling_rate)
+               VALUES ('creekside_haven','Creekside',3,2,'[]',400,200,900)"""
+        )
+        conn.commit()
+        scoped = resolve_property_ids(conn)
+    assert scoped == ["summit_haus", "overlook_ridge", "cloud_9"]
+    assert "creekside_haven" not in scoped
+

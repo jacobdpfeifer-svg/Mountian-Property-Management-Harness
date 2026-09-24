@@ -277,6 +277,10 @@ def sync_all(conn: sqlite3.Connection, client: GuestyClient,
     try:
         today = date.today()
         listings = sync_listings(conn, client, report)
+        if report.listings > 0:
+            from src.db import DB_KIND_PRODUCTION, mark_db_identity
+
+            mark_db_identity(conn, DB_KIND_PRODUCTION, "sync-guesty")
         sync_calendar(conn, client, listings,
                       today - timedelta(days=history_days),
                       today + timedelta(days=horizon_days), report)

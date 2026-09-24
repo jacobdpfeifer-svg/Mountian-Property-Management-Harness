@@ -15,6 +15,17 @@ CREATE TABLE IF NOT EXISTS tenants (
 INSERT OR IGNORE INTO tenants (tenant_id, name, website)
 VALUES ('mont_luxe_collection', 'Mont Luxe Collection', 'https://montluxecollection.com');
 
+-- Distinguishes synthetic sample DBs from Guesty-synced production DBs.
+-- Unmarked databases stay 'unknown' and cannot receive live Guesty writes.
+CREATE TABLE IF NOT EXISTS db_identity (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    kind       TEXT NOT NULL DEFAULT 'unknown'
+        CHECK (kind IN ('demo', 'production', 'unknown')),
+    marked_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    source     TEXT
+);
+INSERT OR IGNORE INTO db_identity (id, kind, source) VALUES (1, 'unknown', 'init');
+
 CREATE TABLE IF NOT EXISTS properties (
     tenant_id         TEXT NOT NULL DEFAULT 'mont_luxe_collection',
     property_id       TEXT PRIMARY KEY,
