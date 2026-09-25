@@ -6,6 +6,26 @@ Guesty is the system of record and Airbnb is a connected distribution channel.
 
 **Not a Vantory clone.** Ceiling-relative pricing, leakage detection, and explainable recommendations — sized for a small portfolio, owned code, markdown-governed policy.
 
+## Scope: from pricing harness to property-management harness
+
+The repository is expanding from a *strict price-optimization* harness into a
+broader *property-management* harness. The first new domain is **marketing —
+Meta (Facebook/Instagram) paid ads for property management companies** (owner
+"door" acquisition, plus STR direct bookings and renter lead-gen). The same
+proven skeleton is reused: rules-first, markdown-governed policy, YAML config, an
+autonomy ladder gated on measured data health, hard invariants that cannot be
+overridden, and dollar-ranked explainability.
+
+Marketing is at the **research/decision stage** — nothing under `src/marketing/`
+is built yet. Start here:
+
+- `docs/marketing/META_ADS_STRATEGY_AND_RESEARCH.md` — industry research, the
+  "should we build this?" decision brief, compliance landscape (Fair Housing /
+  TCPA), benchmarks, and the differentiation thesis.
+- `docs/marketing/MARKETING_HARNESS_BUILD_PLAN.md` — proposed architecture, how
+  it maps onto the existing engine, build-vs-buy decisions, and a phased rollout
+  (dogfood on Mont Luxe → done-for-you pilots → productize).
+
 ## Locked v1 decisions
 
 Confirmed by the operator 2026-08-27. Full detail in `docs/LOCKED_INPUTS.md`.
