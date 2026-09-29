@@ -1,0 +1,21 @@
+{
+  "files": [
+    {
+      "license_class": "publishable",
+      "path": "data/proving_ground/vintages/snotel/berthoud_wteq_2018_2025.json",
+      "published_at": "2025-04-30",
+      "retrieved_at": "2026-09-25T19:34:33Z",
+      "sha256": "e9225a08e9eaea8b676e3046b99d243acbd8d0f99ccaf20659f604e4abda8752",
+      "url": "https://wcc.sc.egov.usda.gov/awdbRestApi/services/v1/data"
+    },
+    {
+      "license_class": "publishable",
+      "path": "data/proving_ground/vintages/enso/oni_ascii.txt",
+      "published_at": "2026-09-25",
+      "retrieved_at": "2026-09-25T19:34:33Z",
+      "sha256": "93f8c86c7a660f46318abe33b38c0479d184812d95a479a1fe869c0c2363a9e4",
+      "url": "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
+    }
+  ],
+  "median_snotel_season": "2021-22"
+}

@@ -13,7 +13,7 @@ import hashlib
 import json
 import sqlite3
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any
 
@@ -34,7 +34,7 @@ from src.features import NightFeatures, build_features
 from src.guardrails import DataHealth, apply_guardrails, assess_data_health, record_health
 from src.leakage import apply_leakage_price, scan_leakage
 from src.min_stay import decide_min_stay
-from src.utils import round_price_conservative
+from src.utils import clamp_price, round_price_conservative
 
 
 @dataclass
@@ -64,6 +64,16 @@ class Recommendation:
     range_low: float | None = None
     range_high: float | None = None
     evidence_count: int = 0
+    model_price: float | None = None
+    bounded_price: float | None = None
+    move_cap_price: float | None = None
+    rounded_price: float | None = None
+    final_price: float | None = None
+    weak_ceiling: bool = False
+    memory_set_hash: str = "memory_features_v1:empty"
+    memory_feature_version: str = "memory_features_v1"
+    memory_claim_refs: list[str] = field(default_factory=list)
+    memory_counterfactual_price: float | None = None
 
 
 def _property_occupancy(conn: sqlite3.Connection, property_id: str) -> int | None:
@@ -93,6 +103,34 @@ def _search_bounds(feat: NightFeatures, ceiling: CeilingResult, policy: dict[str
     return floor, max(ceil, floor)
 
 
+def advisory_ceiling(confidence: float, policy: dict[str, Any]) -> bool:
+    """True when the search-band ceiling must not override a move cap.
+
+    Matches deference's confidence band (policy), not a separate 0.30 cutoff.
+    """
+    dcfg = policy.get("compose", {}).get("deference", {})
+    threshold = float(
+        dcfg.get(
+            "advisory_ceiling_below_confidence",
+            dcfg.get("below_confidence", 0.80),
+        )
+    )
+    return confidence < threshold
+
+
+def final_clamped_price(
+    rounded: float, floor: float, ceil: float, *, weak_ceiling: bool
+) -> float:
+    """Keep a strong ceiling as a hard cap; a thin ceiling is advisory.
+
+    After `apply_guardrails` + rounding, a second clamp to a low-confidence
+    ceiling can undo a decrease cap (run 2: 21 Summit, 20 Overlook, 37 Cloud 9
+    nights shipped at the weak ceiling below the move-cap band).
+    """
+    upper = max(ceil, rounded) if weak_ceiling else ceil
+    return clamp_price(rounded, floor, upper)
+
+
 def _optimize_revpan(
     bp: bookprob.BookingProbability,
     floor: float,
@@ -111,6 +149,89 @@ def _optimize_revpan(
 
 def _inputs_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
+@dataclass
+class _Band:
+    floor: float
+    optimum: float
+    findings: list[Any]
+    leaked_price: float
+    min_stay: Any
+    ctx: Any
+    softened: float
+    deferred: float
+    deference_shift: float
+    pre_guard: float
+    verdict: Any
+    rounded: float
+    recommended: float
+    dcfg: dict[str, Any]
+
+
+def _price_band(
+    conn: sqlite3.Connection,
+    feat: NightFeatures,
+    policy: dict[str, Any],
+    ceiling: CeilingResult,
+    bp: bookprob.BookingProbability,
+    *,
+    floor: float,
+    ceil: float,
+    steps: int,
+    round_to: int,
+    risk: float,
+) -> _Band:
+    """Search and guard one floor. Memory runs this twice only when a claim raises it."""
+    optimum, _prob, _exp_revpan = _optimize_revpan(bp, floor, ceil, steps)
+    findings = scan_leakage(feat, ceiling, optimum, policy, access_risk=risk)
+    leaked_price, primary_leak = apply_leakage_price(optimum, findings)
+    gap_action = None
+    if primary_leak and primary_leak.kind == "orphan_gap":
+        gap_action = primary_leak.min_stay_action
+    elif findings:
+        for finding in findings:
+            if finding.kind == "orphan_gap" and finding.min_stay_action is not None:
+                gap_action = finding.min_stay_action
+                break
+    min_stay = decide_min_stay(feat, policy, gap_min_stay_action=gap_action)
+    ctx = elasticity_context(conn, feat, policy)
+    softened = maybe_soften(feat.listed_price, leaked_price, ctx, policy)
+    deferred = softened
+    deference_shift = 0.0
+    dcfg = policy.get("compose", {}).get("deference", {})
+    if (dcfg.get("enabled", True) and feat.listed_price
+            and ceiling.confidence < float(dcfg.get("below_confidence", 0.80))):
+        weight = max(float(dcfg.get("min_model_weight", 0.25)), ceiling.confidence)
+        deferred = weight * softened + (1.0 - weight) * float(feat.listed_price)
+        deference_shift = deferred - softened
+    pre_guard = min(max(deferred, floor), ceil)
+    verdict = apply_guardrails(
+        proposed=pre_guard,
+        listed=feat.listed_price,
+        anchor=ceiling.anchor_price,
+        demand_strength=feat.demand_strength,
+        policy=policy,
+    )
+    rounded = round_price_conservative(verdict.price, feat.listed_price, round_to)
+    weak = advisory_ceiling(ceiling.confidence, policy)
+    recommended = final_clamped_price(rounded, floor, ceil, weak_ceiling=weak)
+    return _Band(
+        floor=floor,
+        optimum=optimum,
+        findings=findings,
+        leaked_price=leaked_price,
+        min_stay=min_stay,
+        ctx=ctx,
+        softened=softened,
+        deferred=deferred,
+        deference_shift=deference_shift,
+        pre_guard=pre_guard,
+        verdict=verdict,
+        rounded=rounded,
+        recommended=recommended,
+        dcfg=dcfg,
+    )
 
 
 def recommend_night(
@@ -152,52 +273,47 @@ def recommend_night(
     floor, ceil = _search_bounds(feat, ceiling, policy)
     bp = bookprob.estimate(conn, feat, policy, as_of=decision_date)
 
-    # 1. RevPAN optimum over the admissible band.
-    optimum, prob, exp_revpan = _optimize_revpan(bp, floor, ceil, steps)
+    from src.memory.features import FEATURE_VERSION, build_memory_features
 
-    # 2. Leakage scanners may override the optimum (orphan gaps in particular are a
-    #    fill problem, not a yield problem).
-    findings = scan_leakage(feat, ceiling, optimum, policy, access_risk=risk)
-    leaked_price, primary_leak = apply_leakage_price(optimum, findings)
-
-    # 2b. Min-stay decision: season × lead-time policy table, then gap override.
-    gap_action = None
-    if primary_leak and primary_leak.kind == "orphan_gap":
-        gap_action = primary_leak.min_stay_action
-    elif findings:
-        for f in findings:
-            if f.kind == "orphan_gap" and f.min_stay_action is not None:
-                gap_action = f.min_stay_action
-                break
-    min_stay = decide_min_stay(feat, policy, gap_min_stay_action=gap_action)
-
-    # 3. Elasticity softening on weak first-party conversion.
-    ctx = elasticity_context(conn, feat, policy)
-    softened = maybe_soften(feat.listed_price, leaked_price, ctx, policy)
-
-    # 4. Deference to the incumbent price when our own evidence is weak. The operator
-    #    set the current price deliberately; a low-confidence model must nudge it, not
-    #    overrule it. See config compose.deference for the measured motivation.
-    deferred = softened
-    deference_shift = 0.0
-    dcfg = policy.get("compose", {}).get("deference", {})
-    if (dcfg.get("enabled", True) and feat.listed_price
-            and ceiling.confidence < float(dcfg.get("below_confidence", 0.80))):
-        w = max(float(dcfg.get("min_model_weight", 0.25)), ceiling.confidence)
-        deferred = w * softened + (1.0 - w) * float(feat.listed_price)
-        deference_shift = deferred - softened
-
-    pre_guard = min(max(deferred, floor), ceil)
-
-    # 5. Hard invariants. Never overridable.
-    verdict = apply_guardrails(
-        proposed=pre_guard,
-        listed=feat.listed_price,
-        anchor=ceiling.anchor_price,
-        demand_strength=feat.demand_strength,
-        policy=policy,
+    mem = build_memory_features(
+        feat.property_id,
+        feat.stay_date,
+        decision_date,
+        listed_price=feat.listed_price,
+        policy_floor=floor,
+        ceiling=ceil,
     )
-    recommended = round_price_conservative(verdict.price, feat.listed_price, round_to)
+    base_floor = floor
+    search_floor = base_floor
+    if not mem.floor_above_ceiling and mem.effective_floor_raise > 0:
+        search_floor = base_floor + mem.effective_floor_raise
+    applied = _price_band(
+        conn, feat, policy, ceiling, bp,
+        floor=search_floor, ceil=ceil, steps=steps, round_to=round_to, risk=risk,
+    )
+    baseline = applied
+    if search_floor != base_floor:
+        baseline = _price_band(
+            conn, feat, policy, ceiling, bp,
+            floor=base_floor, ceil=ceil, steps=steps, round_to=round_to, risk=risk,
+        )
+    optimum = applied.optimum
+    findings = applied.findings
+    leaked_price = applied.leaked_price
+    min_stay = applied.min_stay
+    ctx = applied.ctx
+    softened = applied.softened
+    deferred = applied.deferred
+    deference_shift = applied.deference_shift
+    pre_guard = applied.pre_guard
+    verdict = applied.verdict
+    rounded = applied.rounded
+    recommended = applied.recommended
+    dcfg = applied.dcfg
+    floor = applied.floor
+    weak_ceiling = advisory_ceiling(ceiling.confidence, policy)
+    memory_contribution = recommended - baseline.recommended
+    memory_counterfactual = baseline.recommended if search_floor != base_floor else None
 
     # 6. Autonomy: derived from data health, further demoted by thin ceilings.
     level = health.granted_level if health else "suggest"
@@ -236,8 +352,11 @@ def recommend_night(
             or (resort_cfg.get("demote_when_resort_closed", True) and is_closed)
         ):
             level = "suggest"
-    if verdict.blocked:
+    if verdict.blocked or mem.floor_above_ceiling:
         level = "escalate"
+    elif abs(memory_contribution) >= 0.01 and level == "handle":
+        # First accepted memory cycle stays suggestion-only. Handle must not push it.
+        level = "suggest"
 
     # ---- attribution -------------------------------------------------------
     listed = feat.listed_price
@@ -253,13 +372,40 @@ def recommend_night(
         "access_cliff": "access_cliff",
     }
 
+    pacing_days = int(health.pacing_days) if health is not None else 0
+    min_pacing_display = int(
+        policy.get("booking_probability", {}).get("min_pacing_days_for_display", 14)
+    )
+    bookprob_calibrated = pacing_days >= min_pacing_display
     if listed is not None:
+        if bookprob_calibrated:
+            tech = (
+                f"E[RevPAN] peaks at ${optimum:.0f} "
+                f"(P(book)={bp.prob_at(optimum):.0%}, "
+                f"beta={bp.beta:.2f}, bucket {bp.bucket} n={bp.sample_size})"
+            )
+            facts: dict[str, Any] = {
+                "optimum": optimum,
+                "book_prob": bp.prob_at(optimum),
+                "pacing_days": pacing_days,
+                "min_pacing_days_for_display": min_pacing_display,
+            }
+        else:
+            tech = (
+                f"E[RevPAN] peaks at ${optimum:.0f} "
+                f"(bookprob uncalibrated, {pacing_days}d pacing; "
+                f"beta={bp.beta:.2f}, bucket {bp.bucket} n={bp.sample_size})"
+            )
+            facts = {
+                "optimum": optimum,
+                "pacing_days": pacing_days,
+                "min_pacing_days_for_display": min_pacing_display,
+            }
         reasons.append(Reason(
             "revpan_optimum",
-            f"E[RevPAN] peaks at ${optimum:.0f} (P(book)={bp.prob_at(optimum):.0%}, "
-            f"beta={bp.beta:.2f}, bucket {bp.bucket} n={bp.sample_size})",
+            tech,
             contribution=optimum - listed,
-            facts={"optimum": optimum, "book_prob": bp.prob_at(optimum)},
+            facts=facts,
         ))
     reasons.append(Reason(
         "base_compose",
@@ -283,6 +429,13 @@ def recommend_night(
                 "season": feat.season,
                 "anchor": ceiling.anchor_price,
             },
+        ))
+    if weak_ceiling:
+        reasons.append(Reason(
+            "weak_ceiling",
+            "Advisory only: ceiling confidence is too low to imply a precise rate.",
+            contribution=0.0,
+            facts={"confidence": ceiling.confidence, "advisory": True},
         ))
     if ceiling.comp_price is not None:
         reasons.append(Reason(
@@ -365,13 +518,31 @@ def recommend_night(
             contribution=deference_shift,
             facts={"kind": "deference", "listed": feat.listed_price},
         ))
-    if verdict.action:
+    guardrail_action = verdict.action
+    if mem.floor_above_ceiling:
+        guardrail_action = "memory_floor_above_ceiling"
+        reasons.append(Reason(
+            "guardrail",
+            "memory_floor_above_ceiling: confirmed claim floor exceeds the engine ceiling",
+            contribution=0.0,
+            always_show=True,
+            facts={"action": "memory_floor_above_ceiling"},
+        ))
+    elif verdict.action:
         reasons.append(Reason(
             "guardrail",
             f"{verdict.action}: {verdict.detail}",
             contribution=verdict.price - pre_guard,
             always_show=True,
             facts={"action": verdict.action},
+        ))
+    if abs(memory_contribution) >= 0.01 and mem.active_claim_refs:
+        reasons.append(Reason(
+            "memory_constraint",
+            "Accepted claim raised the lower bound for this night.",
+            contribution=memory_contribution,
+            always_show=True,
+            facts={"claim_refs": list(mem.active_claim_refs)},
         ))
 
     top = select_top_reasons(reasons, max_n=max_reasons)
@@ -401,6 +572,9 @@ def recommend_night(
         "min_stay": min_stay.recommended_min_stay,
         "min_stay_source": min_stay.source,
         "rule_version": policy.get("rule_version"), "model_version": policy.get("model_version"),
+        "memory_set_hash": mem.memory_set_hash,
+        "memory_feature_version": FEATURE_VERSION,
+        "active_claim_refs": list(mem.active_claim_refs),
     }
     return Recommendation(
         property_id=feat.property_id,
@@ -413,13 +587,13 @@ def recommend_night(
         expected_revpan=bp.expected_revpan(recommended),
         ceiling_confidence=ceiling.confidence,
         autonomy_level=level,
-        guardrail_action=verdict.action,
+        guardrail_action=guardrail_action,
         reasons=[serialize_owner_reason(r) for r in top],
         rule_version=str(policy.get("rule_version", "unknown")),
         model_version=str(policy.get("model_version", "rules_v2")),
         inputs_hash=_inputs_hash(payload),
         run_id=run_id,
-        status="blocked" if verdict.blocked else "suggested",
+        status="blocked" if (verdict.blocked or mem.floor_above_ceiling) else "suggested",
         recommended_min_stay=min_stay.recommended_min_stay,
         min_stay_source=min_stay.source,
         per_person_nightly=per_person,
@@ -427,6 +601,16 @@ def recommend_night(
         range_low=range_low,
         range_high=range_high,
         evidence_count=evidence_count,
+        model_price=optimum,
+        bounded_price=pre_guard,
+        move_cap_price=verdict.price,
+        rounded_price=rounded,
+        final_price=recommended,
+        weak_ceiling=weak_ceiling,
+        memory_set_hash=mem.memory_set_hash,
+        memory_feature_version=FEATURE_VERSION,
+        memory_claim_refs=list(mem.active_claim_refs),
+        memory_counterfactual_price=memory_counterfactual,
     )
 
 
@@ -438,27 +622,47 @@ def persist_recommendation(conn: sqlite3.Connection, rec: Recommendation) -> int
             listed_price_at_run, expected_book_prob, expected_revpan, ceiling_confidence,
             autonomy_level, guardrail_action, reasons, rule_version, model_version,
             inputs_hash, status, recommended_min_stay, min_stay_source, per_person_nightly,
-            range_low, range_high, evidence_count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            range_low, range_high, evidence_count,
+            model_price, bounded_price, move_cap_price, rounded_price, final_price, weak_ceiling,
+            memory_set_hash, memory_feature_version, memory_claim_refs, memory_counterfactual_price
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(run_id, property_id, stay_date) DO UPDATE SET
             recommended_price=excluded.recommended_price,
+            floor_price=excluded.floor_price,
+            autonomy_level=excluded.autonomy_level,
             expected_book_prob=excluded.expected_book_prob,
             expected_revpan=excluded.expected_revpan,
             guardrail_action=excluded.guardrail_action,
             reasons=excluded.reasons, status=excluded.status,
+            inputs_hash=excluded.inputs_hash,
+            memory_set_hash=excluded.memory_set_hash,
+            memory_feature_version=excluded.memory_feature_version,
+            memory_claim_refs=excluded.memory_claim_refs,
+            memory_counterfactual_price=excluded.memory_counterfactual_price,
             recommended_min_stay=excluded.recommended_min_stay,
             min_stay_source=excluded.min_stay_source,
             per_person_nightly=excluded.per_person_nightly,
             range_low=excluded.range_low,
             range_high=excluded.range_high,
-            evidence_count=excluded.evidence_count
+            evidence_count=excluded.evidence_count,
+            model_price=excluded.model_price,
+            bounded_price=excluded.bounded_price,
+            move_cap_price=excluded.move_cap_price,
+            rounded_price=excluded.rounded_price,
+            final_price=excluded.final_price,
+            weak_ceiling=excluded.weak_ceiling
         """,
         (rec.run_id, rec.property_id, rec.stay_date.isoformat(), rec.recommended_price,
          rec.ceiling_price, rec.floor_price, rec.listed_price_at_run, rec.expected_book_prob,
          rec.expected_revpan, rec.ceiling_confidence, rec.autonomy_level, rec.guardrail_action,
          json.dumps(rec.reasons), rec.rule_version, rec.model_version, rec.inputs_hash, rec.status,
          rec.recommended_min_stay, rec.min_stay_source, rec.per_person_nightly,
-         rec.range_low, rec.range_high, rec.evidence_count),
+         rec.range_low, rec.range_high, rec.evidence_count,
+         rec.model_price, rec.bounded_price, rec.move_cap_price, rec.rounded_price,
+         rec.final_price if rec.final_price is not None else rec.recommended_price,
+         int(rec.weak_ceiling),
+         rec.memory_set_hash, rec.memory_feature_version,
+         json.dumps(rec.memory_claim_refs), rec.memory_counterfactual_price),
     )
     # cur.lastrowid is unreliable here: on the ON CONFLICT DO UPDATE branch
     # sqlite does not update last_insert_rowid(), so it would silently return

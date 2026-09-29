@@ -1,0 +1,6 @@
+policy_id,revenue,regret_vs_oracle,brier,worst10_loss
+engine,74408.8094,6.3e-05,3.2e-05,0.6991
+flat_seasonal,74063.467,0.004704,0.001904,154.7367
+comp_median_follower,72124.3725,0.030762,0.015297,231.6003
+moat_off,74129.5938,0.003815,0.001902,38.616
+oracle,74413.4837,0.0,0.0,0.0

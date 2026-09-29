@@ -258,3 +258,31 @@ def test_persist_room_ids_updates_property_rows(db: Path):
         ).fetchone()
     assert n == 1
     assert row["airbnb_room_id"] == "room-x"
+
+
+def test_proxy_match_never_writes_listed_price(db: Path):
+    end = START + timedelta(days=1)
+    with connect(db) as conn:
+        persist_room_ids(conn, [
+            DiscoveryMatch("summit_haus", "proxy-room", "PROXY:5BR", 1300.0, 1, "proxy"),
+        ])
+        windows = plan_windows(START - timedelta(days=7),
+                               (end - (START - timedelta(days=7))).days + 7, 2)
+        sweeps = {w.isoformat(): [{"room_id": "proxy-room", "nightly_price": 1300.0,
+                                    "name": "PROXY:5BR Luxury Lodge"}]
+                  for w in windows if w <= end}
+        path = db.parent / "proxy_listed.json"
+        path.write_text(json.dumps({"sweeps": sweeps, "calendars": {}}), encoding="utf-8")
+        scrape_properties(conn, FixtureProvider(path), START, end, discover=False)
+        rows = conn.execute(
+            "SELECT listed_price, evidence_kind, channel FROM nightly_inventory "
+            "WHERE property_id='summit_haus'"
+        ).fetchall()
+        kind = conn.execute(
+            "SELECT listing_match_kind FROM properties WHERE property_id='summit_haus'"
+        ).fetchone()["listing_match_kind"]
+    assert kind == "proxy"
+    assert rows
+    assert all(r["listed_price"] is None for r in rows)
+    assert all(r["evidence_kind"] == "proxy" for r in rows)
+    assert all(r["channel"] == "airbnb_proxy" for r in rows)

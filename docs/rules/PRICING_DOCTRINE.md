@@ -4,7 +4,17 @@ Enforcement-first policy. Numbers that the engine reads live in `config/policies
 
 ## Objective
 
-Maximize **RevPAN** (revenue per available night). Do not chase occupancy by dumping rates on peak nights. Do not leave ceiling on the table when demand is strong.
+Maximize **RevPAN** (revenue per available night) *when ceiling confidence is high
+enough that the model is allowed to set the rate*. Do not chase occupancy by dumping
+rates on peak nights. Do not leave ceiling on the table when demand is strong.
+
+**Shipped price under low confidence is not the RevPAN grid point.** Policy
+`compose.deference` (`below_confidence` 0.80, `min_model_weight` 0.25) is an
+operator decision: when the ceiling is thin, the engine is a nudge around the
+incumbent listed rate, further bounded by the ±12% / $250 move cap. The
+unconstrained optimum (June 1 model $388 vs listed $597, etc.) is an internal
+search artifact. Do not present it as a candidate price. Autonomy stays `suggest`
+until data health grants `handle`.
 
 ## Authority
 

@@ -22,7 +22,12 @@ class BacktestReport:
     nights: int
     scored: int
     realised_revpan: float | None
-    counterfactual_revpan: float | None
+    # NOT a performance metric. This holds the recommended price fixed on the nights
+    # that actually booked at the LISTED price, i.e. it assumes bookings do not
+    # respond to price. Whenever the engine recommends above listed it is mechanically
+    # larger than `realised_revpan`, so it always "wins" and must never be quoted as
+    # evidence the engine beat the market. Kept only as a labeled price-swap reference.
+    revpan_if_bookings_unchanged: float | None
     calibration_error: float | None
     confidence_note: str
     signal_scores: list[dict[str, Any]] = field(default_factory=list)
@@ -126,6 +131,7 @@ def run_backtest(
         policy=policy,
         persist=False,
         allow_past=True,
+        as_of=decision_date,
     )
 
     # Score against realised inventory.
@@ -156,11 +162,13 @@ def run_backtest(
         note = f"LOW CONFIDENCE (n={n}). " + note
 
     realised_revpan = sum(realised) / n if n else None
-    # Counterfactual: recommended price * realised book (naive)
+    # Price-swap reference, NOT a win: recommended price on the nights that actually
+    # booked at the listed price, holding the booking outcome fixed. See the field
+    # docstring — this cannot show the engine beat the market and is never a headline.
     cf = []
     for rec, rev in zip(recs, realised):
         cf.append(float(rec.recommended_price) if rev > 0 else 0.0)
-    counterfactual = sum(cf) / len(cf) if cf else None
+    revpan_if_bookings_unchanged = sum(cf) / len(cf) if cf else None
 
     cal = None
     if expected_p and n >= 5:
@@ -173,7 +181,7 @@ def run_backtest(
         nights=len(recs),
         scored=n,
         realised_revpan=realised_revpan,
-        counterfactual_revpan=counterfactual,
+        revpan_if_bookings_unchanged=revpan_if_bookings_unchanged,
         calibration_error=cal,
         confidence_note=note,
         warnings=warnings,

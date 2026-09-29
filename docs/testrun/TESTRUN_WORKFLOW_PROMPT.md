@@ -155,17 +155,27 @@ only: experiment blocker · measurement limitation · recommendation-quality ris
 operational-risk finding · low-priority improvement. Verify, do not fix:
 
 - unscoped property selection / `creekside_haven`
-- `round_price_conservative` ceiling overrun
+- rounding clamp after `round_price_conservative` (still record weak-ceiling / move-cap overruns)
 - incomplete pacing history → booking probability is **weak / uncalibrated**
 - missing historical contemporaneous comp snapshots
 - 365-day market coverage
+- empty forward inventory (recommend must exit 2)
 
-### Phase 1 — blind data acquisition
+### Phase 1 — independent comps; read-only owned calendar
 
-Initialize the isolated DB. Load only permitted non-Guesty inputs. Discover comps
+Initialize the isolated DB. Load permitted non-Guesty inputs. Discover comps
 for a luxury 5-bedroom profile across peak_ski, early_winter, shoulder_spring,
 and summer. Scrape `wp-price scrape-comps --horizon 365` into `comp_snapshots`
-and whole-market `market_snapshots`. Run signals and
+and whole-market `market_snapshots`. Then seed owned nights:
+
+```bash
+wp-price seed-forward-inventory \
+  --property <id> \
+  --source guesty-readonly \
+  --db /tmp/testrun_<id>.db
+```
+
+See `docs/testrun/INVENTORY_PROTOCOL.md`. Run signals and
 `wp-price health --property <id> --db <db>`.
 
 Generic market stats (p25/p50/p75, n, filters, freshness) must be independent of
@@ -288,14 +298,22 @@ report filename under `Reports fully reviewed`
 
 ```bash
 python3 scripts/run_testruns.py status
-python3 scripts/run_testruns.py run --agent-cmd '<launcher that reads the prompt on stdin>'
+python3 scripts/run_testruns.py repair-stale
+python3 scripts/run_testruns.py run --agent-cmd 'codex exec --dangerously-bypass-approvals-and-sandbox -'
 ```
 
-Placeholders: `{workspace}`, `{prompt}`, `{property_id}`, `{report}`. Resume
-after a stop with `python3 scripts/run_testruns.py run`. Use `--rerun` only to
-replace a completed property session. In this Cursor chat, prefer executing the
-phases yourself over spawning a nested agent unless the operator supplied
+Do **not** use `codex exec --full-auto -` on Codex CLI 0.154+. The runner rejects that
+flag unless `TESTRUN_ALLOW_LEGACY_LAUNCHER=1`. Placeholders:
+`{workspace}`, `{prompt}`, `{property_id}`, `{report}`. Resume after a stop with
+`python3 scripts/run_testruns.py run` (keeps completed sessions). Replace one
+property with `--rerun-property <id>`. Use `--rerun` only to replace every
+completed session. After reports exist, `python3 scripts/run_testruns.py seal`
+validates gates without launching agents. In this Cursor chat, prefer executing
+the phases yourself over spawning a nested agent unless the operator supplied
 `--agent-cmd`.
+
+Every `sync-guesty` in a property session must pass `--property <id>` so extra
+listings such as `creekside_haven` are not pulled into the disposable DB.
 
 ## Done when
 

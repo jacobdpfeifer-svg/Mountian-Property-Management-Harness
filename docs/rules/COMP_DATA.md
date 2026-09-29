@@ -22,6 +22,10 @@ contaminate ceilings for sleeps-16–18 homes. Market percentiles prefer sized
 listings that pass the same filter when enough observations exist. Thresholds are
 **owner-tunable** (twins are 5bd — a 6+ bedroom cutoff would be too strict).
 
+**Twins curated set.** `data/scrape/comps.csv` is Winter Park / Fraser / Tabernash
+Airbnb peers only (14 room IDs). Out-of-market Breck/Vail/Keystone/Silverthorne
+seeds were removed so a `grand_home` sweep can clear the 60% match gate.
+
 **Sampling.** Windows are sampled one midweek (Tue) + one weekend (Fri) per week
 rather than every night, because the ceiling consumes comp evidence at the
 season x day-of-week level. `src/comps` falls back to nearby same-weekday-class

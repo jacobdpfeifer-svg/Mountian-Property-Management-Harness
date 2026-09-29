@@ -1,0 +1,10 @@
+level: 1
+name: Bunny Hill
+market_id: grand_home
+property_id: cabin_ridge
+world: W1_calm
+season:
+  start: 2026-11-01
+  end: 2027-04-15
+evidence_expectation: internal_only
+notes: Synthetic calm season; all moat signals agree in direction.

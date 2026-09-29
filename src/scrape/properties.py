@@ -55,6 +55,7 @@ class DiscoveryMatch:
     name: str | None
     nightly_price: float | None
     score: int
+    match_kind: str = "exact"  # exact | proxy
 
 
 @dataclass
@@ -75,6 +76,8 @@ class ScrapePropertiesReport:
     discovery: list[DiscoveryMatch] = field(default_factory=list)
     sweeps_ok: int = 0
     sweeps_failed: int = 0
+    status: str = "ok"
+    errors: list[str] = field(default_factory=list)
 
     @property
     def total_nights(self) -> int:
@@ -155,6 +158,7 @@ def discover_owned_listings(
                     name=f"PROXY:{proxy.name}",
                     nightly_price=proxy.nightly_price,
                     score=1,
+                    match_kind="proxy",
                 )
 
     return [best[pid] for pid in targets if pid in best]
@@ -163,8 +167,8 @@ def discover_owned_listings(
 def persist_room_ids(conn: sqlite3.Connection, matches: list[DiscoveryMatch]) -> int:
     for m in matches:
         conn.execute(
-            "UPDATE properties SET airbnb_room_id = ? WHERE property_id = ?",
-            (m.room_id, m.property_id),
+            "UPDATE properties SET airbnb_room_id = ?, listing_match_kind = ? WHERE property_id = ?",
+            (m.room_id, m.match_kind, m.property_id),
         )
     conn.commit()
     return len(matches)
@@ -243,10 +247,15 @@ def scrape_properties(
     """Populate nightly_inventory for owned listings via calendar + market sweeps."""
     from src.config import load_policy
     from src.pms.sync import SyncReport, recalibrate_bounds
+    from src.scrape.timeout import call_with_timeout
 
     policy = policy or load_policy()
     cfg = policy.get("scrape", {})
     window_nights = int(cfg.get("window_nights", 2))
+    window_timeout = float(cfg.get("window_timeout_s", 180))
+    cal_timeout = float(cfg.get("property_calendar_timeout_s", 180))
+    run_deadline = float(cfg.get("run_deadline_s", 3600))
+    started = __import__("time").monotonic()
     report = ScrapePropertiesReport()
 
     if discover:
@@ -273,9 +282,49 @@ def scrape_properties(
     for check_in in windows:
         if check_in > end:
             continue
-        sweep = provider.sweep(check_in, window_nights)
+        elapsed = __import__("time").monotonic() - started
+        if elapsed > run_deadline:
+            report.status = "degraded"
+            report.errors.append(f"run deadline {run_deadline:.0f}s hit before {check_in}")
+            print(f"scrape-properties deadline before {check_in.isoformat()}", flush=True)
+            break
+        pids = sorted({pid for props in room_to_properties.values() for pid in props})
+        dates = [
+            check_in + timedelta(days=i)
+            for i in range(window_nights)
+            if start <= check_in + timedelta(days=i) <= end
+        ]
+        if dates and pids:
+            qs = ",".join("?" for _ in pids)
+            complete = True
+            for d in dates:
+                n = conn.execute(
+                    f"SELECT COUNT(DISTINCT property_id) AS c FROM nightly_inventory "
+                    f"WHERE stay_date = ? AND property_id IN ({qs})",
+                    [d.isoformat(), *pids],
+                ).fetchone()["c"]
+                if int(n or 0) < len(pids):
+                    complete = False
+                    break
+            if complete:
+                print(f"scrape-properties resume skip {check_in.isoformat()}", flush=True)
+                continue
+        print(
+            f"scrape-properties window {check_in.isoformat()} "
+            f"ok={report.sweeps_ok} failed={report.sweeps_failed}",
+            flush=True,
+        )
+        try:
+            sweep = call_with_timeout(provider.sweep, window_timeout, check_in, window_nights)
+        except TimeoutError as exc:
+            report.sweeps_failed += 1
+            report.status = "degraded"
+            report.errors.append(str(exc))
+            print(f"scrape-properties timeout {check_in}: {exc}", flush=True)
+            continue
         if not sweep.ok:
             report.sweeps_failed += 1
+            report.status = "degraded"
             continue
         report.sweeps_ok += 1
         for listing in sweep.listings:
@@ -286,36 +335,55 @@ def scrape_properties(
                 d = check_in + timedelta(days=i)
                 if start <= d <= end and listing.nightly_price is not None:
                     bucket[d] = float(listing.nightly_price)
+        conn.commit()
+        print(
+            f"scrape-properties committed {check_in.isoformat()} "
+            f"listings={len(sweep.listings)} priced_rooms={len(prices_by_room)}",
+            flush=True,
+        )
 
     today = date.today()
 
     for room_id in room_ids:
         property_ids_for_room = room_to_properties[room_id]
-        cal = provider.calendar(room_id)
+        try:
+            cal = call_with_timeout(provider.calendar, cal_timeout, room_id)
+        except TimeoutError as exc:
+            cal = {}
+            print(f"scrape-properties calendar timeout {room_id}: {exc}", flush=True)
         room_prices = _fill_price_gaps(prices_by_room.get(room_id, {}), start, end)
 
         for property_id in property_ids_for_room:
             prop_report = PropertyScrapeReport(property_id=property_id, room_id=room_id)
+            kind_row = conn.execute(
+                "SELECT listing_match_kind FROM properties WHERE property_id = ?",
+                (property_id,),
+            ).fetchone()
+            match_kind = (kind_row["listing_match_kind"] if kind_row else None) or "exact"
+            proxy = match_kind == "proxy"
 
             for stay in _dates_in_range(start, end):
                 iso = stay.isoformat()
                 info = cal.get(iso, {})
                 status = _calendar_status(info) if info else "available"
-                listed = room_prices.get(stay)
+                listed = None if proxy else room_prices.get(stay)
+                evidence = "proxy" if proxy else "property_direct"
+                channel = "airbnb_proxy" if proxy else "airbnb_scrape"
                 lead = (stay - today).days if stay >= today else None
 
                 conn.execute(
                     """
                     INSERT INTO nightly_inventory (
                         property_id, stay_date, listed_price, booked_price, status,
-                        lead_time_days, day_of_week, channel, min_stay, updated_at
-                    ) VALUES (?, ?, ?, NULL, ?, ?, ?, 'airbnb_scrape', ?, datetime('now'))
+                        lead_time_days, day_of_week, channel, evidence_kind, min_stay, updated_at
+                    ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, datetime('now'))
                     ON CONFLICT(property_id, stay_date) DO UPDATE SET
                         listed_price=COALESCE(excluded.listed_price, nightly_inventory.listed_price),
                         status=excluded.status,
                         lead_time_days=excluded.lead_time_days,
                         day_of_week=excluded.day_of_week,
-                        channel='airbnb_scrape',
+                        channel=excluded.channel,
+                        evidence_kind=excluded.evidence_kind,
                         min_stay=COALESCE(excluded.min_stay, nightly_inventory.min_stay),
                         updated_at=datetime('now')
                     """,
@@ -326,6 +394,8 @@ def scrape_properties(
                         status,
                         lead,
                         stay.weekday(),
+                        channel,
+                        evidence,
                         info.get("min_nights") if info else None,
                     ),
                 )

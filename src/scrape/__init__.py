@@ -25,6 +25,7 @@ import numpy as np
 
 from src.scrape.parse import validate_observation, validate_sweep
 from src.scrape.providers import CompProvider, SweepResult
+from src.scrape.timeout import call_with_timeout
 
 
 @dataclass
@@ -131,11 +132,15 @@ def run_scrape(
     start: date | None = None,
     fetch_calendars: bool = True,
     region: str = "winter_park",
+    resume: bool = True,
 ) -> ScrapeReport:
     as_of = as_of or date.today()
     start = start or as_of
     run_id = uuid.uuid4().hex[:12]
     nights = int(policy.get("scrape", {}).get("window_nights", 2))
+    window_timeout = float(policy.get("scrape", {}).get("window_timeout_s", 180))
+    run_deadline = float(policy.get("scrape", {}).get("run_deadline_s", 3600))
+    started = __import__("time").monotonic()
 
     comps = _comp_index(conn)
     report = ScrapeReport(run_id=run_id, provider=provider.name, comps_expected=len(comps))
@@ -146,88 +151,121 @@ def run_scrape(
     )
     conn.commit()
 
-    if not comps:
-        report.status = "failed"
-        report.errors.append("no active comps with an airbnb_room_id — run `wp-price discover-comps`")
-        _finish(conn, report)
-        return report
-
-    matched_ids: set[str] = set()
-
-    for check_in in plan_windows(start, horizon_days, nights):
-        report.windows_attempted += 1
-        sweep = provider.sweep(check_in, nights)
-        if not sweep.ok:
-            report.errors.append(f"{check_in}: {sweep.error}")
-            _mark_failed(conn, comps.values(), as_of, sweep.stay_dates, run_id)
-            continue
-
-        prices = [l.nightly_price for l in sweep.listings if l.nightly_price]
-        validation = validate_sweep([float(p) for p in prices], len(sweep.listings), policy)
-        report.listings_seen += len(sweep.listings)
-        if not validation.ok:
-            report.errors.append(f"{check_in}: " + "; ".join(validation.reasons))
-            report.rejected += validation.rejected
-            # A sweep that fails validation is a suspected parser/block failure. Its
-            # numbers are discarded entirely rather than partially trusted.
-            _mark_failed(conn, comps.values(), as_of, sweep.stay_dates, run_id)
-            continue
-
-        report.windows_ok += 1
-        # Prefer group-size-filtered market distribution; fall back to full sweep
-        # when too few sized listings are present.
-        tier_prices = _group_size_prices(sweep.listings, policy)
-        market_prices = tier_prices if len(tier_prices) >= 5 else [float(p) for p in prices]
-        _record_market(conn, as_of, sweep, market_prices, run_id, region=region)
-
-        seen_this_window: set[str] = set()
-        for listing in sweep.listings:
-            comp_id = comps.get(listing.room_id)
-            if comp_id is None:
-                continue
-            seen_this_window.add(comp_id)
-            matched_ids.add(comp_id)
-            for stay in sweep.stay_dates:
-                if listing.nightly_price is None:
-                    _write(conn, comp_id, as_of, stay, None, 0, None, "failed",
-                           nights, provider.name, run_id)
-                    continue
-                ok, why = validate_observation(
-                    float(listing.nightly_price), _previous_price(conn, comp_id, stay), policy
-                )
-                if not ok:
-                    report.rejected += 1
-                    report.errors.append(f"{comp_id} {stay}: {why}")
-                    _write(conn, comp_id, as_of, stay, None, None, None, "failed",
-                           nights, provider.name, run_id)
-                    continue
-                _write(conn, comp_id, as_of, stay, float(listing.nightly_price), 1, None,
-                       "ok", nights, provider.name, run_id)
-                report.observations += 1
-
-        # Absent from a valid sweep means unavailable, not unknown. Recording that
-        # explicitly is what stops a fully-booked comp set looking like a scrape failure.
-        for comp_id in set(comps.values()) - seen_this_window:
-            for stay in sweep.stay_dates:
-                _write(conn, comp_id, as_of, stay, None, 0, None, "unavailable",
-                       nights, provider.name, run_id)
-        conn.commit()
-
-    if fetch_calendars:
-        _enrich_min_nights(conn, provider, comps, as_of)
-
-    report.comps_matched = len(matched_ids)
-    report.status = _verdict(report, policy)
-    _finish(conn, report)
-    # Upstream demand contributor: comp rate movement → demand_signals (soft).
     try:
-        from src.signals.comp_movement import upsert_comp_movement_signals
+        if not comps:
+            report.status = "failed"
+            report.errors.append("no active comps with an airbnb_room_id — run `wp-price discover-comps`")
+            return report
 
-        upsert_comp_movement_signals(conn, as_of=as_of, region=region)
-    except Exception as exc:  # noqa: BLE001 — never fail a scrape on demand shim
-        report.errors.append(f"comp_movement signal: {type(exc).__name__}: {exc}")
-    return report
+        matched_ids: set[str] = set()
 
+        for check_in in plan_windows(start, horizon_days, nights):
+            elapsed = __import__("time").monotonic() - started
+            if elapsed > run_deadline:
+                report.errors.append(f"run deadline {run_deadline:.0f}s hit before {check_in}")
+                report.status = "degraded"
+                break
+            if resume and _window_already_recorded(conn, as_of, check_in, region):
+                print(f"scrape-comps resume skip {check_in.isoformat()} (already committed)", flush=True)
+                continue
+            report.windows_attempted += 1
+            print(
+                f"scrape-comps window {check_in.isoformat()} "
+                f"attempt={report.windows_attempted} listings_so_far={report.listings_seen} "
+                f"rows={report.observations}",
+                flush=True,
+            )
+            try:
+                sweep = call_with_timeout(provider.sweep, window_timeout, check_in, nights)
+            except TimeoutError as exc:
+                report.errors.append(f"{check_in}: {exc}")
+                _mark_failed(conn, comps.values(), as_of, [check_in, check_in + timedelta(days=nights - 1)], run_id)
+                continue
+            if not sweep.ok:
+                report.errors.append(f"{check_in}: {sweep.error}")
+                _mark_failed(conn, comps.values(), as_of, sweep.stay_dates, run_id)
+                continue
+
+            prices = [l.nightly_price for l in sweep.listings if l.nightly_price]
+            validation = validate_sweep([float(p) for p in prices], len(sweep.listings), policy)
+            report.listings_seen += len(sweep.listings)
+            if not validation.ok:
+                report.errors.append(f"{check_in}: " + "; ".join(validation.reasons))
+                report.rejected += validation.rejected
+                _mark_failed(conn, comps.values(), as_of, sweep.stay_dates, run_id)
+                continue
+
+            report.windows_ok += 1
+            tier_prices = _group_size_prices(sweep.listings, policy)
+            market_prices = tier_prices if len(tier_prices) >= 5 else [float(p) for p in prices]
+            _record_market(conn, as_of, sweep, market_prices, run_id, region=region)
+
+            seen_this_window: set[str] = set()
+            for listing in sweep.listings:
+                comp_id = comps.get(listing.room_id)
+                if comp_id is None:
+                    continue
+                seen_this_window.add(comp_id)
+                matched_ids.add(comp_id)
+                for stay in sweep.stay_dates:
+                    if listing.nightly_price is None:
+                        _write(conn, comp_id, as_of, stay, None, 0, None, "failed",
+                               nights, provider.name, run_id)
+                        continue
+                    ok, why = validate_observation(
+                        float(listing.nightly_price), _previous_price(conn, comp_id, stay), policy
+                    )
+                    if not ok:
+                        report.rejected += 1
+                        report.errors.append(f"{comp_id} {stay}: {why}")
+                        _write(conn, comp_id, as_of, stay, None, None, None, "failed",
+                               nights, provider.name, run_id)
+                        continue
+                    _write(conn, comp_id, as_of, stay, float(listing.nightly_price), 1, None,
+                           "ok", nights, provider.name, run_id)
+                    report.observations += 1
+
+            for comp_id in set(comps.values()) - seen_this_window:
+                for stay in sweep.stay_dates:
+                    _write(conn, comp_id, as_of, stay, None, 0, None, "unavailable",
+                           nights, provider.name, run_id)
+            conn.commit()
+            print(
+                f"scrape-comps committed {check_in.isoformat()} "
+                f"ok={report.windows_ok}/{report.windows_attempted} "
+                f"listings={report.listings_seen} rows={report.observations} "
+                f"retries={len(report.errors)}",
+                flush=True,
+            )
+
+        if fetch_calendars and report.status != "degraded":
+            _enrich_min_nights(conn, provider, comps, as_of)
+
+        report.comps_matched = len(matched_ids)
+        if report.status != "degraded":
+            report.status = _verdict(report, policy)
+        try:
+            from src.signals.comp_movement import upsert_comp_movement_signals
+
+            upsert_comp_movement_signals(conn, as_of=as_of, region=region)
+        except Exception as exc:  # noqa: BLE001
+            report.errors.append(f"comp_movement signal: {type(exc).__name__}: {exc}")
+        return report
+    except Exception:
+        report.status = "failed"
+        raise
+    finally:
+        if report.status == "running":
+            report.status = _verdict(report, policy) if report.windows_attempted else "failed"
+        _finish(conn, report)
+
+
+def _window_already_recorded(conn: sqlite3.Connection, as_of: date, check_in: date, region: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM market_snapshots WHERE as_of = ? AND stay_date = ? AND region = ?",
+        (as_of.isoformat(), check_in.isoformat(), region),
+    ).fetchone()
+    return row is not None
 
 def _verdict(report: ScrapeReport, policy: dict[str, Any]) -> str:
     cfg = policy.get("scrape", {}).get("validation", {})

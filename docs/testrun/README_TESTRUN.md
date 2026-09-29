@@ -27,22 +27,41 @@ Configure the command used to start an agent with `TESTRUN_AGENT_CMD`, or pass
 and `{report}` are available as optional command placeholders. For example:
 
 ```bash
-TESTRUN_AGENT_CMD='codex exec --full-auto -' \
+TESTRUN_AGENT_CMD='codex exec --dangerously-bypass-approvals-and-sandbox -' \
   python3 scripts/run_testruns.py run
 ```
 
-Inspect or resume after an interruption with:
+The runner rejects `codex exec --full-auto -` unless `TESTRUN_ALLOW_LEGACY_LAUNCHER=1`.
+Watchdogs: `TESTRUN_PROPERTY_TIMEOUT_S` (4h), `TESTRUN_IDLE_TIMEOUT_S` (30m). Child
+stdout streams into `.testrun_runs/<property>/agent.log` while the process runs.
+Child sessions inherit the parent environment (`TESTRUN_SKIP_VENV_CREATE=1`) and
+must not create a nested `.venv`.
+
+Inspect, resume, repair, or replace after an interruption with:
 
 ```bash
 python3 scripts/run_testruns.py status
+python3 scripts/run_testruns.py repair-stale
 python3 scripts/run_testruns.py run
 ```
+
+Resume does **not** wipe completed properties or copy over an existing isolated
+workspace. Use `--rerun-property cloud_9` to replace one session, or `--rerun`
+only when intentionally replacing every completed property. After reports (and
+the final audit record) exist on disk, `python3 scripts/run_testruns.py seal`
+re-validates gates and checkpoints without launching agents. Empty-export
+reports still pass the phrase gate but are recorded as `empty_export: true` —
+those are blocker diagnostics, not priced years. Machine fallback reports are
+`failed_report_missing` and lock the final audit.
+
+Owned forward inventory for testruns is **read-only Guesty calendar**, not a
+public Airbnb proxy. See `docs/testrun/INVENTORY_PROTOCOL.md`. `wp-price recommend`
+exits 2 if the scoped window has 0 available nights.
 
 The runner stops safely on an agent failure or an incomplete report and preserves the
 checkpoint; it never advances to reveal or synthesis on partial evidence. This is the
 important operational distinction between “does not stop until complete” and silently
-continuing after a failed blind run. Use `--rerun` only when intentionally replacing a
-completed property session. The final audit is the only session launched with the main
+continuing after a failed blind run. The final audit is the only session launched with the main
 repository as its writable workspace.
 
 Motivation: the historical `docs/reports/GUESTY_RETROSPECTIVE.md` `-$62/night` number was
@@ -76,16 +95,18 @@ no booking outcomes. That requires the **forward shadow-mode track** (below).
    Guesty Open API except OAuth. Pulls (`sync-guesty`, calendar GET) are allowed;
    writing prices or min-stay back is forbidden. Reports must include
    `Guesty write count: 0`.
-3. The `round_price_conservative` ceiling-overrun defect may push valid recommendations past
-   the ceiling and fail the independent audit — classify, don't patch.
+3. Rounding is clamped inside floor/ceiling after `round_price_conservative`.
+   Still record nights where move-cap/blackout leave the rec above a *weak*
+   computed ceiling — those must be labeled advisory, not precise.
 4. Pacing history is incomplete → booking-probability output must be reported as weak /
    uncalibrated.
 5. Existing Guesty data must not be inspected before each blind run is **frozen and hashed.**
 
 ## Two operational decisions for you
 **1. Isolation — required.** Each agent uses its own disposable DB (`--db /tmp/testrun_<id>.db`)
-or its own worktree, so the three never share state. (Otherwise: collided tables, poisoned
-market sweep.)
+or its own worktree, so the three never share state. Seed owned nights with
+`wp-price seed-forward-inventory --property <id> --source guesty-readonly`
+before recommend. Comps stay independently scraped.
 
 **2. Comp independence vs. anti-bot risk.** Each agent scraping its own full ~280-listing
 sweep matches "find their own comps," but three concurrent sweeps of the same market may trip

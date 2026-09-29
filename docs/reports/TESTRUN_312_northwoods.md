@@ -1,406 +1,227 @@
-# TESTRUN 312 Northwoods (`summit_haus`)
+# TESTRUN 312 Northwoods (`summit_haus`) — run 2
 
 **DB path:** `/tmp/testrun_summit_haus.db`  
 **Property:** 312 Northwoods / `summit_haus`  
 **Run window:** 2026-09-24 through 2027-09-23 inclusive  
 **Report date:** 2026-09-25 UTC  
+**This report is run 2.** It supersedes the first pushed run (commit `8826bfd` and the local salvage), which froze an empty export. Numbers below were recomputed. They were not copied from that run.
 
 ## 1. Executive verdict
 
-**Verdict: experiment blocked for a true blind full-year recommendation run.** The engine did not produce a defensible blind recommendation set for 312 Northwoods because the permitted non-Guesty inputs had no owned forward inventory for the 2026-09-24..2027-09-23 window. The frozen blind output therefore contains **0 recommendation rows**.
+**Verdict: the engine produced a full available-night recommendation set, and that set is not yet a comp-grounded price.** It is an explainable, guardrail-shaped nudge around Guesty’s listed rate, on weak ceilings, with an uncalibrated booking probability.
 
 Observed facts:
 
-- The blind DB was initialized at `/tmp/testrun_summit_haus.db` and seeded only from scrape-native CSV inputs.
-- It contained 2 properties, 332 historical inventory rows, 22 comp-set members, 2,576 comp snapshots, and 184 market snapshots after a partial independent scrape.
-- `nightly_inventory` for `summit_haus` covered only 2024-11-01..2025-04-15 before Guesty reveal, so there were 0 target-window owned nights to price.
-- The scoped blind command generated 0 recommendations and the scoped audit failed on inventory, comp coverage, demand signals, and missing recommendations.
+- Blind export has **311** data rows (311 available nights). 46 booked and 8 blocked nights in the window were not priced. `recommend` exited 0. Guesty write count is 0.
+- Every recommendation has ceiling confidence below 0.80 (303 nights at 0.10, 4 at 0.17, 4 at 0.35). 307 of 311 are flagged `weak_ceiling`.
+- After deference, the median remaining distance from the listed price is **25%** of the unconstrained model’s distance (311 nights). **88%** of nights retain under 40% of that gap. That is the configured 75% pull toward the incumbent rate when confidence is 0.10 (`min_model_weight` 0.25).
+- The market sweep passed 104/104 windows and was still marked **degraded**: only 7 of 14 curated comps matched. Six curated comps are Breckenridge, Keystone, Silverthorne, or Vail seeds and contributed 0 observations.
+- Stored market percentiles are independent of the curated set. 194 of 208 snapshot dates are the large-home tier (5–24 listings, median about 13). 14 dates fell back to a wide sweep (191–251 listings).
 
 Inference:
 
-- This run can evaluate acquisition, health gates, scoping, and post-reveal engine behavior, but it cannot validate that the frozen blind recommendation set is comp-grounded or revenue-superior. There is no blind recommendation set to compare.
+- Summer and shoulder look soft against the large-home market mostly because **Guesty’s listed rate is already soft and deference follows it**, not because the final recommendation independently discovered a lower clearing price. The unconstrained RevPAN optimum is often much lower still (June 1 model about $388 versus same-day market p50 about $1,122). That gap is the elasticity beta (`summer` −1.10, `shoulder_*` −1.70) on a thin, low-confidence ceiling. Final recommendations do not fully express it, except where a weak ceiling is below the decrease cap and the last clamp throws the decrease cap away (21 nights; see section 10).
+- This run cannot show the engine beats Guesty on revenue. Forward nights have no booking outcomes. The next experiment is forward shadow-mode, which this session did not run.
 
-Highest-value diagnostic finding:
+Delta versus the first pushed run:
 
-- In a post-freeze copy of `data/wp_pricing.db`, scoped to `summit_haus`, the engine generated 325 current available-night recommendations. Those recommendations are advisory only and are **not** part of the blind frozen set. They show the same structural summer/shoulder concern as the prior audit: summer and shoulder recommendations are frequently below independent market p25/p50, while booking probabilities are weak/uncalibrated and ceilings have very low confidence.
+- The empty-export blocker did not recur. Run 1 hash `f28264aee5455dc810e0b3875e77b7bdb76d30d3e46668c951ea499b372c87ef` was a header-only CSV (0 rows) because the blind DB had no target-window inventory. This run seeded a read-only Guesty calendar before `recommend`.
+- What persisted: ~75% deference on low-confidence nights, weak ceilings, uncalibrated bookprob, and elasticity optima below summer/shoulder market levels.
+- What the salvage already fixed and this run did not re-break: recommendations are not rounded *above* the ceiling (0 nights). Scoped seed pulled 1 listing, not `creekside_haven`. DB identity stayed `unknown`.
 
-## 2. Exact commands and data sources used
+## 2. Exact commands and data sources
 
-Deterministic checks:
-
-```bash
-PYTHONPATH="/tmp/wpprice_deps_1790313044:$PYTHONPATH" /opt/homebrew/bin/python3.12 -m pytest -q
-PYTHONPATH="/tmp/wpprice_deps_1790313044:$PYTHONPATH" /opt/homebrew/bin/python3.12 -m mypy
-PYTHONPATH="/tmp/wpprice_deps_1790313044:$PYTHONPATH" /opt/homebrew/bin/python3.12 scripts/production_preflight.py
-PYTHONPATH="/tmp/wpprice_deps_1790313044:$PYTHONPATH" /opt/homebrew/bin/python3.12 -m pytest --cov=src --cov-report=term-missing -q
-PYTHONPATH="/tmp/wpprice_deps_1790313044:$PYTHONPATH" /opt/homebrew/bin/python3.12 -m vulture src scripts --min-confidence 80
-PYTHONPATH="/tmp/wpprice_deps_1790313044:$PYTHONPATH" /opt/homebrew/bin/python3.12 -m pip_audit
-```
-
-Blind data acquisition:
+Preflight (no Guesty prices):
 
 ```bash
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db init-db
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db seed-scrape
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db discover-comps --date 2026-12-18 --min-bedrooms 5 --min-sleeps 14 --limit 20
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db discover-comps --date 2026-12-04 --min-bedrooms 5 --min-sleeps 14 --limit 20
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db discover-comps --date 2027-04-24 --min-bedrooms 5 --min-sleeps 14 --limit 20
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db discover-comps --date 2027-07-17 --min-bedrooms 5 --min-sleeps 14 --limit 20
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db discover-properties --property summit_haus --date 2026-12-18,2027-07-17 --min-price 300
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db scrape-comps --start 2026-09-24 --horizon 365
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db health --property summit_haus
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db snapshot --verify --since 2026-09-24
+.venv/bin/python -m pytest -q
+.venv/bin/python -m mypy
+.venv/bin/python scripts/production_preflight.py
 ```
 
-Blind run and freeze:
+Results: pytest **253 passed**. Preflight **OK**. mypy **2 errors** in `src/proving_ground/runner.py` (uncommitted proving-ground code, not the recommend path).
+
+Blind acquisition and freeze:
 
 ```bash
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db recommend --property summit_haus --from 2026-09-24 --to 2027-09-23 --limit 500 --technical
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db export --property summit_haus --from 2026-09-24 --to 2027-09-23 -o /tmp/testrun_312.csv
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus.db audit --property summit_haus --from 2026-09-24 --to 2027-09-23
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db init-db
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db seed-scrape
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db discover-comps --date 2026-12-18 --min-bedrooms 5 --min-sleeps 14 --limit 20
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db discover-comps --date 2026-12-04 --min-bedrooms 5 --min-sleeps 14 --limit 20
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db discover-comps --date 2027-04-24 --min-bedrooms 5 --min-sleeps 14 --limit 20
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db discover-comps --date 2027-07-17 --min-bedrooms 5 --min-sleeps 14 --limit 20
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db scrape-comps --start 2026-09-24 --horizon 365
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db seed-forward-inventory --property summit_haus --source guesty-readonly --horizon 365 --history 14
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db snapshot
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db signals cycle
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db health --property summit_haus
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db recommend --property summit_haus --from 2026-09-24 --to 2027-09-23 --limit 500 --technical
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db export --property summit_haus --from 2026-09-24 --to 2027-09-23 -o data/exports/testrun_312.csv
 ```
 
-Note: I exported the frozen blind CSV to `/tmp/testrun_312.csv`, not `data/exports/testrun_312.csv`, because the absolute restriction said the only repository file to create is this report.
+`discover-comps` printed live market ranks and did not write them into the curated set (doing so would have edited tracked CSVs). `scrape-comps` exited 1 with status `degraded` after 104/104 validated windows. That was recorded, not retried.
 
-Post-freeze reveal/diagnostic:
+Post-freeze only:
 
 ```bash
-# opened read-only for inspection
-sqlite3-compatible read-only connection to file:data/wp_pricing.db?mode=ro
-
-# copied to /tmp for scoped post-reveal diagnostics
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus_reveal.db recommend --property summit_haus --from 2026-09-24 --to 2027-09-23 --limit 500 --technical
-/opt/homebrew/bin/python3.12 -m src.cli.main --db /tmp/testrun_summit_haus_reveal.db audit --property summit_haus --from 2026-09-24 --to 2027-09-23
+.venv/bin/python -m src.cli.main --db /tmp/testrun_summit_haus.db audit --property summit_haus --from 2026-09-24 --to 2027-09-23
 ```
 
-Data sources:
+Audit overall **FAIL** (comp scrape degraded, demand-signal coverage, price bounds, 17 move-cap violations, shoulder median move). It passed `guesty_writes` with count 0.
 
-- Repository docs/config listed in the prompt.
-- Blind DB from `seed-scrape`, independent `discover-comps`, and partial independent `scrape-comps`.
-- Guesty reveal from existing `data/wp_pricing.db`, opened read-only and queried only after the blind export hash was recorded.
-- Post-reveal diagnostics from a copied DB at `/tmp/testrun_summit_haus_reveal.db`.
+Sources: scrape-native CSVs (`seed-scrape`), live Airbnb sweeps, read-only Guesty calendar/reservations for `summit_haus` only, policy `config/policies/default.yaml`. `docs/reports/GUESTY_RETROSPECTIVE.md` was opened only after the hash below was recorded. Its −$62 naive bound is not a price input and is not evidence of forward revenue.
 
-## 3. Blind-run integrity statement
+## 3. Blind-run integrity
 
-Observed facts:
+Frozen before any Guesty comparison:
 
-- Blind freeze timestamp: **2026-09-25T05:23:42Z**
-- Frozen export path: `/tmp/testrun_312.csv`
-- SHA-256: `f28264aee5455dc810e0b3875e77b7bdb76d30d3e46668c951ea499b372c87ef`
-- Data row count: **0**
-- File size: 237 bytes
-- Scoped command: `recommend --property summit_haus ...`
+- Export: `data/exports/testrun_312.csv`
+- SHA-256: `bc426c452d479794bb3965e9dc74a8fb9c83fe85291f92086c3a936552feddc7`
+- Row count: **311** data rows (312 lines including header)
+- Blind-freeze timestamp: **2026-09-25T17:46:18Z**
+- `recommend` exit: 0
 
-Integrity statement:
-
-- I did not inspect Guesty prices, reservations, calendar rates, or the retrospective before this hash was recorded.
-- The frozen set was not altered after hashing.
-- The post-reveal recommendation run is separate and must not be treated as blind evidence.
+Nothing after this hash changed the export or the recommendation rows.
 
 ## 4. Data coverage and freshness
 
-Blind DB coverage:
+| Layer | What was measured |
+|---|---|
+| Properties in DB | `summit_haus`, `overlook_ridge` from seed CSVs. No `creekside_haven`. Identity `unknown`. |
+| Owned window | 365 nights, 311 available, 46 booked, 8 blocked. Seed synced 1 listing, 380 nights, 40 reservations. `evidence_kind` is NULL on all 365 window nights (sync did not stamp `guesty_readonly`). |
+| Historical seed inventory | 2024-11-01..2025-04-15 (166 nights) before the forward seed extended `summit_haus`. |
+| Curated comps | 14 comps, 11 members on `summit_haus`. Matched 7/14. OK snapshots: 500. Unavailable: 2,412. |
+| Generic market | 208 stay dates, 2026-09-25..2027-09-22, run `2bb9b68f2f6a`, 25,191 listing observations. As-of is 2026-09-25 (same day). |
+| Market join to recs | 178 of 311 recommendations land on a swept stay date. The other 133 are nights outside the Fri/Sat and Tue/Wed windows. Those nights are not given a borrowed percentile. |
+| Pacing | 1 distinct `as_of` (2026-09-25), 366 nights captured. Health: SUGGEST. Gate: only 1 day of pacing (need 14). |
+| Signals | Cycle exit 0. SNOTEL and weather degraded (values above collector max, rejected not clamped). Resort snapshot: 0/26 lifts open (shoulder date). |
+| Comp age at health | about 12 hours (sweep finished the same morning). PMS age 0 hours. |
 
-| Table | Rows |
-|---|---:|
-| `properties` | 2 |
-| `nightly_inventory` | 332 |
-| `comp_set_members` | 22 |
-| `comp_snapshots` | 2,576 |
-| `market_snapshots` | 184 |
-| `price_recommendations` | 0 |
-| `pacing_snapshots` | 0 |
-| `demand_signals` | 0 |
-
-Blind owned inventory:
-
-- `summit_haus`: 166 rows, 2024-11-01..2025-04-15.
-- Target-window owned inventory: **0/365 nights**.
-- Classification: **experiment blocker**.
-
-Blind scrape coverage:
-
-- `scrape-comps --horizon 365` was interrupted after prolonged silence while inside an external `pyairbnb.search_all` request.
-- It left `comp_scrape_runs.status='running'`, `finished_at=NULL`, and `windows_attempted=0`, even though rows had been committed.
-- `market_snapshots`: 184 rows / 184 distinct dates, 2026-09-25..2027-08-11.
-- `comp_snapshots`: 434 `ok`, 2,142 `unavailable`.
-- Health reported comp coverage **55%**, below the 60% threshold.
-- Classification: **operational-risk finding** and **measurement limitation**.
-
-Generic market benchmark:
-
-- Source: independent `market_snapshots`, not curated-comp medians.
-- Scope: whole-market scrape output after group-size/live listing filters used by the provider; not a validated curated luxury comp set.
-- Average sample size: 27.6 listings per sampled stay date.
-- Average p25/p50/p75: **$871 / $1,266 / $1,613**.
-- Min observed p25: **$272**.
-- Max observed p90: **$7,004**, showing outlier sensitivity.
-- Coverage is partial: no market rows after 2027-08-11 and no complete 365-day market coverage.
-- Classification: **measurement limitation** and **recommendation-quality risk**.
-
-Pacing:
-
-- `snapshot --verify --since 2026-09-24` failed: no Guesty-synced properties in the blind DB.
-- Health reported 0 pacing days; booking probability must be treated as **weak / uncalibrated**.
-- Classification: **measurement limitation**.
+Generic market sample, where a same-day snapshot exists, is the large-home tier when at least 5 sized listings priced (194 dates: n 5–24). It is the wide sweep only on 14 dates (n 191–251). It is never the curated-comp median. Curated median is reported separately and is thin (often 1–2 OK comps per night).
 
 ## 5. Full-year recommendation summary
 
-Blind frozen run:
+311 suggested or escalated nights. Autonomy: 289 `suggest`, 22 `escalate`. No `handle`.
 
-- Recommendations generated: **0**.
-- Cause: no target-window owned inventory in the permitted blind inputs.
-- No unavailable dates were manually filled.
+Guardrail actions: `clamped_increase` 135, none 133, `clamped_decrease` 21, `sanity_floor` 12, `peak_blackout` 10.
 
-Post-reveal scoped diagnostic, not blind:
+Median expected book probability **0.32** (mean 0.37). Treat as **weak / uncalibrated**. One pacing day cannot support it.
 
-- Latest scoped run id: `fcc8ddba903e`.
-- Recommendations for available nights: **325**.
-- Guesty reveal inventory had 363 target-window nights for `summit_haus`, of which 325 were available and 38 booked.
-- Two target-window dates were absent from `data/wp_pricing.db` inventory; the reveal DB covered 2026-09-24..2027-09-21.
+Median recommended vs listed by season (recommendations only):
 
-Post-reveal latest-run summary:
+| Season | n | Median rec | Median listed | Median move | Same-day market p25 / p50 / p75 (median of snapshots joined) | Rec vs p50 | Model below p25 |
+|---|---:|---:|---:|---:|---|---:|---:|
+| shoulder_fall | 36 | $518 | $388 | +11.6% | $648 / $833 / $1,103 | −43% | 1 |
+| early_winter | 18 | $900 | $806 | +11.6% | $766 / $1,105 / $1,454 | −17% | 0 |
+| peak_ski | 96 | $2,230 | $2,066 | +7.7% | $985 / $1,494 / $2,052 | +33% | 0 |
+| shoulder_spring | 61 | $640 | $575 | +11.4% | $833 / $1,201 / $1,370 | −44% | 6 |
+| summer | 100 | $1,010 | $1,044 | −5.9% | $718 / $1,056 / $1,597 | −16% | 19 |
 
-| Metric | Value |
-|---|---:|
-| Avg Guesty listed | $1,195 |
-| Avg engine recommendation | $1,004 |
-| Avg engine delta | -$191 / -11.5% |
-| Min / max recommendation | $335 / $3,195 |
-| Escalated nights | 59 |
-| Guardrailed nights | 189 |
-| Low-confidence ceiling nights | 325 |
-| No-action rounding over-ceiling nights | 12 |
-
-Season summary, post-reveal diagnostic:
-
-| Season | Nights | Avg Guesty | Avg rec | Avg delta | Avg ceiling | Escalated |
-|---|---:|---:|---:|---:|---:|---:|
-| early_winter | 20 | $795 | $694 | -11.8% | $618 | 3 |
-| peak_ski | 97 | $2,106 | $1,675 | -17.7% | $1,123 | 53 |
-| shoulder_fall | 46 | $431 | $416 | -2.7% | $591 | 2 |
-| shoulder_spring | 61 | $600 | $553 | -7.4% | $618 | 0 |
-| summer | 101 | $1,105 | $961 | -12.1% | $676 | 1 |
-
-Inference:
-
-- The engine is cautious relative to Guesty in most seasons, especially ski and summer.
-- Because all post-reveal ceiling confidences are 0.10 and all booking probabilities are uncalibrated, this caution is not yet defensible as a validated demand response.
+Market columns use only nights with a same-day `market_snapshots` row. Peak recommendations sit above the tier p50 and near the curated Winter Park comp median (about $2,168). Shoulder recommendations sit on the +12% increase cap above a low listed rate, still under tier p25 on many joined nights.
 
 ## 6. Comparison with Guesty
 
-Observed facts after freeze:
+Listed price is the incumbent rate pulled into the disposable DB by `seed-forward-inventory --source guesty-readonly` before recommend. It was not used as a comp.
 
-- Read-only production DB contains four properties, including `creekside_haven` with `owner_id=NULL`.
-- I did not run `sync-guesty`, because it would likely touch all live listings.
-- `summit_haus` reveal inventory: 363 target-window rows, 363 priced, 325 available, 38 booked.
-
-Classification of post-reveal divergences:
-
-- Peak ski large cuts: **potentially justified but dependent on weak assumptions** / sometimes **likely underpriced**. Examples include February 2027 nights where Guesty is $3,096-$3,795 and the engine recommends $1,855, while the engine ceiling is only about $904 and confidence is 0.10. The engine escalates many of these, which is correct.
-- Summer high Guesty dates: **likely underpriced or impossible to judge**. July 2027 Guesty prices around $1,400-$2,122 are cut toward $1,215-$1,855, while the engine’s own ceiling often sits near $665-$710 and expected booking probability is frequently 0.1%. The guardrail prevents a full collapse but the underlying ceiling/elasticity story is weak.
-- Shoulder spring/fall vs Guesty: **likely underpriced against market; weakly justified against own-history**. The engine stays near Guesty in fall but both are far below the independent market p25 where market rows exist.
-- No blind recommendation can be classified against Guesty because the blind set has 0 rows.
+- On 88% of nights the post-deference price keeps less than 40% of the gap between the RevPAN optimum and the listed rate. Median retained fraction is 0.25, which is the 75% listed weight at confidence 0.10.
+- Increase-capped nights (135) are mostly +11% to +12% versus listed. The model wanted a larger increase; deference and the cap both bind.
+- Decrease-capped nights that survive to the export are not actually at the cap. See section 10: the final price equals the weak ceiling, which is below the decrease band.
+- `sanity_floor` (12 nights) lifts implausibly low listed rates in early November and early December (listed about $337–$608) up to about $590–$880. The model on those nights was about $1,140–$1,625. Market p50 on the joined nights is about $790–$1,105. The floor guardrail is doing the work, not the comps.
+- No rate was written back. `rate_changes` count is 0. Audit `guesty_writes` is 0.
 
 ## 7. Comparison with generic market averages
 
-Comparison uses the independent blind `market_snapshots`, joined by stay date, against the post-reveal diagnostic recommendations. This is not a curated comp comparison.
+The generic benchmark is `market_snapshots` from the whole bbox sweep, then the group-size filter in policy (`min_bedrooms` 5, `min_sleeps` 14) when that tier has at least 5 prices. Curated-comp medians are a different series.
 
-Overall where market rows existed:
+Same-day tier medians (section 5) put shoulder and spring recommendations well below p50, summer recommendations modestly below p50, and peak recommendations above p50 and inside or above p75. Curated OK comps, where present, price higher than the tier p50 (shoulder curated median about $1,098 vs tier p50 $833; summer about $1,806 vs $1,056; peak about $2,168 vs $1,494). With one or two OK comps per night, that curated median is not a stable anchor. It is also not silently substituted for the market percentile.
 
-- Matched dates: 163.
-- Recommendations below market p25: 83.
-- Recommendations inside market IQR: 66.
-- Recommendations above market p75: 14.
-- Avg recommendation vs market p50: -$208.
-- Avg recommendation / market p50: 0.95.
-- Avg Guesty listed / market p50: 1.11.
-
-By season:
-
-| Season | Matched dates | Avg market p25 | Avg market p50 | Avg market p75 | Avg Guesty | Avg rec | Below p25 |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| early_winter | 11 | $810 | $1,070 | $1,295 | $862 | $749 | 7 |
-| peak_ski | 58 | $1,037 | $1,601 | $2,038 | $2,156 | $1,690 | 6 |
-| shoulder_fall | 21 | $669 | $882 | $1,092 | $411 | $409 | 21 |
-| shoulder_spring | 34 | $847 | $1,156 | $1,405 | $609 | $566 | 34 |
-| summer | 39 | $861 | $1,249 | $1,681 | $1,281 | $1,108 | 15 |
-
-Inference:
-
-- The generic market benchmark is noisy and sometimes thin, but it argues against treating the engine’s summer/shoulder discounts as proven. Shoulder spring is the clearest concern: every matched spring recommendation was below market p25.
+133 recommendations have no same-day market row. They are omitted from the percentile comparison rather than filled from the curated median.
 
 ## 8. Largest divergences
 
-Largest post-reveal cuts vs Guesty:
+Classified with the prompt vocabulary.
 
-| Date | Guesty | Rec | Ceiling | Action | Classification |
-|---|---:|---:|---:|---|---|
-| 2027-02-12 | $3,795 | $1,855 | $904 | sanity_ceiling | likely underpriced / weak ceiling |
-| 2027-02-13 | $3,747 | $1,855 | $904 | sanity_ceiling | likely underpriced / weak ceiling |
-| 2027-02-14 | $3,726 | $1,855 | $904 | sanity_ceiling | likely underpriced / weak ceiling |
-| 2027-07-10 | $2,122 | $1,855 | $695 | sanity_ceiling | likely underpriced / summer ceiling weak |
-| 2027-07-04 | $2,010 | $1,760 | $668 | clamped_decrease | likely underpriced / market-dependent |
+**Likely underpriced relative to the large-home tier, but the recommendation is mostly the listed rate.** Shoulder fall and shoulder spring: median rec about 43% below same-day p50 because listed itself is low and 135 nights are increase-capped at roughly +12%. Example: 2027-06-01 model $388, listed $597, rec $575, market p25/p50/p75 $808 / $1,122 / $1,484, one curated comp at $1,499. **Potentially justified but dependent on weak assumptions** if June demand is truly soft; **likely underpriced** if the tier percentile is the right peer set. The optimum, not the final rec, is the elasticity artifact.
 
-Largest post-reveal raises vs Guesty:
+**Invalid as a ceiling, and the final price follows that ceiling.** 2027-02-12..14: listed $3,830–$3,848, decrease-cap floor about $3,580–$3,598, rounded cap about $3,580–$3,600, persisted `recommended_price` equals the ceiling at $2,715–$2,767. Same-day tier p50 on 2027-02-12 is about $998, so the listed rate is far above the tier and the ceiling is in between. **Impossible to judge** as a market-clearing price: confidence 0.10, comp coverage thin, and the persisted number is not the guardrailed number.
 
-| Date | Guesty | Rec | Ceiling | Action | Classification |
-|---|---:|---:|---:|---|---|
-| 2027-01-05 | $1,259 | $1,410 | $2,366 | peak_blackout | potentially justified but escalated |
-| 2027-01-13 | $1,291 | $1,445 | $2,366 | peak_blackout | potentially justified but escalated |
-| 2027-01-12 | $1,002 | $1,120 | $2,366 | peak_blackout | potentially justified but escalated |
-| 2026-11-17 | $347 | $385 | $567 | peak_blackout | small raise, correctly escalated |
+**Well-supported as a guardrail, not as a comp price.** 2026-12-08: listed $601, model $1,625, rec $880 via `sanity_floor`, tier p50 about $1,105. The listed rate is not a credible luxury peak-approach rate. The engine refused to sit on it. It still did not reach the model or the tier median.
 
-Largest gaps below independent market p50:
-
-| Date | Guesty | Rec | Market p25 | p50 | p75 | Classification |
-|---|---:|---:|---:|---:|---:|---|
-| 2027-04-06 | $588 | $535 | $974 | $1,359 | $1,723 | likely underpriced |
-| 2027-04-07 | $599 | $545 | $974 | $1,359 | $1,723 | likely underpriced |
-| 2026-12-08 | $593 | $545 | $821 | $1,347 | $1,448 | likely underpriced |
-| 2027-08-10 | $849 | $725 | $1,095 | $1,481 | $1,562 | likely underpriced |
-| 2027-04-28 | $517 | $485 | $864 | $1,240 | $1,442 | likely underpriced |
+**Peak vs tier.** Median peak rec $2,230 vs tier p50 $1,494 (+33%) and listed $2,066. **Potentially justified** by curated WP comps near $2,168 and by a less elastic peak beta, **impossible to judge** as revenue-superior. Several peak nights are `peak_blackout` (no cut).
 
 ## 9. Reasoning-quality assessment
 
-Observed facts:
+The chain is legible. Reasons state the move cap, the RevPAN optimum, the booking probability, and that low ceiling confidence keeps the suggestion near the listed rate.
 
-- Post-reveal reason counts: `thin_history` 323, `revpan_optimum` 319, `guardrail` 189, `base_compose` 136, `ceiling_gap` 8.
-- All post-reveal recommendations had ceiling confidence 0.10.
-- Booking probability averages were extremely low in peak ski, spring, and summer: peak ski 1.0%, shoulder spring 1.2%, summer 1.1%.
+What is not defensible as a price:
 
-Inference:
+- Booking probabilities are printed as if they were measured (about 18–74% in the technical log) on one day of pacing. They are uncalibrated.
+- Ceiling confidence is 0.10 on 303 nights, and 307 nights are explicitly weak. A 10% ceiling should not be allowed to replace a decrease cap (section 10).
+- Comp evidence is usually one source. Six curated comps cannot match this market at all.
+- Elasticity betas are policy constants, not estimated from this sweep. PriceLabs’ public Hyper Local Pulse note says mountain markets are less price-sensitive in ski season than in summer ([algorithm overview](https://hello.pricelabs.co/blog/overview-of-pricelabs-dynamic-pricing-algorithm-part-1/)). That supports the *direction* of `summer` −1.10 versus a less elastic peak. It does not validate these magnitudes, and their estimator uses on the order of 350 similar listings, not a 7-comp degraded set.
 
-- The engine is explainable, but the explanations are dominated by thin-history and guardrail mechanics rather than strong comp or calibrated demand evidence.
-- The summer/shoulder underpricing question remains unresolved. The observed pattern is more consistent with weak ceilings and elasticity defaults suppressing prices than with proven soft demand.
-- Deference to Guesty/current listed price prevents the engine from fully following its low ceilings downward, but that is a guardrail against bad evidence, not evidence that the engine is correct.
-
-Hypothesis:
-
-- `summer: -1.10` and `shoulder_spring/fall: -1.70` are too strong when combined with weak ceilings and incomplete pacing. They push the RevPAN optimum low, then move caps hide the severity by limiting the final nightly cut.
+Summer/shoulder probe: the betas do push the unconstrained optimum below the tier on summer (19 joined nights with model < p25) and some spring nights. The **shipped** summer recommendation (median $1,010 vs listed $1,044 vs tier p50 $1,056) is not a large independent underprice. The shipped shoulder recommendation is under the tier because it hugs a low listed rate. Both statements are true. Soft listed rates and elastic optima are different mechanisms. This run’s final CSV mostly shows the first, except on the 21 ceiling-override nights, which show the second.
 
 ## 10. Audit and safety findings
 
-Findings:
+Classified, not fixed.
 
-1. **Blind owned inventory unavailable** — **experiment blocker**. No permitted non-Guesty target-window owned calendar existed, so the blind recommendation set is empty.
-2. **`creekside_haven` exists in production DB** — **operational-risk finding**. The current code includes `locked_portfolio_property_ids()` and unscoped default scoping now appears designed to avoid extras, but the property is still present and any all-listing sync/reporting operation must be treated carefully.
-3. **`round_price_conservative` ceiling-overrun verified** — **recommendation-quality risk**. In the post-reveal latest run, 12 no-action recommendations exceeded their own ceiling by up to $4.86 solely because rounding moved toward the listed price. Direct reproduction: `round_price_conservative(691.0, 900.0, round_to=5) == 695.0`.
-4. **Move-cap/sanity prices can sit far above computed ceiling** — **recommendation-quality risk**. 180 additional post-reveal over-ceiling rows were due to `clamped_decrease`, `sanity_ceiling`, or `peak_blackout`; some are intentionally allowed by audit logic, but they reveal that the computed ceiling is not operationally trusted on high-listed nights.
-5. **Pacing history incomplete** — **measurement limitation**. Blind DB had 0 pacing days; production reveal health had pacing gaps. Booking probability is weak/uncalibrated.
-6. **No historical contemporaneous comp snapshots for outcomes** — **measurement limitation**. This prevents retrospective proof that comp-grounded pricing would have converted.
-7. **Full 365-day market coverage absent** — **measurement limitation**. Partial independent market rows covered 184 dates through 2027-08-11, not the complete run window.
-8. **Scraper run observability/timeout weakness** — **operational-risk finding**. The 365-day scrape stayed silent for several minutes, was interrupted inside the external request layer, and left a `running` run row despite committed snapshots.
-9. **Mypy still has 2 errors** — **low-priority improvement** for this diagnostic, because tests/preflight passed and the errors match prior known typing cleanup.
-
-Deterministic check results:
-
-| Check | Result |
-|---|---|
-| `pytest -q` | 225 passed |
-| coverage | 80.52%, passed 70% threshold |
-| production preflight | pass |
-| mypy | fail: 2 errors |
-| vulture | pass/no output at 80% confidence |
-| pip-audit | pass/no known vulnerabilities |
+- **Experiment blocker (verified clear this run):** unscoped `creekside_haven` was not in the DB. Seed and recommend were scoped to `summit_haus`.
+- **Operational-risk finding (held):** Guesty writes 0. No `push`, no `set_rate`.
+- **Recommendation-quality risk:** on 21 nights `recommended_price` equals a weak ceiling that sits **below** the decrease-cap band, while `rounded_price` / `move_cap_price` sit on that band. Example 2027-07-10: listed $2,170, move-cap and rounded $1,920, ceiling and recommended $1,423. Audit reports 21 price-bound failures and 17 move-cap violations (sanity actions excluded from the move count). Rounding does **not** exceed the ceiling (0 nights). The salvage clamp after `round_price_conservative` is working; the last ceiling clamp then undoes `clamped_decrease`.
+- **Measurement limitation:** pacing history is 1 day. Bookprob is weak / uncalibrated. No historical contemporaneous comp archive (the retrospective’s comp count was 0 for the same reason). 133 priced nights have no same-day market percentile.
+- **Recommendation-quality risk:** curated set includes out-of-market seed comps (Breck, Vail, Keystone) with zero matches. Match rate 50% forced `degraded` even though every window validated.
+- **Measurement limitation:** `evidence_kind` is NULL, so later readers cannot see that these nights came from the read-only Guesty seed.
+- **Low-priority improvement:** mypy errors in `src/proving_ground/runner.py` lines 282 and 294. SNOTEL/weather collector max rejections. Audit `demand_signals` 27/121 and `shoulder_median_move` median +11.6% (the increase cap, which the check wants under +5%).
+- **Operational-risk finding:** health stays `suggest`. 0 peak nights at `handle`. Appropriate.
 
 ## 11. Stress-test results
 
-| Scenario | Result | Notes |
+| Case | Label | Why |
 |---|---|---|
-| no comps | unsafe | Health demotes, but engine can still emit low-confidence suggestions if owned inventory exists. |
-| stale comps | highly sensitive | Production reveal health failed comp staleness; comp-derived confidence should remain advisory. |
-| low comp coverage | highly sensitive | Blind health failed at 55% coverage. |
-| missing pacing | unsafe for demand claims | Booking probability must be labeled weak/uncalibrated. |
-| weak ceiling confidence | highly sensitive | All post-reveal recs had 0.10 confidence; recommendations lean heavily on deference/move caps. |
-| elasticity beta shifted both directions | unmeasurable with current data | No calibrated forward booking outcomes; hypothesis only. |
-| high-demand dates | robust operationally, weak economically | Peak blackout/escalate works, but ceilings are often too weak to justify the recommended magnitude. |
-| orphan gaps / short windows | unmeasurable with current data | No blind forward owned inventory; no reliable gap analysis in frozen set. |
-| corrupted/implausible listed prices | partially robust | `sanity_ceiling` catches extremes, but recommendations can still sit far above computed ceiling. |
-| rounding at floor/ceiling boundaries | unsafe | Verified no-action ceiling overruns up to $4.86. |
-| full-market vs luxury-filtered statistics | highly sensitive | Independent market rows are useful but thin/outlier-prone; curated luxury comps are not enough alone. |
+| No comps | unsafe | Match rate already 50%, and many nights have one OK comp. Removing them would leave deference and the ceiling. |
+| Stale comps | unmeasurable | This sweep is same-day. There is no prior snapshot to age. |
+| Low comp coverage | unsafe | Current state. Comp-grounded claims are not supported. |
+| Missing pacing | unsafe | Bookprob is uncalibrated at 1 day. |
+| Weak ceiling confidence | unsafe | 307/311 weak. On 21 nights the weak ceiling overrides the decrease cap. |
+| Elasticity beta shifted modestly | highly sensitive | Unconstrained optima already diverge from the tier by hundreds of dollars. Final recs hide much of that via deference. |
+| High-demand dates | robust vs listed, highly sensitive vs tier | Peak recs track listed and curated WP comps, and sit above tier p50. |
+| Orphan gaps / short windows | unmeasurable | No counterfactual recomputation in this read-only session. |
+| Corrupted or implausible listed prices | robust | `sanity_floor` fired on 12 early-winter nights with listed rates near $350–$600. |
+| Rounding at floor/ceiling | robust against overrun; unsafe when ceiling is below the decrease cap | 0 recs above ceiling. 21 recs below the decrease band because ceiling wins last. |
+| Full-market vs luxury-filtered statistics | highly sensitive | 194/208 snapshots are the small tier (n≈13), not the ~230-listing sweep. Using the wide fallback as the peer set would move p50. |
 
-## 12. Proposed changes ranked by impact and confidence
+## 12. Proposed changes, ranked
 
-1. **Require a blind owned-inventory source before diagnostic runs** — impact high, confidence high. Problem: without non-Guesty owned forward inventory, the blind run freezes 0 rows. Current repo cannot solve this because `seed-scrape` has historical/sample inventory only and owned Airbnb discovery was a score-1 proxy. Expected benefit: real blind recommendations. Cost: add or license independent owner calendar scrape, or export a non-price availability skeleton. Failure mode: accidental Guesty leakage if source is not isolated. Validation: run a blind DB with 365 `summit_haus` target-window inventory rows and hash nonzero export. Verdict: **test**.
-2. **Fix rounding to clamp after conservative rounding** — impact high, confidence high. Problem: no-action recommendations exceed ceilings. Current code rounds after guardrails without a final bound clamp. Expected benefit: audit becomes meaningful. Cost: small code change plus tests. Failure mode: $5 grid behavior near bounds changes. Validation: reproduce 12 failing dates and direct function examples. Verdict: **adopt** after separate authorized fix.
-3. **Separate computed economic ceiling from move-cap-limited operational recommendation** — impact high, confidence medium. Problem: many recommendations are far above computed ceilings due to move caps, while reasons still present the low ceiling. Expected benefit: clearer operator trust. Cost: reporting/schema work. Failure mode: more complicated owner-facing output. Validation: add fields for `model_price`, `bounded_price`, `rounded_price`, and `ceiling_breach_reason`. Verdict: **test**.
-4. **Calibrate summer/shoulder elasticity with forward shadow data before handle mode** — impact high, confidence high. Problem: summer/shoulder outputs look suppressed, but no outcome data proves whether that is right. Current repo lacks clean pacing/outcome history. Expected benefit: avoid systematic underpricing of the twins. Cost: one season of shadow measurement. Failure mode: slow feedback cycle. Validation: evaluate bookings by season, lead-time bucket, and price-distance bucket. Verdict: **shadow**.
-5. **Add scrape run deadlines and progress logging** — impact medium, confidence high. Problem: long scrape commands are opaque and can leave stale `running` rows. Expected benefit: safer automation. Cost: moderate CLI/provider plumbing. Failure mode: aborting slow but recoverable requests. Validation: forced timeout test leaves `failed`/`degraded`, not `running`. Verdict: **adopt**.
-6. **Use independent licensed market data for generic benchmarks** — impact medium/high, confidence medium. Problem: current scraper is thin, ToS-sensitive, and outlier-prone. Expected benefit: stable p25/p50/p75 and historical occupancy/rate context. Cost: subscription and integration. Failure mode: black-box/vendor mismatch for luxury homes. Validation: shadow vendor percentiles against scraped and realized bookings. Verdict: **shadow**.
+1. **Do not let a weak ceiling override a move cap.** When `weak_ceiling` is set, persist `move_cap_price` (or the rounded cap) and keep the ceiling advisory. Evidence: 21 nights in this freeze, including 2027-02-12 and 2027-07-10. High confidence this is a composer order bug. Do not change betas to “fix” those nights.
+2. **Drop or replace out-of-market seed comps** (Breck/Vail/Keystone) so a Winter Park sweep can reach the 60% match gate. Evidence: 0 OK rows on those six ids; scrape status degraded despite 104/104 good windows.
+3. **Stamp `evidence_kind=guesty_readonly`** on the seed path so a later audit can tell incumbent rates from comps.
+4. **Keep bookprob labeled uncalibrated** until pacing has 14 days. No coefficient change from this run.
+5. **Do not retune `summer` / `shoulder` betas from this freeze.** The final prices mostly did not follow those optima. A beta change would be aimed at a number the export does not ship, and there are no booking outcomes.
 
 ## 13. External tools worth considering
 
-**PriceLabs Market Dashboards / Portfolio Analytics**  
-Problem addressed: independent forward market percentiles, comp dashboards, and pacing context.  
-Research thesis: PriceLabs describes Market Dashboards as competitive benchmarking and market intelligence for STR/MTR operators, and says comp sets can flow into dynamic pricing and analytics ([PriceLabs Market Dashboards](https://www.hello.pricelabs.co/market-dashboards/), [PriceLabs KB](https://help.pricelabs.co/portal/en/kb/pricelabs/market-dashboards/market-dashboard)).  
-Why current repo is inadequate: the scraper produced partial coverage, no complete 365-day market horizon, and outliers.  
-Expected benefit: stable market p25/p50/p75 and an external check against the repo’s own comp layer.  
-Cost/complexity: subscription, property mapping, recurring export/API process.  
-New failure modes: vendor definitions may not match luxury 5-bedroom twins; dashboards can become a second black box.  
-Validation plan: shadow PriceLabs market percentiles against internal recommendations and Guesty outcomes for one season.  
-Verdict: **shadow**.
+**PriceLabs Market Dashboards / Hyper Local Pulse — verdict: shadow.**
 
-**AirDNA data feed / MarketMinder / Property Performance Data**  
-Problem addressed: historical and forward market performance, occupancy/rate distributions, and less fragile market data.  
-Research thesis: AirDNA claims broad daily coverage across Airbnb/Vrbo/Booking.com and publishes accuracy/methodology claims, including de-duplication and property performance data ([AirDNA accuracy](https://www.airdna.co/airdna-accuracy), [AirDNA data model](https://www.airdna.co/how-it-works), [AirDNA occupancy methodology](https://help.airdna.co/en/articles/8062178-how-does-airdna-calculate-occupancy-rate)).  
-Why current repo is inadequate: no contemporaneous historical comp snapshots, incomplete pacing, and fragile scrape collection.  
-Expected benefit: independent historical occupancy/rate priors for calibration and market percentiles.  
-Cost/complexity: paid feed, data-contract work, mapping/bedroom/sleeps filters.  
-New failure modes: inferred occupancy may be wrong for blocked owner stays; vendor data may lag or smooth local luxury outliers.  
-Validation plan: compare AirDNA market occupancy/ADR to actual Guesty bookings by season and lead time.  
-Verdict: **shadow**.
+- Problem: tier percentiles here often rest on about 13 listings, and elasticity is a constant.
+- Thesis: PriceLabs describes a hyper-local set of about 350 similar listings and date-specific elasticity, and states that mountain markets are less price-sensitive in ski season than in summer ([overview](https://hello.pricelabs.co/blog/overview-of-pricelabs-dynamic-pricing-algorithm-part-1/), [market dashboard](https://help.pricelabs.co/portal/en/kb/articles/market-intel-dashboard)).
+- Why this repo cannot cover it: the scraper is one bbox sweep plus a 14-row curated file, and pacing history is one day.
+- Benefit: an external percentile and occupancy series to compare beside `market_snapshots`, without becoming the price.
+- Cost: a vendor feed and a daily join. New failure mode: treating their booked-price estimate as observed ADR.
+- Validation: record their p25/p50/p75 next to this engine’s tier for 30 days. Adopt only if the series stays defined on nights this sweep leaves blank. Do not push either price to Guesty.
 
-**Beyond market insights / clustering methodology**  
-Problem addressed: comp clustering and human-reviewed market segmentation.  
-Research thesis: Beyond describes market insights sourced from public sites and discusses clustering large volumes of Airbnb/day-level price data with analyst review ([Beyond market insights](https://support.beyondpricing.com/en_us/how-do-i-use-the-market-insights-tab-to-understand-demand-trends-in-my-market-rk4VuSoS_), [Beyond clustering](https://beyondpricing.com/blog/unlocking-the-power-of-data-how-beyond-s-clustering-strategy-upgrades-vacation-rental-pricing)).  
-Why current repo is inadequate: curated comp sets are hand-maintained and the generic market benchmark is too thin in some seasons.  
-Expected benefit: independent clustering sanity check for the 5bd luxury peer set.  
-Cost/complexity: vendor onboarding/export, reconciling Beyond clusters with local rules.  
-New failure modes: analyst/cluster choices are not fully reproducible; may overfit to platform-visible listings.  
-Validation plan: compare Beyond cluster medians to curated comps and realized bookings without feeding them into pricing initially.  
-Verdict: **test**.
+**AirDNA occupancy priors — verdict: reject for this run.** No occupancy outcome exists yet to calibrate a prior, and a prior would further dress up the uncalibrated bookprob.
 
-**Ski-market snow/demand research as a calibration prior**  
-Problem addressed: whether snow and ski-market signals should move ceilings/elasticity.  
-Research thesis: Parthum and Christensen model winter recreation behavior using 12 million short-term rental transactions plus daily weather/snowpack and estimate ski-market demand elasticities; CoStar/STR’s ski-resort analysis argues hotel demand can be more stable than snowfall alone when ski conditions remain adequate ([A Market for Snow](https://pubmed.ncbi.nlm.nih.gov/38482074/), [ScienceDirect summary](https://www.sciencedirect.com/science/article/pii/S0095069622000195), [CoStar/STR ski demand article](https://www.costar.com/article/1693578996/mild-winter-cant-put-freeze-on-ski-resorts)).  
-Why current repo is inadequate: current SQI and elasticity settings are policy priors without enough property-level outcome calibration.  
-Expected benefit: better prior ranges for SQI and season-specific elasticity, especially drought vs normal snowpack.  
-Cost/complexity: research translation, not direct plug-in data.  
-New failure modes: applying aggregate ski-market elasticity to one luxury home can mislead.  
-Validation plan: shadow SQI-adjusted vs non-SQI recommendations and compare conversion by snowpack regime.  
-Verdict: **test**.
+## Delta note
 
-**STR/CoStar hotel benchmark data**  
-Problem addressed: lodging-market context beyond Airbnb supply, especially compression/high-demand weeks.  
-Research thesis: CoStar/STR publishes lodging performance and market-demand data; Beyond also notes hotel pricing can inform the upcoming year when vacation-rental signals are sparse.  
-Why current repo is inadequate: Airbnb-only scraping misses hotel compression and cross-lodging substitution.  
-Expected benefit: independent high-demand and low-demand validation.  
-Cost/complexity: paid data, market matching, different unit economics.  
-New failure modes: hotel ADR is not directly comparable to 5-bedroom homes.  
-Validation plan: use as a directional signal only; do not price directly from hotel ADR.  
-Verdict: **test**.
-
-## Forward shadow validation
-
-This report cannot prove the engine beats Guesty on revenue. The recommended next experiment is a forward shadow run:
-
-- Keep Guesty live.
-- Record the engine recommendation daily.
-- Record bookings, lead time, cancellations, occupancy, ADR, realized RevPAN, and price distance from Guesty.
-- Evaluate by season, property, lead-time bucket, and price-distance bucket.
-
-This is especially important for the twins and for the summer/shoulder question.
+Run 1 could not price the year. Run 2 can, because owned nights now come from a read-only Guesty seed. The priced year is still a low-confidence deferral to the listed rate, with a real defect where weak ceilings undercut decrease caps. Revenue superiority is not claimed.
 
 ## Orchestrator completion
 
 - DB path: `/tmp/testrun_summit_haus.db`
-- Frozen blind export: `/tmp/testrun_312.csv`
-- Export SHA-256: `f28264aee5455dc810e0b3875e77b7bdb76d30d3e46668c951ea499b372c87ef`
-- Export row count: `0`
-- Blind-freeze timestamp: `2026-09-25T05:23:42Z`
-- Every requested report section was addressed.
-- No Guesty write adapter was called; no `push --adapter guesty` was run.
-- No unscoped `recommend`, `audit`, `export`, or `push` was run.
-- No command was run that knowingly touched `creekside_haven`; production reveal used read-only inspection and a copied DB with scoped `summit_haus` commands only.
-- I did not modify policy YAML, portfolio YAML, schemas, production data, or tracked repository files other than creating this report.
+- Export hash: `bc426c452d479794bb3965e9dc74a8fb9c83fe85291f92086c3a936552feddc7`
+- Export row count: 311
+- Blind-freeze timestamp: 2026-09-25T17:46:18Z
+- Sections 1–13 addressed, including the summer/shoulder elasticity probe.
+- This run changed no engine, policy, or schema files. The new artifacts are this report and `data/exports/testrun_312.csv`.
+- Guesty write count: 0 (read-only; no rates pushed)

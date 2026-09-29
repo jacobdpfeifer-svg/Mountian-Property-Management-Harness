@@ -52,8 +52,9 @@ Property bounds are therefore recalibrated from observed listed + realised price
   100% coverage. Lives in the default production DB (`data/wp_pricing.db`) with the
   twins. Filter with `--owner cloud9` (Cloud 9) or `--owner northwoods` (Summit Haus
   + Overlook Ridge). See [`docs/CLOUD9_RUNBOOK.md`](CLOUD9_RUNBOOK.md).
-- **Twins comp set still pipeline-exercise.** `data/scrape/comps.csv` serves
-  `summit_haus|overlook_ridge`; `data/sample/comps.csv` is demo-only.
+- **Twins comp set is Winter Park / Fraser peers.** `data/scrape/comps.csv` serves
+  `summit_haus|overlook_ridge` with 14 in-market Airbnb room IDs (no Breck / Vail /
+  Keystone / Silverthorne seeds). `data/sample/comps.csv` is demo-only.
 - **Comp scraper not run for twins.** Summit/Overlook comp coverage may still be 0% on
   the default DB until `scrape-comps` is run against their comp set.
 - **Proxy.** Direct sweeps work today. If horizon or frequency increases materially,

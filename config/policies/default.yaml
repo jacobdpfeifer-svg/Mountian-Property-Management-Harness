@@ -28,6 +28,9 @@ compose:
     below_confidence: 0.80
     # weight on the model = ceiling confidence; remainder sits on the listed price
     min_model_weight: 0.25
+    # Ceiling is advisory on this same band so a thin ceiling cannot undo the
+    # move cap after rounding (the 0.30 cutoff left 0.30–0.80 still hard-clamping).
+    advisory_ceiling_below_confidence: 0.80
 
 dow_multipliers:
   0: 0.92
@@ -139,6 +142,8 @@ booking_probability:
   # treat demand as more elastic (multiply |beta|).
   pacing_elasticity_scale: 1.30
   pacing_behind_threshold: 0.70
+  # Do not print p(book) as a percentage until pacing history meets this bar.
+  min_pacing_days_for_display: 14
 
 # --------------------------------------------------------------------- leakage
 leakage:
@@ -165,6 +170,9 @@ scrape:
   horizon_days: 120
   zoom: 14
   timeout_s: 60
+  window_timeout_s: 180
+  run_deadline_s: 3600
+  property_calendar_timeout_s: 180
   # Politeness is load-bearing: an aggressive sweep gets blocked and the whole comp
   # layer degrades to advisory. One market-wide sweep covers every comp at once.
   min_request_delay_s: 4.0

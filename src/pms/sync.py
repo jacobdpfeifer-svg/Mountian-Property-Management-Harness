@@ -69,7 +69,8 @@ def _floor_and_ceiling(listing: GuestyListing) -> tuple[float, float, float]:
     return round(base * 0.60), round(anchor * 1.15), round(anchor * 3.0)
 
 
-def recalibrate_bounds(conn: sqlite3.Connection, report: SyncReport) -> None:
+def recalibrate_bounds(conn: sqlite3.Connection, report: SyncReport,
+                       property_ids: list[str] | None = None) -> None:
     """Reset each property's floor/ceiling from what it actually lists and achieves.
 
     The operator's own calendar is a far better prior than any configured base rate:
@@ -79,8 +80,11 @@ def recalibrate_bounds(conn: sqlite3.Connection, report: SyncReport) -> None:
     """
     import numpy as np
 
-    for row in conn.execute("SELECT property_id FROM properties").fetchall():
+    rows = conn.execute("SELECT property_id FROM properties").fetchall()
+    for row in rows:
         pid = row["property_id"]
+        if property_ids is not None and pid not in property_ids:
+            continue
         prices = [
             float(r["p"]) for r in conn.execute(
                 """
@@ -109,8 +113,12 @@ def recalibrate_bounds(conn: sqlite3.Connection, report: SyncReport) -> None:
 
 
 def sync_listings(conn: sqlite3.Connection, client: GuestyClient,
-                  report: SyncReport) -> list[GuestyListing]:
+                  report: SyncReport,
+                  property_ids: list[str] | None = None) -> list[GuestyListing]:
     listings = client.listings()
+    if property_ids:
+        wanted = set(property_ids)
+        listings = [item for item in listings if item.property_id in wanted]
     for l in listings:
         floor, base_ceiling, max_ceiling = _floor_and_ceiling(l)
         conn.execute(
@@ -160,14 +168,16 @@ def sync_calendar(conn: sqlite3.Connection, client: GuestyClient,
                 conn.execute(
                     """
                     INSERT INTO nightly_inventory (property_id, stay_date, listed_price,
-                        booked_price, status, day_of_week, channel, min_stay, updated_at)
-                    VALUES (?, ?, ?, NULL, ?, ?, 'guesty', ?, datetime('now'))
+                        booked_price, status, day_of_week, channel, min_stay,
+                        evidence_kind, updated_at)
+                    VALUES (?, ?, ?, NULL, ?, ?, 'guesty', ?, 'guesty_readonly', datetime('now'))
                     ON CONFLICT(property_id, stay_date) DO UPDATE SET
                         listed_price=excluded.listed_price,
                         status=excluded.status,
                         day_of_week=excluded.day_of_week,
                         channel='guesty',
                         min_stay=excluded.min_stay,
+                        evidence_kind='guesty_readonly',
                         updated_at=datetime('now')
                     """,
                     (l.property_id, stay.isoformat(),
@@ -270,14 +280,18 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
 
 
 def sync_all(conn: sqlite3.Connection, client: GuestyClient,
-             horizon_days: int = 365, history_days: int = 540) -> SyncReport:
+             horizon_days: int = 365, history_days: int = 540,
+             property_ids: list[str] | None = None,
+             mark_production: bool | None = None) -> SyncReport:
     report = SyncReport(horizon_days=horizon_days, history_days=history_days)
     run_id = uuid.uuid4().hex[:16]
     conn.execute("INSERT INTO sync_runs (run_id, status) VALUES (?, 'running')", (run_id,))
     try:
         today = date.today()
-        listings = sync_listings(conn, client, report)
-        if report.listings > 0:
+        listings = sync_listings(conn, client, report, property_ids=property_ids)
+        if mark_production is None:
+            mark_production = not property_ids
+        if mark_production and report.listings > 0:
             from src.db import DB_KIND_PRODUCTION, mark_db_identity
 
             mark_db_identity(conn, DB_KIND_PRODUCTION, "sync-guesty")
@@ -285,7 +299,7 @@ def sync_all(conn: sqlite3.Connection, client: GuestyClient,
                       today - timedelta(days=history_days),
                       today + timedelta(days=horizon_days), report)
         sync_reservations(conn, client, listings, report)
-        recalibrate_bounds(conn, report)
+        recalibrate_bounds(conn, report, property_ids=property_ids)
     except Exception as exc:
         conn.execute(
             "UPDATE sync_runs SET finished_at=datetime('now'), status='failed', errors=? WHERE run_id=?",

@@ -118,6 +118,21 @@ def test_templates_for_compose_codes_contain_no_jargon():
         assert not owner_text_has_jargon(text), f"{code} leaked jargon: {text}"
 
 
+def test_revpan_template_omits_bookprob_percent_until_pacing_is_calibrated():
+    uncal = render_owner_reason(_sample_reason("revpan_optimum"))
+    assert "chance of booking" not in uncal
+    cal_facts = {
+        **_sample_reason("revpan_optimum").facts,
+        "pacing_days": 14,
+        "min_pacing_days_for_display": 14,
+        "book_prob": 0.41,
+    }
+    cal = render_owner_reason(
+        Reason("revpan_optimum", "INTERNAL", contribution=1.0, facts=cal_facts)
+    )
+    assert "41% chance of booking" in cal
+
+
 def test_serialized_default_message_is_owner_facing():
     reason = _sample_reason("revpan_optimum")
     payload = serialize_owner_reason(reason)
@@ -147,6 +162,9 @@ def test_recommendations_default_surface_has_range_sources_and_no_jargon(db: Pat
             assert r["code"] in OWNER_TEMPLATES
             assert not owner_text_has_jargon(r["message"])
             assert "technical_message" in r
+            if r["code"] == "revpan_optimum":
+                assert "chance of booking" not in r["message"]
+                assert "P(book)=" not in r["technical_message"]
 
 
 def test_price_range_narrows_as_confidence_rises():

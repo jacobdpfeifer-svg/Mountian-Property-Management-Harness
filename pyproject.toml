@@ -43,6 +43,13 @@ include = ["src*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# Default lane is the fast, green suite. Slow tests (full-season Proving Ground
+# runs that price every night through the real engine) are excluded here and run
+# explicitly with `pytest -m slow` in a dedicated CI job.
+addopts = "-m 'not slow'"
+markers = [
+  "slow: full-season / live-path tests that take minutes; excluded from the default run (use `-m slow`)",
+]
 
 [tool.coverage.run]
 source = ["src"]

@@ -96,6 +96,8 @@ def pacing_ratio(
     conn: sqlite3.Connection,
     feat: NightFeatures,
     policy: dict[str, Any],
+    *,
+    as_of: date | None = None,
 ) -> float | None:
     """How full is this night versus the portfolio norm at the same days_out?
 
@@ -104,31 +106,59 @@ def pacing_ratio(
     """
     health = policy.get("data_health", {})
     min_days = int(health.get("pacing_min_snapshot_days", 14))
-    distinct = conn.execute("SELECT COUNT(DISTINCT as_of) AS c FROM pacing_snapshots").fetchone()
-    if not distinct or int(distinct["c"] or 0) < min_days:
-        return None
-
-    row = conn.execute(
-        """
-        SELECT status, days_out FROM pacing_snapshots
-        WHERE property_id = ? AND stay_date = ?
-        ORDER BY as_of DESC LIMIT 1
-        """,
-        (feat.property_id, feat.stay_date.isoformat()),
-    ).fetchone()
-    if row is None:
-        return None
-    days_out = int(row["days_out"])
-    booked_now = 1.0 if row["status"] == "booked" else 0.0
-
-    ref = conn.execute(
-        """
-        SELECT AVG(CASE WHEN status = 'booked' THEN 1.0 ELSE 0.0 END) AS occ, COUNT(*) AS n
-        FROM pacing_snapshots
-        WHERE days_out BETWEEN ? AND ?
-        """,
-        (max(0, days_out - 3), days_out + 3),
-    ).fetchone()
+    if as_of is None:
+        distinct = conn.execute(
+            "SELECT COUNT(DISTINCT as_of) AS c FROM pacing_snapshots"
+        ).fetchone()
+        if not distinct or int(distinct["c"] or 0) < min_days:
+            return None
+        row = conn.execute(
+            """
+            SELECT status, days_out FROM pacing_snapshots
+            WHERE property_id = ? AND stay_date = ?
+            ORDER BY as_of DESC LIMIT 1
+            """,
+            (feat.property_id, feat.stay_date.isoformat()),
+        ).fetchone()
+        if row is None:
+            return None
+        days_out = int(row["days_out"])
+        booked_now = 1.0 if row["status"] == "booked" else 0.0
+        ref = conn.execute(
+            """
+            SELECT AVG(CASE WHEN status = 'booked' THEN 1.0 ELSE 0.0 END) AS occ, COUNT(*) AS n
+            FROM pacing_snapshots
+            WHERE days_out BETWEEN ? AND ?
+            """,
+            (max(0, days_out - 3), days_out + 3),
+        ).fetchone()
+    else:
+        distinct = conn.execute(
+            "SELECT COUNT(DISTINCT as_of) AS c FROM pacing_snapshots WHERE as_of <= ?",
+            (as_of.isoformat(),),
+        ).fetchone()
+        if not distinct or int(distinct["c"] or 0) < min_days:
+            return None
+        row = conn.execute(
+            """
+            SELECT status, days_out FROM pacing_snapshots
+            WHERE property_id = ? AND stay_date = ? AND as_of <= ?
+            ORDER BY as_of DESC LIMIT 1
+            """,
+            (feat.property_id, feat.stay_date.isoformat(), as_of.isoformat()),
+        ).fetchone()
+        if row is None:
+            return None
+        days_out = int(row["days_out"])
+        booked_now = 1.0 if row["status"] == "booked" else 0.0
+        ref = conn.execute(
+            """
+            SELECT AVG(CASE WHEN status = 'booked' THEN 1.0 ELSE 0.0 END) AS occ, COUNT(*) AS n
+            FROM pacing_snapshots
+            WHERE days_out BETWEEN ? AND ? AND as_of <= ?
+            """,
+            (max(0, days_out - 3), days_out + 3, as_of.isoformat()),
+        ).fetchone()
     if ref is None or int(ref["n"] or 0) < 20 or not ref["occ"]:
         return None
     return booked_now / float(ref["occ"]) if float(ref["occ"]) > 0 else None
@@ -182,12 +212,32 @@ def estimate(
     # Pooled across properties: per-property cells are far too small at 4 doors.
     rows = conn.execute(
         """
-        SELECT stay_date, status, day_of_week, listed_price, booked_price, lead_time_days
+        SELECT stay_date, status, day_of_week, listed_price, booked_price, lead_time_days,
+               booked_at
         FROM nightly_inventory
         WHERE status IN ('available', 'booked') AND stay_date < ?
         """,
         (feat.stay_date.isoformat(),),
     ).fetchall()
+
+    # Point-in-time replay must not learn from a sale that had not happened yet.
+    # `booked_at` is the "when we knew it booked" stamp (schema comment on the
+    # column). When an explicit decision date is given, a booking stamped after it
+    # counts as still-available; a booked row with no stamp cannot be proven to
+    # have been known by the decision date, so it is also treated as not-yet-booked.
+    # A live run (as_of is None) keeps the current calendar as the truth, so legacy
+    # booked rows without a stamp are unaffected.
+    cutoff = as_of
+
+    def _booked_known(r: sqlite3.Row) -> bool:
+        if r["status"] != "booked":
+            return False
+        if cutoff is None:
+            return True
+        ba = r["booked_at"]
+        if ba is None:
+            return False
+        return parse_date(ba) <= cutoff
 
     def _collect(match_tier: bool, match_regime: bool) -> tuple[int, int, list[float]]:
         booked = total = 0
@@ -204,7 +254,7 @@ def estimate(
             if match_regime and target_regime != "all" and _regime_for(stay) != target_regime:
                 continue
             total += 1
-            if r["status"] == "booked":
+            if _booked_known(r):
                 booked += 1
                 if r["booked_price"] is not None:
                     prices.append(float(r["booked_price"]))
@@ -233,7 +283,7 @@ def estimate(
     elas = cfg.get("elasticity_by_season", {})
     beta = float(elas.get(feat.season, elas.get("default", -1.2)))
 
-    pr = pacing_ratio(conn, feat, policy)
+    pr = pacing_ratio(conn, feat, policy, as_of=as_of)
     if pr is not None and pr < float(cfg.get("pacing_behind_threshold", 0.70)):
         beta *= float(cfg.get("pacing_elasticity_scale", 1.30))
 

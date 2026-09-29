@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS properties (
     -- group-size comp filters; never for RevPAN math.
     max_occupancy     INTEGER,
     airbnb_room_id    TEXT,          -- join key for scrape-only inventory
+    listing_match_kind TEXT,         -- exact | proxy | unknown
     created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -92,6 +93,7 @@ CREATE TABLE IF NOT EXISTS nightly_inventory (
     -- must not inform that decision. Calendar listed_price is NOT this.
     booked_at       TEXT,
     guest_count     INTEGER,
+    evidence_kind   TEXT,          -- property_direct | proxy | skeleton | guesty_readonly
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (property_id, stay_date)
 );
@@ -273,6 +275,16 @@ CREATE TABLE IF NOT EXISTS price_recommendations (
     range_low            REAL,
     range_high           REAL,
     evidence_count       INTEGER NOT NULL DEFAULT 0,
+    model_price          REAL,
+    bounded_price        REAL,
+    move_cap_price       REAL,
+    rounded_price        REAL,
+    final_price          REAL,
+    weak_ceiling         INTEGER NOT NULL DEFAULT 0,
+    memory_set_hash      TEXT,
+    memory_feature_version TEXT,
+    memory_claim_refs    TEXT,
+    memory_counterfactual_price REAL,
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     -- One recommendation per property/night per run. The v1 constraint included
     -- created_at (second resolution) and therefore deduplicated nothing.

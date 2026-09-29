@@ -177,6 +177,40 @@ def run_audit(
         demand_count >= min_demand,
         f"{demand_count}/{min_demand} rows in range",
     )
+    try:
+        from src.config import load_events
+
+        cfg_events = load_events()
+        cfg_in_range = 0
+        for ev in cfg_events:
+            ev_start = str(ev.get("start") or ev.get("date") or "")[:10]
+            ev_end = str(ev.get("end") or ev_start)[:10]
+            if ev_start and ev_end and ev_start <= end.isoformat() and ev_end >= start.isoformat():
+                cfg_in_range += 1
+        report.add(
+            "demand_config_coverage",
+            cfg_in_range == 0 or demand_count >= cfg_in_range,
+            f"db_rows={demand_count} config_events_in_range={cfg_in_range}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        report.add("demand_config_coverage", False, f"could not load events: {exc}")
+
+    from src.eval.shadow import guesty_write_count
+
+    writes = guesty_write_count(conn)
+    report.add("guesty_writes", writes == 0, f"Guesty write count: {writes}")
+    report.summary["guesty_write_count"] = writes
+
+    proxy_rows = conn.execute(
+        """
+        SELECT COUNT(*) c FROM nightly_inventory
+        WHERE stay_date >= ? AND stay_date <= ?
+          AND evidence_kind = 'proxy' AND listed_price IS NOT NULL
+        """,
+        (start.isoformat(), end.isoformat()),
+    ).fetchone()["c"]
+    report.add("proxy_not_listed", int(proxy_rows or 0) == 0,
+               f"{int(proxy_rows or 0)} proxy nights with listed_price")
 
     # --- recommendation invariants ---
     sql = """
