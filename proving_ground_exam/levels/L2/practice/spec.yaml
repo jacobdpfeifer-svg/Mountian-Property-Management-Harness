@@ -1,0 +1,12 @@
+level: 2
+name: Groomer
+market_id: grand_home
+property_id: cabin_ridge
+world: W1_calm
+season:
+  # Median SNOTEL season — vintage id set after build-vintages
+  vintage_season: median_snotel
+signals:
+  - snotel
+  - enso
+evidence_expectation: publishable_when_vintages_frozen

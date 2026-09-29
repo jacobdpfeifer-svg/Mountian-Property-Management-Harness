@@ -20,7 +20,9 @@ def export_recommendations_csv(
         SELECT property_id, stay_date, listed_price_at_run, recommended_price,
                range_low, range_high, evidence_count,
                expected_book_prob, expected_revpan, ceiling_price, ceiling_confidence,
-               floor_price, autonomy_level, guardrail_action, status, run_id, reasons
+               floor_price, autonomy_level, guardrail_action, status, run_id, reasons,
+               model_price, bounded_price, move_cap_price, rounded_price, final_price,
+               weak_ceiling
         FROM price_recommendations
         WHERE stay_date >= ? AND stay_date <= ?
     """
@@ -39,7 +41,8 @@ def export_recommendations_csv(
         "range_low", "range_high", "evidence_count",
         "expected_book_prob", "expected_revpan", "ceiling_price", "ceiling_confidence",
         "floor_price", "autonomy_level", "guardrail_action", "status", "run_id",
-        "owner_reasons",
+        "owner_reasons", "model_price", "bounded_price", "move_cap_price",
+        "rounded_price", "final_price", "weak_ceiling",
     ]
     with out.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields)

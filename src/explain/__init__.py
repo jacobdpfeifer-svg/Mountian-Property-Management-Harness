@@ -33,6 +33,8 @@ ReasonCode = Literal[
     "min_stay",
     "substitution_bleed",
     "access_cliff",
+    "weak_ceiling",
+    "memory_constraint",
 ]
 
 

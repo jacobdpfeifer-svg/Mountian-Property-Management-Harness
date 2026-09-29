@@ -43,8 +43,20 @@ _SCHEMA_PATCHES: list[tuple[str, str, str]] = [
     ("price_recommendations", "range_low", "REAL"),
     ("price_recommendations", "range_high", "REAL"),
     ("price_recommendations", "evidence_count", "INTEGER"),
+    ("price_recommendations", "model_price", "REAL"),
+    ("price_recommendations", "bounded_price", "REAL"),
+    ("price_recommendations", "move_cap_price", "REAL"),
+    ("price_recommendations", "rounded_price", "REAL"),
+    ("price_recommendations", "final_price", "REAL"),
+    ("price_recommendations", "weak_ceiling", "INTEGER NOT NULL DEFAULT 0"),
+    ("price_recommendations", "memory_set_hash", "TEXT"),
+    ("price_recommendations", "memory_feature_version", "TEXT"),
+    ("price_recommendations", "memory_claim_refs", "TEXT"),
+    ("price_recommendations", "memory_counterfactual_price", "REAL"),
     ("nightly_inventory", "booked_at", "TEXT"),
     ("nightly_inventory", "guest_count", "INTEGER"),
+    ("nightly_inventory", "evidence_kind", "TEXT"),
+    ("properties", "listing_match_kind", "TEXT"),
     ("rate_changes", "rule_version", "TEXT"),
     ("rate_changes", "model_version", "TEXT"),
     ("rate_changes", "inputs_hash", "TEXT"),
@@ -112,6 +124,9 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
         )
         _seed_owner_ids(conn)
         _backfill_market_ids(conn)
+    from src.eval.shadow import ensure_shadow_table
+
+    ensure_shadow_table(conn)
 
 
 def _backfill_recommendation_inputs_hash(conn: sqlite3.Connection) -> None:

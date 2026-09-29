@@ -1,0 +1,174 @@
+{
+  "content_hash": "a694409d2cef661dea454286da64102f40e06b387d8e294b6c8f46a9332bbefb",
+  "engine_path": "generate_recommendations",
+  "engine_run": {
+    "decision_days": 24,
+    "moat_off": false,
+    "property_id": "cabin_ridge",
+    "recommendation_rows": 164,
+    "run_id": "pg-l1-20260925"
+  },
+  "evidence_label": "internal_only",
+  "forward_shadow_protocol": {
+    "recommended_start_date": "2026-11-01",
+    "status": "specified_not_auto_enabled",
+    "tool": "src/eval/shadow.py"
+  },
+  "gates": [
+    {
+      "measured_by": "src.proving_ground.gates.count_lookahead_canary_trips",
+      "name": "lookahead_violations",
+      "observed": 0,
+      "passed": true,
+      "threshold": 0
+    },
+    {
+      "measured_by": "src.proving_ground.gates.measure_guesty_write_attempts",
+      "name": "guesty_write_attempts",
+      "observed": 0,
+      "passed": true,
+      "threshold": 0
+    },
+    {
+      "measured_by": "src.proving_ground.gates.measure_guardrail_violations",
+      "name": "guardrail_violations",
+      "observed": 0,
+      "passed": true,
+      "threshold": 0
+    },
+    {
+      "measured_by": "src.proving_ground.gates.measure_auto_pushes_while_unhealthy",
+      "name": "auto_pushes_while_unhealthy",
+      "observed": 0,
+      "passed": true,
+      "threshold": 0
+    },
+    {
+      "measured_by": "src.proving_ground.runner.verify_determinism",
+      "name": "same_seed_determinism",
+      "observed": "identical_output_hashes",
+      "passed": true,
+      "threshold": "identical_output_hashes"
+    },
+    {
+      "measured_by": "src.proving_ground.runner._evaluate_level_gates",
+      "name": "regret_vs_oracle",
+      "observed": 0.303451,
+      "passed": false,
+      "threshold": 0.05
+    },
+    {
+      "measured_by": "src.proving_ground.runner._evaluate_level_gates",
+      "name": "vs_baselines",
+      "observed": -12320.6887,
+      "passed": false,
+      "threshold": ">= 0 revenue delta vs best baseline"
+    },
+    {
+      "measured_by": "src.proving_ground.runner._evaluate_level_gates",
+      "name": "p_book_calibration_brier_improvement",
+      "observed": -4.590021,
+      "passed": false,
+      "threshold": 0.2
+    },
+    {
+      "measured_by": "src.proving_ground.runner._evaluate_level_gates",
+      "name": "worst10_tail_loss",
+      "observed": 3279.2919,
+      "passed": false,
+      "threshold": 1265.4726
+    },
+    {
+      "measured_by": "src.proving_ground.runner._evaluate_level_gates",
+      "name": "humility_false_alarm_rate",
+      "observed": 0.0,
+      "passed": true,
+      "threshold": 0.05
+    },
+    {
+      "measured_by": "src.proving_ground.runner._evaluate_level_gates",
+      "name": "oracle_reference_revenue",
+      "observed": 79951.3473,
+      "passed": true,
+      "threshold": "> 0"
+    },
+    {
+      "measured_by": "src.proving_ground.runner._evaluate_level_gates",
+      "name": "world_hardness_flat_vs_oracle",
+      "observed": 0.149349,
+      "passed": true,
+      "threshold": ">= 0.05"
+    }
+  ],
+  "hard_gate_counts": {
+    "auto_pushes_while_unhealthy": 0,
+    "guardrail_violations": 0,
+    "guesty_write_attempts": 0,
+    "lookahead_violations": 0,
+    "same_seed_determinism": 0
+  },
+  "level": 1,
+  "market_id": "grand_home",
+  "notes": [
+    "Engine prices come from generate_recommendations (production pipeline).",
+    "Guesty write count is measured from rate_changes; dry_run only.",
+    "Level 2 historical NRCS/NOAA vintages remain a follow-up Fix Card."
+  ],
+  "passed": false,
+  "property_id": "cabin_ridge",
+  "runner_version": "phase0-engine-v2",
+  "scores": [
+    {
+      "brier": 0.075276,
+      "policy_id": "engine",
+      "regret_vs_oracle": 0.303451,
+      "revenue": 55690.0063,
+      "worst10_loss": 3279.2919
+    },
+    {
+      "brier": 0.0,
+      "policy_id": "flat_seasonal",
+      "regret_vs_oracle": 0.149349,
+      "revenue": 68010.695,
+      "worst10_loss": 1265.4726
+    },
+    {
+      "brier": 0.0,
+      "policy_id": "comp_median_follower",
+      "regret_vs_oracle": 0.149349,
+      "revenue": 68010.695,
+      "worst10_loss": 1265.4726
+    },
+    {
+      "brier": 0.0,
+      "policy_id": "moat_off",
+      "regret_vs_oracle": 0.303451,
+      "revenue": 55690.0063,
+      "worst10_loss": 3279.2919
+    },
+    {
+      "brier": 0.0,
+      "policy_id": "oracle",
+      "regret_vs_oracle": 0.0,
+      "revenue": 79951.3473,
+      "worst10_loss": 0.0
+    }
+  ],
+  "season": {
+    "end": "2027-04-15",
+    "nights": 166,
+    "start": "2026-11-01"
+  },
+  "seed": 20260925,
+  "source_manifest": [
+    {
+      "license_class": "internal_only",
+      "source_id": "data/sample"
+    },
+    {
+      "license_class": "internal_only",
+      "source_id": "proving_ground_exam/worlds"
+    }
+  ],
+  "world": "W1_calm"
+}

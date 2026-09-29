@@ -114,3 +114,41 @@ def test_pacing_ratio_computes_real_ratio_when_ahead_of_norm(db: Path):
     # booked_now=1.0, reference occupancy ~0.25-0.28 (target night's own row also
     # in the cohort window) -> materially > 1, i.e. genuinely "ahead of pace".
     assert ratio > 2.0
+
+
+def test_pacing_ratio_ignores_future_snapshots(db: Path):
+    """Point-in-time replay must not read pacing rows with as_of after decision."""
+    target = date(2026, 12, 18)
+    decision = date(2026, 11, 18)
+    with connect(db) as conn:
+        for i in range(21):
+            as_of = date(2026, 11, 1) + timedelta(days=i)
+            status = "booked" if i % 4 == 0 else "available"
+            conn.execute(
+                """INSERT INTO pacing_snapshots (as_of, property_id, stay_date, days_out, status)
+                   VALUES (?, 'test_haus', ?, 30, ?)""",
+                (as_of.isoformat(), (target + timedelta(days=i)).isoformat(), status),
+            )
+        conn.execute(
+            """INSERT INTO pacing_snapshots (as_of, property_id, stay_date, days_out, status)
+               VALUES ('2026-11-18', 'test_haus', ?, 30, 'booked')""",
+            (target.isoformat(),),
+        )
+        conn.execute(
+            """INSERT INTO pacing_snapshots (as_of, property_id, stay_date, days_out, status)
+               VALUES ('2026-11-10', 'test_haus', ?, 30, 'available')""",
+            ((target + timedelta(days=50)).isoformat(),),
+        )
+        conn.execute(
+            """INSERT INTO pacing_snapshots (as_of, property_id, stay_date, days_out, status)
+               VALUES ('2026-12-25', 'test_haus', ?, 30, 'available')""",
+            (target.isoformat(),),
+        )
+        conn.commit()
+        feat, policy = _feat(conn, target)
+        ratio_pit = pacing_ratio(conn, feat, policy, as_of=decision)
+        ratio_future = pacing_ratio(conn, feat, policy, as_of=date(2026, 12, 26))
+    assert ratio_pit is not None
+    assert ratio_pit > 2.0
+    assert ratio_future is not None
+    assert ratio_pit > ratio_future

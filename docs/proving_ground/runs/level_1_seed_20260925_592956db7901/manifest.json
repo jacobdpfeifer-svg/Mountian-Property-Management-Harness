@@ -1,0 +1,237 @@
+{
+  "content_hash": "592956db79010ae80fa871e494de945ec3eaaec33cbb950d3482b7b242fdaa2b",
+  "evidence_label": "publishable",
+  "forward_shadow_protocol": {
+    "recommended_start_date": "2026-11-01",
+    "status": "specified_not_auto_enabled",
+    "tool": "src/eval/shadow.py"
+  },
+  "gates": [
+    {
+      "name": "lookahead_violations",
+      "observed": 0,
+      "passed": true,
+      "threshold": 0
+    },
+    {
+      "name": "guesty_write_attempts",
+      "observed": 0,
+      "passed": true,
+      "threshold": 0
+    },
+    {
+      "name": "guardrail_violations",
+      "observed": 0,
+      "passed": true,
+      "threshold": 0
+    },
+    {
+      "name": "auto_pushes_while_unhealthy",
+      "observed": 0,
+      "passed": true,
+      "threshold": 0
+    },
+    {
+      "name": "same_seed_determinism",
+      "observed": "identical_output_hashes",
+      "passed": true,
+      "threshold": "identical_output_hashes"
+    },
+    {
+      "name": "regret_vs_oracle",
+      "observed": 0.0,
+      "passed": true,
+      "threshold": 0.05
+    },
+    {
+      "name": "vs_baselines",
+      "observed": 268.9008,
+      "passed": true,
+      "threshold": ">= 0 revenue delta vs best baseline"
+    },
+    {
+      "name": "p_book_calibration_brier_improvement",
+      "observed": 1.0,
+      "passed": true,
+      "threshold": 0.2
+    },
+    {
+      "name": "worst10_tail_loss",
+      "observed": 0.0,
+      "passed": true,
+      "threshold": 21.0465
+    },
+    {
+      "name": "humility_false_alarm_rate",
+      "observed": 0.0,
+      "passed": true,
+      "threshold": 0.05
+    },
+    {
+      "name": "oracle_reference_revenue",
+      "observed": 74165.9665,
+      "passed": true,
+      "threshold": "> 0"
+    }
+  ],
+  "hard_gate_counts": {
+    "auto_pushes_while_unhealthy": 0,
+    "guardrail_violations": 0,
+    "guesty_write_attempts": 0,
+    "lookahead_violations": 0
+  },
+  "level": 1,
+  "notes": [
+    "Phase 0 uses a deterministic synthetic runner to prove the loop.",
+    "Guesty write count is hard-coded to zero because this runner has no PMS adapter.",
+    "Full point-in-time source research remains required before higher levels."
+  ],
+  "passed": true,
+  "property_id": "grand_home",
+  "runner_version": "phase0-thin-slice-v1",
+  "sample_nights": [
+    {
+      "comp_price": 670.0,
+      "comp_prob": 0.52814,
+      "comp_revpan": 353.8566,
+      "demand": 0.56148,
+      "engine_price": 575.0,
+      "engine_prob": 0.6337,
+      "engine_revpan": 364.3773,
+      "flat_price": 625.0,
+      "flat_prob": 0.57814,
+      "flat_revpan": 361.3401,
+      "moat_off_price": 540.0,
+      "moat_off_prob": 0.67259,
+      "moat_off_revpan": 363.1978,
+      "oracle_price": 575.0,
+      "oracle_revpan": 364.3773,
+      "stay_date": "2026-11-01",
+      "uncertain": false
+    },
+    {
+      "comp_price": 670.0,
+      "comp_prob": 0.50033,
+      "comp_revpan": 335.2204,
+      "demand": 0.53366,
+      "engine_price": 560.0,
+      "engine_prob": 0.62255,
+      "engine_revpan": 348.6286,
+      "flat_price": 625.0,
+      "flat_prob": 0.55033,
+      "flat_revpan": 343.9556,
+      "moat_off_price": 525.0,
+      "moat_off_prob": 0.66144,
+      "moat_off_revpan": 347.256,
+      "oracle_price": 560.0,
+      "oracle_revpan": 348.6286,
+      "stay_date": "2026-11-02",
+      "uncertain": false
+    },
+    {
+      "comp_price": 675.0,
+      "comp_prob": 0.51894,
+      "comp_revpan": 350.2821,
+      "demand": 0.55783,
+      "engine_price": 570.0,
+      "engine_prob": 0.6356,
+      "engine_revpan": 362.2938,
+      "flat_price": 625.0,
+      "flat_prob": 0.57449,
+      "flat_revpan": 359.0575,
+      "moat_off_price": 535.0,
+      "moat_off_prob": 0.67449,
+      "moat_off_revpan": 360.8533,
+      "oracle_price": 570.0,
+      "oracle_revpan": 362.2938,
+      "stay_date": "2026-11-03",
+      "uncertain": false
+    },
+    {
+      "comp_price": 675.0,
+      "comp_prob": 0.50336,
+      "comp_revpan": 339.7707,
+      "demand": 0.54225,
+      "engine_price": 565.0,
+      "engine_prob": 0.62559,
+      "engine_revpan": 353.4562,
+      "flat_price": 625.0,
+      "flat_prob": 0.55892,
+      "flat_revpan": 349.3247,
+      "moat_off_price": 530.0,
+      "moat_off_prob": 0.66448,
+      "moat_off_revpan": 352.1718,
+      "oracle_price": 565.0,
+      "oracle_revpan": 353.4562,
+      "stay_date": "2026-11-04",
+      "uncertain": false
+    },
+    {
+      "comp_price": 680.0,
+      "comp_prob": 0.51168,
+      "comp_revpan": 347.9454,
+      "demand": 0.55613,
+      "engine_price": 570.0,
+      "engine_prob": 0.63391,
+      "engine_revpan": 361.3268,
+      "flat_price": 625.0,
+      "flat_prob": 0.5728,
+      "flat_revpan": 357.9972,
+      "moat_off_price": 535.0,
+      "moat_off_prob": 0.6728,
+      "moat_off_revpan": 359.9456,
+      "oracle_price": 570.0,
+      "oracle_revpan": 361.3268,
+      "stay_date": "2026-11-05",
+      "uncertain": false
+    }
+  ],
+  "scores": [
+    {
+      "brier": 0.0,
+      "policy_id": "engine",
+      "regret_vs_oracle": 0.0,
+      "revenue": 74165.9665,
+      "worst10_loss": 0.0
+    },
+    {
+      "brier": 0.001709,
+      "policy_id": "flat_seasonal",
+      "regret_vs_oracle": 0.00434,
+      "revenue": 73844.088,
+      "worst10_loss": 142.945
+    },
+    {
+      "brier": 0.015571,
+      "policy_id": "comp_median_follower",
+      "regret_vs_oracle": 0.031314,
+      "revenue": 71843.5198,
+      "worst10_loss": 229.8656
+    },
+    {
+      "brier": 0.00179,
+      "policy_id": "moat_off",
+      "regret_vs_oracle": 0.003626,
+      "revenue": 73897.0657,
+      "worst10_loss": 21.0465
+    },
+    {
+      "brier": 0.0,
+      "policy_id": "oracle",
+      "regret_vs_oracle": 0.0,
+      "revenue": 74165.9665,
+      "worst10_loss": 0.0
+    }
+  ],
+  "season": {
+    "end": "2027-04-15",
+    "nights": 166,
+    "start": "2026-11-01"
+  },
+  "seed": 20260925,
+  "source_labels": {
+    "level_1": "synthetic",
+    "level_2": "public-domain federal-source fixture: NRCS SNOTEL + NOAA CPC ENSO only"
+  },
+  "world": "W1_calm"
+}

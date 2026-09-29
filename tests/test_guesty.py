@@ -166,7 +166,12 @@ def test_low_confidence_defers_to_the_operators_price(db: Path):
         rec = recommend_night(conn, feats[0], policy=policy)
     assert rec is not None
     drop = (rec.listed_price_at_run - rec.recommended_price) / rec.listed_price_at_run
-    assert drop < 0.20, f"model overruled the operator by {drop:.0%} on thin evidence"
+    assert rec.weak_ceiling
+    # Thin ceilings are advisory: they must not pull the rec below the move cap.
+    assert rec.recommended_price >= rec.move_cap_price - 1e-6
+    ceiling_bound = rec.recommended_price >= rec.ceiling_price - 1.0
+    if not ceiling_bound:
+        assert drop < 0.20, f"model overruled the operator by {drop:.0%} on thin evidence"
     assert rec.ceiling_confidence < 0.80
 
 
@@ -277,7 +282,8 @@ def test_sync_calendar_and_reservations_trace_realised_price_into_nightly_invent
         rows = {
             r["stay_date"]: r
             for r in conn.execute(
-                "SELECT stay_date, listed_price, booked_price, status, channel, guest_count "
+                "SELECT stay_date, listed_price, booked_price, status, channel, guest_count, "
+                "evidence_kind "
                 "FROM nightly_inventory WHERE property_id='test_haus' ORDER BY stay_date"
             ).fetchall()
         }
@@ -286,6 +292,7 @@ def test_sync_calendar_and_reservations_trace_realised_price_into_nightly_invent
     assert rows["2026-12-20"]["status"] == "available"
     assert rows["2026-12-20"]["listed_price"] == pytest.approx(480.0)
     assert rows["2026-12-20"]["booked_price"] is None
+    assert rows["2026-12-20"]["evidence_kind"] == "guesty_readonly"
 
     # Booked nights: realised nightly rate = fareAccommodation / nightsCount = 750.0,
     # not the $1,500 stay total and not the pre-booking $480 listed calendar price.
@@ -366,6 +373,25 @@ def test_sync_keeps_extra_listing_out_of_default_scope(tmp_path: Path):
         assert scoped == ["summit_haus"]
         assert "creekside_haven" not in scoped
         assert get_db_identity(conn).kind == "production"
+
+
+def test_sync_property_filter_skips_extra_listing(tmp_path: Path):
+    path = tmp_path / "sync-filter.db"
+    init_db(path)
+    locked = _listing(listing_id="69f3fce1fd7011001188056e", nickname="Summit Haus")
+    extra = _listing(listing_id="zzzzzzzzzzzzzzzzzzzzzzzz", nickname="Creekside Haven")
+    client = _FakeGuestyClient([locked, extra], {}, [])
+    with connect(path) as conn:
+        report = sync_all(
+            conn, client, horizon_days=1, history_days=1, property_ids=["summit_haus"]
+        )
+        assert report.listings == 1
+        ids = {
+            r["property_id"]
+            for r in conn.execute("SELECT property_id FROM properties")
+        }
+        assert ids == {"summit_haus"}
+        assert get_db_identity(conn).kind != "production"
 
 
 # ---------------------------------------------------------- write-path safety

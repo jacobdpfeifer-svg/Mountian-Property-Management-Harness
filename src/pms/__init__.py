@@ -186,7 +186,7 @@ def push_recommendations(
     adapter: PMSAdapter,
     autonomy_level: str,
     policy: dict[str, Any] | None = None,
-) -> dict[str, int]:
+) -> dict[str, Any]:
     """Write rates for recommendations cleared to 'handle'. Every attempt is audited.
 
     Refuses to write anything unless the run was granted 'handle' by the data-health

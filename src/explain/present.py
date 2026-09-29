@@ -33,6 +33,8 @@ COMPOSE_REASON_CODES: frozenset[str] = frozenset({
     "min_stay",
     "inquiry_soft",
     "guardrail",
+    "weak_ceiling",
+    "memory_constraint",
 })
 
 # Tokens that must never appear in the default owner surface.
@@ -71,7 +73,10 @@ def _tpl_revpan_optimum(f: dict[str, Any]) -> str:
     book_prob = f.get("book_prob")
     if optimum is None:
         return "This rate is set where expected nightly revenue is highest."
-    if book_prob is None:
+    pacing_days = f.get("pacing_days")
+    min_days = int(f.get("min_pacing_days_for_display") or 14)
+    calibrated = pacing_days is not None and int(pacing_days) >= min_days
+    if book_prob is None or not calibrated:
         return (
             f"Expected nightly revenue is highest around {_money(optimum)}."
         )
@@ -260,7 +265,28 @@ def _tpl_guardrail(f: dict[str, Any]) -> str:
         )
     if action == "peak_blackout":
         return "This is a peak night that requires a person to approve the rate before it is published."
+    if action == "memory_floor_above_ceiling":
+        return (
+            "A confirmed claim would have raised the floor above the ceiling, "
+            "so this night is held for review and neither bound was chosen as the rate."
+        )
     return "A pricing safety rule adjusted this rate."
+
+
+def _tpl_memory_constraint(f: dict[str, Any]) -> str:
+    refs = f.get("claim_refs") or []
+    ref = refs[0] if refs else "a confirmed claim"
+    return (
+        f"A confirmed operator claim ({ref}) raised the lower bound for this night. "
+        "The engine still chose the rate inside the existing guardrails."
+    )
+
+
+def _tpl_weak_ceiling(f: dict[str, Any]) -> str:
+    return (
+        "This rate is advisory: the ceiling is weakly evidenced, so it should not "
+        "be read as a precise market price."
+    )
 
 
 def _tpl_lead_time(f: dict[str, Any]) -> str:
@@ -293,6 +319,8 @@ OWNER_TEMPLATES: dict[str, Callable[[dict[str, Any]], str]] = {
     "min_stay": _tpl_min_stay,
     "inquiry_soft": _tpl_inquiry_soft,
     "guardrail": _tpl_guardrail,
+    "memory_constraint": _tpl_memory_constraint,
+    "weak_ceiling": _tpl_weak_ceiling,
     "lead_time": _tpl_lead_time,
     "dow": _tpl_dow,
     "season": _tpl_season,
@@ -427,6 +455,8 @@ def format_owner_recommendation(rec: Any, *, technical: bool = False) -> str:
         pct = (point - float(listed)) / float(listed)
         delta = f" ({pct:+.1%} vs listed)"
     flag = f"  [{rec.status.upper()}]" if getattr(rec, "status", "") == "blocked" else ""
+    if getattr(rec, "weak_ceiling", False):
+        flag += "  [advisory, weak ceiling]"
     los = ""
     if getattr(rec, "recommended_min_stay", None) is not None:
         src = getattr(rec, "min_stay_source", "") or ""

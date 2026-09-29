@@ -44,9 +44,9 @@ reasoning holds up when compared *afterward* with Guesty and the generic mountai
    run would price it. Always scope to `overlook_ridge`.
 2. **Guesty write adapter is off-limits** — never write rates back. Live calendars
    must be unchanged. Confirm `Guesty write count: 0` in the report.
-3. **`round_price_conservative` ceiling-overrun defect** — rounding may push a valid
-   recommendation past the ceiling and make it fail the independent audit. Watch for it;
-   classify, don't patch.
+3. **Rounding vs ceiling** — `round_price_conservative` is clamped back inside
+   floor/ceiling. Still record nights where move-cap/blackout leave the rec above a
+   *weak* computed ceiling; label those advisory, don't patch during this run.
 4. **Incomplete pacing history** — booking-probability output must be reported as **weak /
    uncalibrated**, never as validated demand.
 5. **Guesty data must not be inspected before the blind run is frozen** — enforce the
@@ -78,8 +78,13 @@ Do not fix anything. Classify every finding as: **experiment blocker · measurem
 limitation · recommendation-quality risk · operational-risk finding · low-priority
 improvement.**
 
-## Phase 1 — blind data acquisition (no Guesty prices)
-Build the best independent input set available, without touching Guesty prices:
+## Phase 1 — independent comps; read-only owned calendar
+
+Build the best independent *comp* set available. Owned forward nights are **not**
+public-Airbnb-blind: after comps, seed calendars with
+`wp-price seed-forward-inventory --property overlook_ridge --source guesty-readonly --db /tmp/testrun_overlook_ridge.db`
+(see `docs/testrun/INVENTORY_PROTOCOL.md`). Guesty listed prices may enter compose as
+the incumbent rate. They are not comps. Writes remain forbidden.
 - initialize the isolated DB;
 - load only permitted non-Guesty property/market inputs;
 - discover the market independently (`wp-price discover-comps --date <D>` across peak_ski,

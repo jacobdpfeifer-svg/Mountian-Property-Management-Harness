@@ -73,3 +73,9 @@ def round_price_conservative(value: float, anchor: float | None, round_to: int =
     if value < anchor:
         return float(math.ceil(value / round_to) * round_to)
     return float(round(value / round_to) * round_to)
+
+
+def clamp_price(value: float, low: float, high: float) -> float:
+    """Keep a rounded price inside [low, high]."""
+    lo, hi = (low, high) if low <= high else (high, low)
+    return min(max(value, lo), hi)
