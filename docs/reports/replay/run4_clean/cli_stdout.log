@@ -1,0 +1,5 @@
+Replayed 10 decision day(s) over 10101 night-decisions; censor 2026-09-29; Guesty writes=0
+Calibration: unmeasurable (87 resolved nights)
+  json: docs/reports/replay/run4_clean/replay_2026-09-29.json
+  csv: docs/reports/replay/run4_clean/replay_2026-09-29.csv
+  html: docs/reports/replay/run4_clean/replay_2026-09-29.html

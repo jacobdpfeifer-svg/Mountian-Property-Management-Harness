@@ -16,6 +16,13 @@ def connect_memory(root: Path | None = None) -> sqlite3.Connection:
     conn = sqlite3.connect(str(layout / DB_NAME))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 10000")
+    try:
+        conn.execute("PRAGMA journal_mode = WAL")
+    except sqlite3.DatabaseError:
+        # A private store on a read-only/removable filesystem should fail on the
+        # next write, not silently relax its foreign-key or transaction contract.
+        pass
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     return conn
 

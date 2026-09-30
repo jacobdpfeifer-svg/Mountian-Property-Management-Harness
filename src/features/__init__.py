@@ -89,16 +89,32 @@ def _db_demand(
     return {d: (s, n) for d, (s, n, _) in best.items()}
 
 
-def _orphan_gaps(conn: sqlite3.Connection, property_id: str, max_gap: int) -> dict[date, int]:
+def _orphan_gaps(
+    conn: sqlite3.Connection,
+    property_id: str,
+    max_gap: int,
+    *,
+    as_of: date | None = None,
+) -> dict[date, int]:
     """Return available dates that sit in a 1..max_gap hole between booked nights."""
-    rows = conn.execute(
-        """
-        SELECT stay_date, status FROM nightly_inventory
-        WHERE property_id = ?
-        ORDER BY stay_date
-        """,
-        (property_id,),
-    ).fetchall()
+    if as_of is None:
+        rows = conn.execute(
+            """
+            SELECT stay_date, status FROM nightly_inventory
+            WHERE property_id = ?
+            ORDER BY stay_date
+            """,
+            (property_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT stay_date, status FROM pacing_snapshots
+            WHERE property_id = ? AND as_of = ?
+            ORDER BY stay_date
+            """,
+            (property_id, as_of.isoformat()),
+        ).fetchall()
     if not rows:
         return {}
     by_date = {parse_date(r["stay_date"]): r["status"] for r in rows}
@@ -154,7 +170,23 @@ def build_features_for_property(
     )
     event_demand.update(_db_demand(conn, region=demand_region))
     max_gap = int(policy.get("leakage", {}).get("orphan_gap", {}).get("max_gap_nights", 2))
-    orphan = _orphan_gaps(conn, property_id, max_gap)
+    orphan = _orphan_gaps(conn, property_id, max_gap, as_of=as_of)
+
+    # Replay callers pass `as_of`; use the decision-day pacing snapshot for the
+    # calendar state and listed price. Current inventory is a mutable present-day
+    # table and must not stand in for what was known on the virtual decision day.
+    pacing_by_date: dict[str, sqlite3.Row] = {}
+    if as_of is not None:
+        pacing_by_date = {
+            r["stay_date"]: r
+            for r in conn.execute(
+                """
+                SELECT stay_date, status, listed_price, days_out
+                FROM pacing_snapshots WHERE property_id = ? AND as_of = ?
+                """,
+                (property_id, as_of.isoformat()),
+            ).fetchall()
+        }
 
     rows = conn.execute(
         """
@@ -177,9 +209,16 @@ def build_features_for_property(
     features: list[NightFeatures] = []
     for row in rows:
         stay = parse_date(row["stay_date"])
+        snapshot = pacing_by_date.get(row["stay_date"])
+        status = snapshot["status"] if snapshot is not None else row["status"]
+        listed_price = (
+            snapshot["listed_price"] if snapshot is not None else row["listed_price"]
+        )
         season, season_mult = season_for(stay, seasons)
         lead = row["lead_time_days"]
-        if lead is None and row["status"] == "available":
+        if snapshot is not None and snapshot["days_out"] is not None:
+            lead = snapshot["days_out"]
+        if lead is None and status == "available":
             lead = (stay - as_of).days
             if lead < 0:
                 lead = 0
@@ -188,8 +227,8 @@ def build_features_for_property(
             NightFeatures(
                 property_id=property_id,
                 stay_date=stay,
-                status=row["status"],
-                listed_price=float(row["listed_price"]) if row["listed_price"] is not None else None,
+                status=status,
+                listed_price=float(listed_price) if listed_price is not None else None,
                 booked_price=float(row["booked_price"]) if row["booked_price"] is not None else None,
                 lead_time_days=int(lead) if lead is not None else None,
                 day_of_week=int(row["day_of_week"] if row["day_of_week"] is not None else stay.weekday()),

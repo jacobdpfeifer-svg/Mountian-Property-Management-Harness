@@ -152,3 +152,67 @@ def test_pacing_ratio_ignores_future_snapshots(db: Path):
     assert ratio_pit > 2.0
     assert ratio_future is not None
     assert ratio_pit > ratio_future
+
+
+def test_lead_conditioning_uses_resolved_open_nights(tmp_path):
+    """A night still open 3 days out must not inherit the all-time booking rate.
+
+    Thirty past nights were each available 3 days before check-in and only three
+    of them sold after that snapshot; the lead-conditioned p_ref must fall well
+    below the unconditioned one, and nights after the decision date must not count.
+    """
+    import copy
+    from datetime import date, timedelta
+
+    from src.bookprob import estimate
+    from src.config import load_policy
+    from src.db import connect, init_db
+    from src.features import build_features_for_property
+
+    path = tmp_path / "lead.db"
+    init_db(path)
+    decision = date(2026, 9, 20)
+    target = decision + timedelta(days=3)
+    with connect(path) as conn:
+        conn.execute(
+            """INSERT INTO properties (property_id,name,bedrooms,bathrooms,amenities,
+               base_ceiling_rate,min_floor_rate,max_ceiling_rate,timezone,pms_listing_id)
+               VALUES ('h','H',5,5,'[]',2000,300,5000,'America/Denver','x')"""
+        )
+        for i in range(1, 31):
+            stay = decision - timedelta(days=i)
+            seen = stay - timedelta(days=3)
+            conn.execute(
+                "INSERT INTO pacing_snapshots (as_of, property_id, stay_date, days_out, status) "
+                "VALUES (?, 'h', ?, 3, 'available')",
+                (seen.isoformat(), stay.isoformat()),
+            )
+            if i <= 3:
+                conn.execute(
+                    "INSERT INTO reservations (reservation_id, property_id, check_in, check_out, "
+                    "status, source, confirmed_at) VALUES (?, 'h', ?, ?, 'confirmed', 'airbnb2', ?)",
+                    (f"r{i}", stay.isoformat(), (stay + timedelta(days=1)).isoformat(),
+                     (seen + timedelta(days=1)).isoformat()),
+                )
+        # A future open night is unresolved and must be ignored.
+        conn.execute(
+            "INSERT INTO pacing_snapshots (as_of, property_id, stay_date, days_out, status) "
+            "VALUES (?, 'h', ?, 3, 'available')",
+            (decision.isoformat(), target.isoformat()),
+        )
+        conn.execute(
+            "INSERT INTO nightly_inventory (property_id, stay_date, listed_price, status, "
+            "day_of_week, lead_time_days) VALUES ('h', ?, 1000, 'available', ?, 3)",
+            (target.isoformat(), target.weekday()),
+        )
+        conn.commit()
+        policy = load_policy()
+        off = copy.deepcopy(policy)
+        off["booking_probability"]["lead_conditioning"]["enabled"] = False
+        feat = build_features_for_property(conn, "h", target, target, policy=policy, as_of=decision)[0]
+        on = estimate(conn, feat, policy, as_of=decision)
+        base = estimate(conn, feat, off, as_of=decision)
+    assert "lead:" in on.bucket and "n=30" in on.bucket
+    assert on.p_ref < base.p_ref
+    # (3 hits + 12 * prior) / (30 + 12): dominated by the 10% observed rate.
+    assert on.p_ref == pytest.approx((3 + 12 * base.p_ref) / 42, rel=1e-6)

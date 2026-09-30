@@ -61,6 +61,8 @@ class ReceiptFacts:
     failures: list[str]
     health_as_of: str | None
     pushed: int
+    failed_writes: int = 0
+    dry_runs: int = 0
     pushed_ids: set[int] = field(default_factory=set)
     pending_claims: list[dict[str, Any]] = field(default_factory=list)
 
@@ -167,19 +169,30 @@ def _load(conn: sqlite3.Connection, run_id: str) -> ReceiptFacts:
             failures = [str(item) for item in parsed]
     ids = [night.recommendation_id for night in nights]
     pushed_ids: set[int] = set()
+    failed_writes = 0
+    dry_runs = 0
     if ids:
         marks = ",".join("?" for _ in ids)
-        pushed_ids = {
-            int(row["recommendation_id"])
-            for row in conn.execute(
+        for row in conn.execute(
                 f"""
-                SELECT recommendation_id FROM rate_changes
+                SELECT recommendation_id, result FROM rate_changes
                 WHERE recommendation_id IN ({marks}) AND result = 'applied'
                 """,
                 ids,
-            )
-            if row["recommendation_id"] is not None
-        }
+            ):
+            if row["recommendation_id"] is not None:
+                pushed_ids.add(int(row["recommendation_id"]))
+        outcome_rows = conn.execute(
+            f"""
+            SELECT result, COUNT(*) AS n FROM rate_changes
+            WHERE recommendation_id IN ({marks})
+            GROUP BY result
+            """,
+            ids,
+        ).fetchall()
+        outcomes = {str(row["result"]): int(row["n"]) for row in outcome_rows}
+        failed_writes = outcomes.get("failed", 0)
+        dry_runs = outcomes.get("dry_run", 0)
     return ReceiptFacts(
         run_id=run_id,
         nights=nights,
@@ -187,6 +200,8 @@ def _load(conn: sqlite3.Connection, run_id: str) -> ReceiptFacts:
         failures=failures,
         health_as_of=health_as_of,
         pushed=len(pushed_ids),
+        failed_writes=failed_writes,
+        dry_runs=dry_runs,
         pushed_ids=pushed_ids,
     )
 
@@ -426,10 +441,12 @@ def render_receipt(facts: ReceiptFacts, *, pending: list[dict[str, Any]] | None 
         when = stamp.strftime("%a %b %-d, %-I:%M %p UTC")
     except ValueError:
         when = created or "undated run"
+    scope_ids = {night.property_id for night in facts.nights}
     scope = " · ".join(
         names.get(pid, pid)
         for pid in ("summit_haus", "overlook_ridge", "cloud_9")
-    )
+        if pid in scope_ids
+    ) or "no recommendation rows"
     if not cards:
         body = "<p class=\"quiet\">No decision needs you.</p>"
     else:
@@ -442,11 +459,13 @@ def render_receipt(facts: ReceiptFacts, *, pending: list[dict[str, Any]] | None 
         items = []
         for claim in pending:
             label = names.get(str(claim.get("property_id") or ""), str(claim.get("property_id") or "unspecified"))
+            minimum = claim.get("minimum")
+            value = f" · minimum {_money(float(minimum))}" if minimum is not None else ""
             items.append(
                 "<li>"
                 + _e(
                     f"{claim.get('claim_id')} · {label} · {claim.get('stay_from') or '—'}–"
-                    f"{claim.get('stay_to') or '—'} · {claim.get('kind')} · {claim.get('status')}"
+                    f"{claim.get('stay_to') or '—'} · {claim.get('kind')}{value} · {claim.get('status')}"
                 )
                 + "</li>"
             )
@@ -481,7 +500,7 @@ def render_receipt(facts: ReceiptFacts, *, pending: list[dict[str, Any]] | None 
 <section>
   <h2>Today's position</h2>
   <p>{_e(position)}</p>
-  <p>Since last receipt: {suggested} suggested · {facts.pushed} pushed · {held} held · {len(pending)} memory claim pending.</p>
+  <p>Run: {suggested} recommendation(s) · {facts.pushed} pushed · {facts.failed_writes} failed · {facts.dry_runs} dry-run · {held} held · {len(pending)} memory claim pending.</p>
 </section>
 {body}
 <section>
@@ -489,7 +508,7 @@ def render_receipt(facts: ReceiptFacts, *, pending: list[dict[str, Any]] | None 
   <ul>
     <li>{_e(facts.health_as_of or "health time not stored")} · granted { _e(facts.granted_level or "unknown") }</li>
     {failure_lines}
-    <li>{facts.pushed} channel writes</li>
+    <li>{facts.pushed} applied channel write(s) · {facts.failed_writes} failed · {facts.dry_runs} dry-run</li>
   </ul>
 </section>
 <section>

@@ -23,3 +23,8 @@ build/
 data/.guesty_token.json
 **/*token*.json
 **/*credentials*
+
+# Operator DB copies made by replay/testrun runs — operator data, never commit
+docs/reports/**/*.db
+docs/reports/**/*.db-wal
+docs/reports/**/*.db-shm

@@ -40,19 +40,24 @@ holds only stable references/hashes required for reproducibility. A future backu
 use a SQLite-consistent backup plus encrypted local destination; copying a live WAL file
 by hand is not a backup protocol.
 
-## Accepted and rejected initial file types
+## Actual v1 file behavior (audited 2026-09-29)
 
-| Initial disposition | Types | Reason |
+| Initial disposition | Types | Actual behavior and reason |
 |---|---|---|
-| Accept into quarantine for review | PDF (`application/pdf`), UTF-8 `.txt`/`.md`, JPEG/PNG/HEIC image, M4A/WAV audio | Covers rate sheets, notes/photos and voice memo evidence with bounded parsers. |
+| May become a typed claim | UTF-8 `.txt` / `.md` only | Magic bytes/type and text PII checks pass, ClamAV must return clean, then the deterministic fenced-claim parser may create a **proposed** claim. No unstructured text is a pricing input. |
+| Quarantine only; not yet memory | PDF, JPEG/PNG/HEIC image, M4A/WAV audio | v1 has no PDF/OCR/audio PII or claim extractor. It records `manual_privacy_review_required`; no active claim can result. This is an honest capability limit, not an error state to work around. |
 | Accept only through existing structured workflows | Guesty/API sync, CSV/iCal for inventory/comps | They are observations, not private memory; preserve idempotent ingest and `COMP_DATA.md` gates. |
 | Reject in v1 | ZIP/RAR/7z, Office macros, executable/script, HTML, EML/MSG, database files, password-protected/encrypted archive, unknown/mismatched MIME | Avoid macro/archive/parser and email identity risks. Forwarded email may be added later only with a dedicated privacy review. |
 
-Every intake verifies filename normalization, byte limit (25 MiB), allowlisted extension,
-magic bytes/content type, SHA-256, malware scan and parser time/page/duration limits.
-No archive is expanded. A mismatch, scanner failure, PII/secrets hit, malformed document,
-or queue overflow remains `quarantined`, produces no claim and asks the operator to
-delete or export it. Success means “eligible for review,” never “remembered.”
+Every intake discards the original filename, verifies byte limit (25 MiB), allowlisted
+extension, magic bytes/content type, SHA-256 and a bounded queue. No archive is expanded. Text
+files are copied into quarantine while `clamscan` runs; **a missing, failed or positive
+scanner result fails closed**. A mismatch, scanner failure, PII/secrets hit, malformed
+document or binary PII-unscannability remains `quarantined`, produces no claim and asks
+the operator to delete or export it. Queue overflow deliberately stores **metadata only**
+with status `discarded`; it does not copy another potentially huge file into private
+storage. Finder symlinks are rejected without following their target. Success means
+“eligible for review,” never “remembered.”
 
 ## State machine
 
@@ -127,19 +132,22 @@ specific evidence span without displaying sensitive text.
 | `no_decrease` | exact property + finite date range | Yes, after confirmation | `effective_floor = max(policy_floor, listed_price_at_run)`; only protects against a downward move, still respects ceiling/move cap/blackout. |
 
 Price-bearing claims are additionally limited to 90 days per revision, require a
-`review_after`, start `proposed`, and are **advisory-only** for their first accepted
-cycle: the receipt shows their counterfactual effect but `handle` cannot auto-push on
-their account. Reconfirmation after review is a policy decision, not a quiet extension.
-A claim that would make floor exceed ceiling produces `escalate`; it is never resolved
-by choosing either side.
+`review_after` that is no earlier than their final stay date, and start `proposed`.
+In v1, **any active price-bearing claim demotes an otherwise-`handle` recommendation to
+`suggest`**. This is deliberately stronger than the initial “first accepted cycle” idea:
+there is no auto-push path for memory-touched recommendations. A claim that would make
+floor exceed ceiling produces `escalate`; it is never resolved by choosing either side.
 
 ## Scope, freshness, contradiction and compounding
 
 - `property_id` is canonical and mandatory for price-bearing claims. Display labels and
   owner IDs are never matching keys. A “both twins” instruction creates two explicit
   claims with two confirmations.
-- An active claim is usable only if `accepted_at <= as_of`, its effective range covers
-  the stay date, it is not expired/revoked/superseded, and it passes current validation.
+- An active claim is usable only if its confirmation falls on or before `as_of`, its
+  effective range covers the stay date, `as_of <= review_after`, it is not
+  revoked/superseded, and it passes current validation. `accepted_at` is stored in UTC
+  and compared as an America/Denver calendar day, so an evening confirmation counts on
+  that Mountain Time day. In v1 `review_after` is a hard expiry, not merely a reminder.
   This prevents future knowledge entering historical evaluations.
 - Exact SHA-256 means file N+1 can be a no-op duplicate. Semantic similarity can propose
   a duplicate/contradiction link, but cannot merge or supersede. Same kind, property and

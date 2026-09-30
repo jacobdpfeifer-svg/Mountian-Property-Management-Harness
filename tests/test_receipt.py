@@ -157,3 +157,34 @@ def test_receipt_cli(tmp_path: Path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "cli.html" in out
     assert "A stored reason." in Path(out.strip()).read_text(encoding="utf-8")
+
+
+def test_receipt_uses_actual_scope_and_reports_write_outcomes(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("MONTLUXE_MEMORY_ROOT", str(tmp_path / "memory"))
+    db = tmp_path / "wp.db"
+    init_db(db, seed_markets=False)
+    with connect(db) as conn:
+        _property(conn, "cloud_9")
+        _night(
+            conn, run_id="outcomes", property_id="cloud_9", stay_date=date(2026, 2, 1),
+            price=1100, ceiling=1500, floor=700, listed=1000,
+            reasons=[{"code": "event_boost", "message": "A stored reason.", "contribution": 100}],
+        )
+        recommendation_id = conn.execute(
+            "SELECT id FROM price_recommendations WHERE run_id = 'outcomes'"
+        ).fetchone()["id"]
+        for result in ("dry_run", "failed"):
+            conn.execute(
+                """
+                INSERT INTO rate_changes (
+                    recommendation_id, property_id, stay_date, new_price, actor,
+                    autonomy_level, result
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (recommendation_id, "cloud_9", "2026-02-01", 1100, "test", "suggest", result),
+            )
+        conn.commit()
+    text = write_receipt(db, "outcomes").read_text(encoding="utf-8")
+    assert "Scope: Cloud 9." in text
+    assert "dry-run" in text
+    assert "failed" in text

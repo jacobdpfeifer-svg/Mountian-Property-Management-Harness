@@ -78,3 +78,32 @@ def test_shadow_record_cli_and_refuses_guesty_writes(tmp_path: Path, capsys):
         conn.commit()
         with pytest.raises(GuestyWriteForbidden):
             record_shadow_day(conn, as_of=date(2026, 12, 1), property_id="aspen_glow")
+
+
+def test_shadow_record_uses_latest_run_not_an_arbitrary_one(tmp_path: Path):
+    """Regression: the join matched every historical run for a night, so the
+    recorded engine price was whichever run the scan returned last."""
+    db = tmp_path / "shadow.db"
+    _seed(db)
+    policy = load_policy()
+    with connect(db) as conn:
+        generate_recommendations(
+            conn, date(2026, 12, 1), date(2026, 12, 3),
+            property_ids=["aspen_glow"], policy=policy, run_id="old",
+        )
+        generate_recommendations(
+            conn, date(2026, 12, 1), date(2026, 12, 3),
+            property_ids=["aspen_glow"], policy=policy, run_id="new",
+        )
+        conn.execute("UPDATE price_recommendations SET created_at='2026-11-01 00:00:00' WHERE run_id='old'")
+        conn.execute("UPDATE price_recommendations SET recommended_price=1 WHERE run_id='old'")
+        conn.execute("UPDATE price_recommendations SET created_at='2026-11-30 00:00:00' WHERE run_id='new'")
+        conn.commit()
+        record_shadow_day(conn, as_of=date(2026, 12, 1), property_id="aspen_glow")
+        rows = conn.execute(
+            "SELECT rec_run_id, recommended_price, expected_book_prob, lead_time_days, stay_date "
+            "FROM shadow_daily WHERE stay_date <= '2026-12-03' ORDER BY stay_date"
+        ).fetchall()
+    assert rows and {r["rec_run_id"] for r in rows if r["recommended_price"]} == {"new"}
+    assert all(r["recommended_price"] != 1 for r in rows)
+    assert rows[0]["lead_time_days"] == 0

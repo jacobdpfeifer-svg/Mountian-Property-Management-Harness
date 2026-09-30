@@ -49,11 +49,18 @@ def run_engine_season(
     moat_off: bool = False,
     run_id: str | None = None,
     decision_step_days: int = 7,
+    apply_to_listed: bool = True,
 ) -> EngineRunResult:
     """Run the real pricing pipeline once per simulated decision day.
 
-    ``decision_step_days`` defaults to weekly cadence for Phase 0 wall-clock time.
-    Daily stepping remains the Phase B target once run caching lands.
+    ``decision_step_days`` defaults to weekly cadence. Daily stepping costs about
+    0.2s per simulated day per property since the 2026-09-29 run cache.
+
+    ``apply_to_listed`` closes the loop the way a (dry-run) push would: the
+    engine's price becomes the night's listed price for the next decision. Without
+    it, every decision re-anchored its move caps and low-confidence deference to the
+    world's original skeleton price, so the engine could never converge and its
+    score reflected the skeleton more than its own policy.
     """
     run_id = run_id or uuid.uuid4().hex[:12]
     policy = load_policy()
@@ -67,7 +74,7 @@ def run_engine_season(
         while d <= world.season_end:
             world.advance(conn, d, level=level)
             take_snapshot(conn, as_of=d)
-            generate_recommendations(
+            recs, _health = generate_recommendations(
                 conn,
                 d,
                 world.season_end,
@@ -78,6 +85,15 @@ def run_engine_season(
                 as_of=d,
                 run_id=run_id,
             )
+            if apply_to_listed:
+                conn.executemany(
+                    """
+                    UPDATE nightly_inventory SET listed_price = ?
+                    WHERE property_id = ? AND stay_date = ? AND status = 'available'
+                    """,
+                    [(r.recommended_price, r.property_id, r.stay_date.isoformat()) for r in recs],
+                )
+                conn.commit()
             decision_days += 1
             d += timedelta(days=step)
 

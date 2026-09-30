@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -12,12 +13,24 @@ DEFAULT_POLICY_PATH = ROOT / "config" / "policies" / "default.yaml"
 EVENTS_PATH = ROOT / "config" / "policies" / "events.yaml"
 
 
+# Parsed YAML keyed by (path, mtime_ns, size). The engine loads policy/conditions/
+# events once per night per module (≈5k parses per property-day, ~30% of runtime).
+# A file edit changes mtime/size and forces a re-parse; callers get a deep copy so
+# mutating a returned dict can never leak into another caller.
+_YAML_CACHE: dict[tuple[str, int, int], dict[str, Any]] = {}
+
+
 def load_yaml(path: Path) -> dict[str, Any]:
-    with path.open(encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
-    if not isinstance(data, dict):
-        raise ValueError(f"Expected mapping in {path}")
-    return data
+    st = path.stat()
+    key = (str(path.resolve()), st.st_mtime_ns, st.st_size)
+    cached = _YAML_CACHE.get(key)
+    if cached is None:
+        with path.open(encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        if not isinstance(data, dict):
+            raise ValueError(f"Expected mapping in {path}")
+        _YAML_CACHE[key] = cached = data
+    return copy.deepcopy(cached)
 
 
 def load_policy(path: Path | None = None) -> dict[str, Any]:

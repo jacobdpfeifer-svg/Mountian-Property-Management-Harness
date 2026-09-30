@@ -339,9 +339,103 @@ def test_sync_reservations_skips_cancelled_and_unmatched_listing(db: Path):
     with connect(db) as conn:
         listings = sync_listings(conn, client, report)
         sync_reservations(conn, client, listings, report)
-        count = conn.execute("SELECT COUNT(*) c FROM reservations").fetchone()["c"]
-    assert count == 0
+        rows = conn.execute("SELECT reservation_id, status, confirmed_at FROM reservations").fetchall()
+        inv = conn.execute("SELECT COUNT(*) c FROM nightly_inventory WHERE status='booked'").fetchone()["c"]
+    # The cancellation is kept as demand evidence, never as a booking.
+    assert [(r["reservation_id"], r["status"], r["confirmed_at"]) for r in rows] == [
+        ("res-cancelled", "cancelled", None)
+    ]
+    assert inv == 0
     assert report.reservations == 0
+
+
+def _res(rid: str, status: str, source: str, ci: str, co: str, fare: float) -> dict:
+    return {
+        "_id": rid, "listingId": "abc123", "checkIn": ci, "checkOut": co,
+        "status": status, "source": source,
+        "createdAt": "2026-09-01T00:00:00.000Z",
+        "confirmedAt": "2026-09-02T00:00:00.000Z" if status == "confirmed" else None,
+        "money": {"fareAccommodation": fare},
+    }
+
+
+def test_inquiry_and_owner_stays_never_become_market_bookings(db: Path):
+    """An inquiry is a question, not a sale; an owner stay is off-market, not a sale.
+
+    Regression: sync used to write every non-cancelled reservation as a booked night
+    with the quote as `booked_price`, so inquiries hid real availability from pricing
+    and owner stays taught the ceiling a price nobody paid.
+    """
+    listing = _listing(listing_id="abc123", nickname="Test Haus")
+    days = [
+        {"date": f"2026-12-{d:02d}", "status": "available", "price": 500, "minNights": 2}
+        for d in range(1, 7)
+    ]
+    days[4]["status"] = days[5]["status"] = "unavailable"
+    client = _FakeGuestyClient(
+        [listing],
+        {"abc123": days},
+        [
+            _res("inq-1", "inquiry", "airbnb2", "2026-12-01", "2026-12-03", 2466.0),
+            _res("conf-1", "confirmed", "airbnb2", "2026-12-03", "2026-12-05", 1000.0),
+            _res("own-1", "confirmed", "owner", "2026-12-05", "2026-12-07", 0.0),
+        ],
+    )
+    report = SyncReport()
+    with connect(db) as conn:
+        listings = sync_listings(conn, client, report)
+        sync_calendar(conn, client, listings, date(2026, 12, 1), date(2026, 12, 6), report)
+        sync_reservations(conn, client, listings, report)
+        rows = {
+            r["stay_date"]: r
+            for r in conn.execute(
+                "SELECT stay_date, status, booked_price, booked_at, reservation_id, channel "
+                "FROM nightly_inventory WHERE property_id='test_haus'"
+            ).fetchall()
+        }
+        stored = {
+            r["reservation_id"]: r["confirmed_at"]
+            for r in conn.execute("SELECT reservation_id, confirmed_at FROM reservations")
+        }
+    for d in ("2026-12-01", "2026-12-02"):
+        assert rows[d]["status"] == "available"
+        assert rows[d]["booked_price"] is None and rows[d]["reservation_id"] is None
+    for d in ("2026-12-03", "2026-12-04"):
+        assert rows[d]["status"] == "booked"
+        assert rows[d]["booked_price"] == pytest.approx(500.0)
+    for d in ("2026-12-05", "2026-12-06"):
+        assert rows[d]["status"] == "blocked"
+        assert rows[d]["booked_price"] is None and rows[d]["channel"] == "owner"
+    # Inquiries are kept as demand evidence, but never carry a booking stamp.
+    assert stored == {"inq-1": None, "conf-1": "2026-09-02T00:00:00.000Z", "own-1": None}
+    assert report.reservations == 2 and report.reservations_with_confirmed_at == 1
+
+
+def test_calendar_resync_clears_a_cancelled_booking(db: Path):
+    """Once Guesty shows a night available again, its old sale must not linger."""
+    listing = _listing(listing_id="abc123", nickname="Test Haus")
+    booked_day = [{"date": "2026-12-10", "status": "booked", "price": 500, "minNights": 1}]
+    client = _FakeGuestyClient(
+        [listing], {"abc123": booked_day},
+        [_res("conf-9", "confirmed", "airbnb2", "2026-12-10", "2026-12-11", 700.0)],
+    )
+    with connect(db) as conn:
+        listings = sync_listings(conn, client, SyncReport())
+        sync_calendar(conn, client, listings, date(2026, 12, 10), date(2026, 12, 10), SyncReport())
+        sync_reservations(conn, client, listings, SyncReport())
+        booked_day[0]["status"] = "available"
+        client._reservations = [
+            _res("conf-9", "canceled", "airbnb2", "2026-12-10", "2026-12-11", 700.0)
+        ]
+        sync_calendar(conn, client, listings, date(2026, 12, 10), date(2026, 12, 10), SyncReport())
+        sync_reservations(conn, client, listings, SyncReport())
+        row = conn.execute(
+            "SELECT status, booked_price, booked_at, reservation_id FROM nightly_inventory "
+            "WHERE property_id='test_haus' AND stay_date='2026-12-10'"
+        ).fetchone()
+    assert row["status"] == "available"
+    assert row["booked_price"] is None and row["booked_at"] is None
+    assert row["reservation_id"] is None
 
 
 def test_sync_listings_warns_when_no_weekend_differential(db: Path):

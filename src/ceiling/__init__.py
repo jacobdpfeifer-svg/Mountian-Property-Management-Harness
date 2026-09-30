@@ -28,6 +28,7 @@ import numpy as np
 from src.comps import CompEvidence, comp_evidence
 from src.config import load_events
 from src.features import NightFeatures, _demand_index, _db_demand
+from src.runcache import memo
 from src.utils import parse_date, season_for
 
 
@@ -45,6 +46,10 @@ def demand_tier(strength: float, policy: dict[str, Any]) -> str:
 
 def demand_index(conn: sqlite3.Connection) -> dict[date, float]:
     """date -> demand strength, from events.yaml plus any DB signals (shim)."""
+    return dict(memo(("demand_index", id(conn)), lambda: _demand_index_uncached(conn)))
+
+
+def _demand_index_uncached(conn: sqlite3.Connection) -> dict[date, float]:
     index: dict[date, float] = {d: v[0] for d, v in _demand_index(load_events()).items()}
     index.update({d: v[0] for d, v in _db_demand(conn).items()})
     return index

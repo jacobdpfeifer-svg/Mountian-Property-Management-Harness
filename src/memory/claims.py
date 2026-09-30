@@ -5,6 +5,7 @@ from __future__ import annotations
 import getpass
 import hashlib
 import json
+import math
 import re
 import sqlite3
 import uuid
@@ -45,7 +46,10 @@ def _now() -> str:
 def _parse_day(value: str | None) -> date | None:
     if not value:
         return None
-    return date.fromisoformat(value[:10])
+    try:
+        return date.fromisoformat(value[:10])
+    except (TypeError, ValueError):
+        return None
 
 
 def _payload_hash(payload: dict[str, Any]) -> str:
@@ -142,15 +146,20 @@ def validate_claim(fields: dict[str, Any]) -> dict[str, Any]:
             raise ClaimError("date_range")
         if (end - start).days > MAX_RANGE_DAYS:
             raise ClaimError("range_too_long")
-        if _parse_day(review_after) is None:
+        review_day = _parse_day(review_after)
+        if review_day is None:
             raise ClaimError("review_after")
+        # v1 treats review_after as a hard expiry, not a reminder. A valid claim
+        # must therefore survive through every stay date it purports to govern.
+        if review_day < end:
+            raise ClaimError("review_before_stay_end")
         effect = "price_bearing"
         if kind == "minimum_rate":
             try:
                 minimum = float(fields.get("minimum"))
             except (TypeError, ValueError):
                 raise ClaimError("minimum") from None
-            if not (minimum > 0) or minimum != minimum:  # NaN
+            if not math.isfinite(minimum) or minimum <= 0:
                 raise ClaimError("minimum")
             value = {"minimum": minimum}
         else:
@@ -373,8 +382,18 @@ def supersede_claim(
     prior = get_latest(conn, replaces)
     if incoming is None or prior is None:
         raise ClaimError("missing_claim")
-    if incoming["status"] != "proposed" or prior["status"] not in {"active", "conflicted"}:
+    if incoming["status"] not in {"proposed", "conflicted"} or prior["status"] not in {"active", "conflicted"}:
         raise ClaimError("not_supersedable")
+    if (
+        incoming["kind"] != prior["kind"]
+        or incoming["scope_type"] != prior["scope_type"]
+        or incoming["property_id"] != prior["property_id"]
+    ):
+        raise ClaimError("supersede_mismatch")
+    if incoming["kind"] in PRICE_KINDS and not _ranges_overlap(
+        incoming["stay_from"], incoming["stay_to"], prior["stay_from"], prior["stay_to"]
+    ):
+        raise ClaimError("supersede_mismatch")
     who = actor or getpass.getuser()
     _copy_revision(
         conn, incoming, status="active", actor=who, event_type="confirmed",
@@ -390,6 +409,10 @@ def pending_summaries(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     for row in latest_claims(conn):
         if row["status"] not in {"proposed", "conflicted"}:
             continue
+        try:
+            value = json.loads(row["value_json"] or "{}")
+        except json.JSONDecodeError:
+            value = {}
         out.append({
             "claim_id": row["claim_id"],
             "kind": row["kind"],
@@ -398,6 +421,9 @@ def pending_summaries(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             "stay_to": row["stay_to"],
             "status": row["status"],
             "effect_class": row["effect_class"],
+            # This is a typed, non-PII approval value—not an excerpt. Omitting it
+            # would ask an operator to confirm a price-bearing claim blind.
+            "minimum": value.get("minimum") if row["kind"] == "minimum_rate" else None,
         })
     return out
 
@@ -407,4 +433,3 @@ def active_price_claims(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         row for row in latest_claims(conn)
         if row["status"] == "active" and row["kind"] in PRICE_KINDS
     ]
-

@@ -6,12 +6,14 @@ Never zero-fill (that reintroduces the drought bug through another door).
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
 from src.config import load_yaml
+from src.runcache import memo
 from src.signals.store import SignalStore
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -73,7 +75,32 @@ def compute_sqi(
     as_of: date,
     conditions: dict[str, Any] | None = None,
 ) -> SQIResult:
-    cfg = (conditions or load_conditions()).get("sqi", {})
+    conditions = conditions or load_conditions()
+    key = (
+        "compute_sqi",
+        id(store.conn),
+        market_id,
+        target_date,
+        as_of,
+        # Only these keys are read below; hashing them (not the whole file) keeps
+        # the key cheap while still separating runs with different SQI settings.
+        json.dumps(
+            [conditions.get("sqi"), conditions.get("default_sqi")],
+            sort_keys=True,
+            default=str,
+        ),
+    )
+    return memo(key, lambda: _compute_sqi(store, market_id, target_date, as_of, conditions))
+
+
+def _compute_sqi(
+    store: SignalStore,
+    market_id: str,
+    target_date: date,
+    as_of: date,
+    conditions: dict[str, Any],
+) -> SQIResult:
+    cfg = conditions.get("sqi", {})
     weights = dict(cfg.get("weights") or {})
     powder_n = int(cfg.get("powder_lookback_days", 7))
     season_ahead = int(cfg.get("season_ahead_horizon_days", 45))
