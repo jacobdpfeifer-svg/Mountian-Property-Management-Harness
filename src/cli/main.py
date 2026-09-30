@@ -174,7 +174,12 @@ def cmd_proving_ground_run(args: argparse.Namespace) -> int:
     from src.proving_ground import run_level
 
     try:
-        artifacts = run_level(args.level, seed=args.seed, output_dir=Path(args.output_dir))
+        artifacts = run_level(
+            args.level,
+            seed=args.seed,
+            output_dir=Path(args.output_dir),
+            decision_step_days=args.decision_step,
+        )
     except (ValueError, RuntimeError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -774,6 +779,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--level", type=int, required=True, choices=[1, 2])
     s.add_argument("--seed", type=int, default=20260925)
     s.add_argument("--output-dir", default="docs/proving_ground/runs")
+    s.add_argument(
+        "--decision-step",
+        type=int,
+        default=7,
+        dest="decision_step",
+        help="Days between pricing decisions (7 = weekly, 1 = daily). Default stays weekly.",
+    )
     s.set_defaults(func=cmd_proving_ground_run)
 
     s = pg_sub.add_parser("build-vintages", help="Download/freeze NRCS SNOTEL + NOAA ONI vintages")
