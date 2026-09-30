@@ -1,0 +1,162 @@
+# Telluride reference corpus — portability test, not a live market.
+# Winter Park's Intrawest feed, SNOTEL station, and I-70 rules are not copied.
+# Access date for the cited pages: 2026-09-29.
+
+resort_id: telluride
+market_id: telluride
+# Telluride is not on the Winter Park Intrawest feed. No feed id is invented here.
+intrawest_feed_id: null
+conditions_note: "UNVERIFIED live feed id. Season dates below are the resort's published targets."
+
+# https://tellurideskiresort.com/ski/ (access 2026-09-29)
+# Targeted opening November 26, 2026, closing April 4, 2027. Dates can move with weather.
+season:
+  typical_open: "11-26"
+  typical_close: "04-04"
+  open_date_2026: "2026-11-26"
+  close_date_2027: "2027-04-04"
+  hiring_ramp_start: "09-01"
+  hiring_ramp_end: "11-15"
+  staffing_readiness_prior: 0.70
+
+# Areas named on https://tellurideskiresort.com/mountain/ (access 2026-09-29).
+mountain_areas:
+  - Sunshine
+  - Village
+  - Meadows
+  - Prospect
+  - Gold Hill
+  - Revelation Bowl
+  - Black Iron Bowl
+  - Palmyra Peak
+  - Bald Mountain
+
+# Opening order is an assumption for the portability file. The resort page
+# describes hike-to upper mountain (Prospect, Gold Hill, Palmyra, Bald) as
+# later and more weather-dependent than the village lifts. Thresholds are
+# assumed, not measured.
+terrain_opening_sequence:
+  - area: Village
+    lifts: [Gondola, Village Express]
+    swe_threshold_in: 8
+  - area: Sunshine
+    lifts: [Sunshine Express]
+    swe_threshold_in: 12
+  - area: Prospect
+    lifts: [Prospect Express]
+    swe_threshold_in: 16
+  - area: Gold Hill
+    lifts: [Gold Hill Express]
+    swe_threshold_in: 22
+  - area: Revelation Bowl
+    lifts: [Revelation]
+    swe_threshold_in: 24
+
+# Named lifts from the resort mountain page and the 2024-25 trail-map PDF.
+# Wind sensitivity is assumed for the exposed upper lifts. Gust threshold is
+# not published on the pages reviewed; the number is an operator prior, assumed.
+wind_hold_lifts:
+  - Gold Hill Express
+  - Revelation
+  - Prospect Express
+
+wind_hold:
+  gust_threshold_mph: 35
+  risk_per_mph_above: 0.02
+  source: assumed prior, not a Telluride operations manual
+
+lifts:
+  - name: Gondola
+    area: Village
+    type: gondola
+    wind_sensitive: false
+  - name: Village Express
+    area: Village
+    type: high_speed
+    wind_sensitive: false
+  - name: Sunshine Express
+    area: Sunshine
+    type: high_speed
+    wind_sensitive: true
+  - name: Prospect Express
+    area: Prospect
+    type: high_speed
+    wind_sensitive: true
+  - name: Gold Hill Express
+    area: Gold Hill
+    type: high_speed
+    wind_sensitive: true
+  - name: Revelation
+    area: Revelation Bowl
+    type: chair
+    wind_sensitive: true
+
+# Not an Ikon mountain in this file. Restricted dates are the resort's own
+# limited season-pass blackouts from the ski FAQ on the same page.
+# December 26-31, January 1-2, January 16, February 13-14.
+ikon_blackouts: []
+pass_blackouts:
+  - start: "2026-12-26"
+    end: "2026-12-31"
+    notes: "Limited season-pass restricted dates, tellurideskiresort.com/ski/"
+  - start: "2027-01-01"
+    end: "2027-01-02"
+    notes: "Limited season-pass restricted dates"
+  - start: "2027-01-16"
+    end: "2027-01-16"
+    notes: "Limited season-pass restricted date"
+  - start: "2027-02-13"
+    end: "2027-02-14"
+    notes: "Limited season-pass restricted dates"
+
+packing_rules:
+  - months: [11, 12]
+    label: early_snow
+    temp_max_c: -5
+    surface_score: 0.55
+  - months: [1, 2, 3]
+    label: packed_powder
+    temp_max_c: -8
+    surface_score: 0.85
+  - months: [4]
+    label: spring_corn
+    temp_min_c: 0
+    surface_score: 0.70
+
+# Airport and road notes for the portability spec. Winter seat counts were
+# not downloaded. The fetched flight PDF is a summer 2026 schedule.
+airport:
+  primary: TEX
+  alternate: MTJ
+  denver_link: "Denver Air Connection DEN-TEX is daily in the summer 2026 schedule PDF. Winter frequency is UNVERIFIED."
+  source: "https://tellurideskiresort.com/wp-content/uploads/CFA_FlightSchedule_S26_Final.pdf"
+
+roads:
+  - name: Dallas Divide
+    note: "Dossier 6. CDOT segment id UNVERIFIED in this file."
+  - name: Lizard Head Pass
+    note: "Dossier 6. CDOT segment id UNVERIFIED in this file."
+
+snotel:
+  candidate: "Red Mountain Pass, between Telluride and Silverton"
+  station_id: null
+  note: "Station triplet UNVERIFIED here. Do not point the Winter Park Berthoud collector at Telluride."
+
+historical_season_opens:
+  - season: "2026-27"
+    date: "2026-11-26"
+    notes: "Targeted opening, not a historical fact. https://tellurideskiresort.com/ski/"
+
+seed_events:
+  - event_date: "2026-11-26"
+    event_type: season_open
+    entity_name: Telluride Ski Resort
+    notes: "Targeted 2026-27 opening day"
+  - event_date: "2027-04-04"
+    event_type: season_close
+    entity_name: Telluride Ski Resort
+    notes: "Targeted 2026-27 closing day"
+  - event_date: "2026-12-26"
+    event_type: pass_blackout
+    entity_name: Limited season pass
+    notes: "First restricted day listed on the ski FAQ"
