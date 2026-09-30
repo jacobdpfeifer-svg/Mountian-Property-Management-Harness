@@ -192,18 +192,39 @@ def cmd_proving_ground_run(args: argparse.Namespace) -> int:
 
 
 def cmd_proving_ground_market(args: argparse.Namespace) -> int:
-    from src.proving_ground.market_loop import run_pool
+    from src.proving_ground.market_loop import POLICIES, run_grid, scenario_names
 
-    paths = run_pool(
+    policies = POLICIES if args.grid else (args.policy,)
+    retain: bool | set[str] = False
+    if args.retain_dbs == "all":
+        retain = True
+    elif args.retain_dbs:
+        retain = {name.strip() for name in args.retain_dbs.split(",") if name.strip()}
+        unknown = retain - set(scenario_names(args.scenario))
+        if unknown:
+            print(f"--retain-dbs names scenarios outside this run: {sorted(unknown)}", file=sys.stderr)
+            return 2
+    output_dir = Path(args.output_dir).expanduser()
+    if "Mobile Documents" in str(output_dir.resolve()):
+        print(
+            "warning: output dir is inside iCloud Drive; job databases will sync. "
+            "Prefer a path outside iCloud, e.g. ~/wp-price-runs/...",
+            file=sys.stderr,
+        )
+    paths = run_grid(
         args.scenario,
         args.seeds,
-        args.policy,
+        policies,
         workers=args.workers,
-        output_dir=Path(args.output_dir),
+        output_dir=output_dir,
         max_days=args.max_days or None,
         incremental=args.incremental,
+        retain_dbs=retain,
+        engine_policy_path=Path(args.engine_policy).expanduser() if args.engine_policy else None,
+        resume=args.resume,
+        argv=sys.argv,
     )
-    print(f"Market sim {args.scenario} policy={args.policy} seeds={args.seeds}")
+    print(f"Market sim {args.scenario} policy={','.join(policies)} seeds={args.seeds}")
     print(f"  manifest: {paths['manifest']}")
     print(f"  scoreboard: {paths['csv']}")
     print(f"  report: {paths['report']}")
@@ -813,8 +834,33 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--seeds", type=int, default=30)
     s.add_argument("--workers", type=int, default=1)
     s.add_argument("--policy", default="engine", choices=["engine", "flat", "comp_median", "tool"])
+    s.add_argument(
+        "--grid",
+        action="store_true",
+        help="Run all four policies into one paired scoreboard (ignores --policy)",
+    )
     s.add_argument("--output-dir", default=".testrun_runs/market_sim/runs")
     s.add_argument("--max-days", type=int, default=0, help="Truncate the season (0 = full 180 days)")
+    s.add_argument(
+        "--retain-dbs",
+        nargs="?",
+        const="all",
+        default=None,
+        metavar="SCENARIOS",
+        help="Keep per-job SQLite databases for diagnosis: 'all' (default when bare) or a "
+        "comma list such as normal,holiday_shift. Engine jobs are ~80 MB each.",
+    )
+    s.add_argument(
+        "--engine-policy",
+        default=None,
+        help="Policy YAML for the engine (default config/policies/default.yaml). "
+        "Use a copy to trial a candidate; never edit the default for a trial.",
+    )
+    s.add_argument(
+        "--resume",
+        action="store_true",
+        help="Continue a run from results.jsonl in --output-dir; refuses if the run config changed",
+    )
     s.add_argument(
         "--incremental",
         action="store_true",
