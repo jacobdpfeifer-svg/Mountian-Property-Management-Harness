@@ -70,6 +70,19 @@ def test_proving_ground_writes_manifest_scoreboard_and_queue(tmp_path: Path):
     assert "What is still fake or stubbed" in artifacts.report_path.read_text(encoding="utf-8")
 
 
+def test_proving_ground_cli_decision_step_defaults_weekly():
+    """Weekly cadence stays the default; daily is opt-in via --decision-step."""
+    from src.cli.main import build_parser
+
+    parser = build_parser()
+    weekly = parser.parse_args(["proving-ground", "run", "--level", "1"])
+    assert weekly.decision_step == 7
+    daily = parser.parse_args(
+        ["proving-ground", "run", "--level", "1", "--decision-step", "1"]
+    )
+    assert daily.decision_step == 1
+
+
 def test_proving_ground_rejects_unimplemented_levels(tmp_path: Path):
     with pytest.raises(ValueError, match="Phase 0 supports"):
         run_level(3, seed=1, output_dir=tmp_path)
