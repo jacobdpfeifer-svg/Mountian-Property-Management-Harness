@@ -103,6 +103,15 @@ PYTHONPATH=. .venv/bin/python -m src.cli.main proving-ground market \
 
 That CLI call runs one policy. The scoreboard in this folder ran engine, flat, comp_median, and tool. Copies of the operator database stay under `.testrun_runs/`. Do not point `--apply` at `data/wp_pricing.db`.
 
+## Commits
+
+- `f88b8fb` — baseline and `--decision-step`
+- `81443d1` — research dossiers and frozen parameters
+- `13457a3` — shopper market and the 1,800-job scoreboard
+- `6667be9` — point-in-time ceiling, learning flags default off
+- `805ddb1` — minimized guest fields and shadow indicators
+- `ad367d8` — ladder, Telluride, this summary
+
 ## Reports
 
 - `docs/reports/market_sim/phase0_BASELINE.md`
