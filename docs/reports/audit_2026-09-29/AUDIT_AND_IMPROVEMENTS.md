@@ -225,18 +225,18 @@ conversion feature, which today reads only the CSV `booking_inquiries` table
 
 ## 5. Open audit findings not fixed in this pass
 
-| ID | Sev | Finding | Where | Suggested fix |
+| ID | Sev | Finding | Where | Status |
 |---|---|---|---|---|
-| A1 | S2 | `assess_data_health` uses wall-clock ages, so replay and simulator runs are never point-in-time for autonomy or display | `src/guardrails/__init__.py:66` | add `as_of` and compute ages against it |
-| A2 | S2 | `seasonal_anchor` takes the 75th percentile of the property's **current** listed prices, including future nights. In replay that's lookahead; live and closed-loop, the engine anchors on its own pushed prices (ratchet risk) | `src/ceiling/__init__.py:125` | restrict to stays < decision, use as-of pacing prices, exclude engine-pushed prices |
-| A3 | S2 | The pooled `p_ref` still includes future, unresolved nights as negatives (now mostly overridden by F4) | `src/bookprob/__init__.py` pooled rows | restrict to `stay_date < decision` |
-| A4 | S2 | Operator memory claims are read from a store outside the DB, so replay results depend on a file not captured in the replay inputs | `src/memory/features.py` | snapshot the memory set hash into replay metadata, or allow an explicit empty root |
-| A5 | S2 | UTC timestamps are truncated to dates. A booking at 7 pm Mountain time on the 1st is recorded as the 2nd | `src/utils.py:9 parse_date`, labels | convert to `America/Denver` before truncation |
-| A6 | S2 | Proving Ground baselines are uninformative: `comp_median_follower` = flat (the world has no comps), `moat_off` = engine (the world has no SQI signals) | `src/proving_ground/runner.py` | M6 comp agents and signal fixtures |
-| A7 | S3 | The determinism gate rebuilds the whole run twice more (3× cost) | `runner.verify_determinism` | compare against one rebuild |
-| A8 | S3 | `seasonal_anchor` and `pacing_ratio` are the next hot spots (~3 s and ~1 s of the 7 s) | profile | memoize per run like F3 |
-| A9 | S3 | Cancellations are now stored but not modeled; the replay label ignores cancel-after-confirm | `src/eval/replay.py` | cancellation hazard by lead time |
-| A10 | S3 | Run 2's JSON and HTML were regenerated after Improvement 2 (19:49 CSV vs 20:44 HTML/JSON), and its stdout/stderr logs are empty although CHANGES.md quotes stdout | `docs/reports/replay/run2/` | note the provenance in the report, keep logs per run |
+| A1 | S2 | `assess_data_health` uses wall-clock ages, so replay and simulator runs are never point-in-time for autonomy or display | `src/guardrails/__init__.py` | Fixed. Ages use `as_of` when the caller passes it. Live calls that omit it still use the wall clock. |
+| A2 | S2 | `seasonal_anchor` takes the 75th percentile of the property's **current** listed prices, including future nights. In replay that's lookahead; live and closed-loop, the engine anchors on its own pushed prices (ratchet risk) | `src/ceiling/__init__.py` | Fixed for future nights. The pool is stays before the decision: booked price if the sale was known, otherwise the listed ask. On the repaired copy, Summit Haus 2026-12-25 moved from $2,875 to $1,855. See `docs/reports/market_sim/phase3_MODELS.md`. |
+| A3 | S2 | The pooled `p_ref` still includes future, unresolved nights as negatives (now mostly overridden by F4) | `src/bookprob/__init__.py` | Fixed when `as_of` is set. Nights on or after the cutoff are skipped. |
+| A4 | S2 | Operator memory claims are read from a store outside the DB, so replay results depend on a file not captured in the replay inputs | `src/memory/features.py` | Fixed. Replay metadata stores `memory_catalog_hash()`. A missing store hashes as `memory_features_v1:empty`. |
+| A5 | S2 | UTC timestamps are truncated to dates. A booking at 7 pm Mountain time on the 1st is recorded as the 2nd | `src/utils.py` `parse_date` | Fixed. Aware timestamps convert to America/Denver. `2026-09-02T02:00:00Z` is 2026-09-01. |
+| A6 | S2 | Proving Ground baselines are uninformative: `comp_median_follower` = flat (the world has no comps), `moat_off` = engine (the world has no SQI signals) | `src/proving_ground/runner.py` | Open for W1. The shopper market is a separate world with competitor agents and a noisy scrape. W1 was left as it was. |
+| A7 | S3 | The determinism gate rebuilds the whole run twice more (3× cost) | `runner.verify_determinism` | Fixed inside `_build_run`: one silent rebuild, then a comparison of scores and the engine run. `verify_determinism` itself still builds twice for a direct caller. |
+| A8 | S3 | `seasonal_anchor` and `pacing_ratio` are the next hot spots (~3 s and ~1 s of the 7 s) | profile | Partial. The anchor and the pacing reference query are memoized for one pricing run. They were not hashed alone against the pre-fix engine. |
+| A9 | S3 | Cancellations are now stored but not modeled; the replay label ignores cancel-after-confirm | `src/eval/replay.py` | Partial. Replay revenue is multiplied by a lead-time survival rate. That factor does not move the recommended price. |
+| A10 | S3 | Run 2's JSON and HTML were regenerated after Improvement 2 (19:49 CSV vs 20:44 HTML/JSON), and its stdout/stderr logs are empty although CHANGES.md quotes stdout | `docs/reports/replay/run2/` | Noted in `docs/reports/replay/PROVENANCE.md`. The empty logs were not rewritten. |
 
 ---
 
