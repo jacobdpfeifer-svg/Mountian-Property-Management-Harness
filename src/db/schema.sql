@@ -113,6 +113,13 @@ CREATE TABLE IF NOT EXISTS reservations (
     confirmed_at    TEXT,
     created_at_pms  TEXT,
     guest_count     INTEGER,
+    guest_city      TEXT,
+    guest_state     TEXT,
+    guest_country   TEXT,
+    adults          INTEGER,
+    children        INTEGER,
+    infants         INTEGER,
+    pets            INTEGER,
     fare_accommodation REAL,
     nightly_rate    REAL,
     raw_json        TEXT,
@@ -504,6 +511,11 @@ CREATE INDEX IF NOT EXISTS idx_pacing_stay       ON pacing_snapshots(property_id
 CREATE INDEX IF NOT EXISTS idx_pacing_asof       ON pacing_snapshots(as_of);
 CREATE INDEX IF NOT EXISTS idx_comp_snap_stay    ON comp_snapshots(stay_date);
 CREATE INDEX IF NOT EXISTS idx_comp_snap_status  ON comp_snapshots(scrape_status);
+-- Latest-ok lookup is per stay and comp. The status-only index made every
+-- night scan the whole scrape history.
+CREATE INDEX IF NOT EXISTS idx_comp_snap_stay_comp
+    ON comp_snapshots(stay_date, comp_id, scrape_status, as_of);
+CREATE INDEX IF NOT EXISTS idx_pacing_days_asof ON pacing_snapshots(days_out, as_of);
 CREATE INDEX IF NOT EXISTS idx_market_stay       ON market_snapshots(stay_date);
 CREATE INDEX IF NOT EXISTS idx_demand_date       ON demand_signals(signal_date);
 CREATE INDEX IF NOT EXISTS idx_recs_prop_date    ON price_recommendations(property_id, stay_date);
