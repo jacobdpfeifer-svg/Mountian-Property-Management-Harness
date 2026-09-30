@@ -1,0 +1,3 @@
+as_of,service_date,access_zone,service_type,available_worker_minutes,committed_worker_minutes,confidence
+2026-12-01,2026-12-26,northwoods,turnover,840,0,0.8
+2026-12-01,2027-01-01,northwoods,turnover,840,0,0.8

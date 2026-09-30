@@ -1,0 +1,4 @@
+Project ID,Property,Date,Service,Started At,Completed At,Price,Cleaner,Status
+T-1001,312 Northwoods,2026-02-01,Turnover Cleaning,2026-02-01 10:30,2026-02-01 14:00,760.00,Maria,Completed
+T-1002,Cloud 9,2026-02-02,Turnover Cleaning,2026-02-02 10:15,2026-02-02 13:30,$695.00,Maria,Completed
+T-1003,300 Northwoods,2026-02-03,Turnover Cleaning,,,700.00,Maria,Canceled

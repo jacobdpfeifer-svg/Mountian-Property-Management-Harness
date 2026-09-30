@@ -1078,6 +1078,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--dest", required=True)
     s.set_defaults(func=cmd_memory_backup)
 
+    from src.ops.cli import register as register_ops
+
+    register_ops(sub)
+
     s = sub.add_parser("report", help="Offline RevPAN report + outcomes join")
     s.add_argument("--from", dest="start", required=True)
     s.add_argument("--to", dest="end", required=True)

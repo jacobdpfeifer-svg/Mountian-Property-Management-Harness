@@ -18,7 +18,7 @@ from typing import Any, Literal
 from src.features import NightFeatures
 
 
-MinStaySource = Literal["policy", "gap_override", "inventory", "none"]
+MinStaySource = Literal["policy", "gap_override", "inventory", "ops", "none"]
 
 
 @dataclass(frozen=True)

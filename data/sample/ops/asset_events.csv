@@ -1,0 +1,2 @@
+property_id,system_type,observed_at,severity,source_type,source_ref,effective_from,effective_to,reading_temp_f,verified_by
+cloud_9,heat,2026-12-20T06:15:00,warn,sensor,thermostat-main,2026-12-20,2026-12-21,52,

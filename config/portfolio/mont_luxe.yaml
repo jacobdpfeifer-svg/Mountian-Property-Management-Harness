@@ -14,19 +14,27 @@ owners:
   northwoods:
     name: Northwoods owner  # TODO: replace with real owner name
     properties: [summit_haus, overlook_ridge]
+    # TODO(operator-confirm): management fee as a fraction of gross booking
+    # revenue. The owner receipt shows "not configured" while this is null.
+    management_fee_pct: null
   cloud9:
     name: Cloud 9 owner  # TODO: replace with real owner name
     properties: [cloud_9]
+    management_fee_pct: null  # TODO(operator-confirm)
 
 properties:
   summit_haus:
     owner_id: northwoods
     market_id: grand_home
     display_name: 312 Northwoods
+    # TODO(operator-confirm): STR jurisdiction (config/compliance/<id>.yaml).
+    # Winter Park town limits vs unincorporated Grand County is not recorded.
+    jurisdiction: null
   overlook_ridge:
     owner_id: northwoods
     market_id: grand_home
     display_name: 300 Northwoods
+    jurisdiction: null  # TODO(operator-confirm)
   cloud_9:
     owner_id: cloud9
     # Fraser, CO physically; Guesty mailing city is Winter Park. Both sit in
@@ -37,3 +45,5 @@ properties:
     town: Fraser
     mailing_address: 1615 Pioneer Trail, Winter Park, CO 80482
     display_name: Cloud 9
+    # Physically in Fraser (see above). TODO(operator-confirm) before relying on it.
+    jurisdiction: fraser
