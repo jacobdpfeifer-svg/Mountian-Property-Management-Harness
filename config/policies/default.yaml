@@ -316,3 +316,17 @@ flight:
   min_lead_days: 60
   capacity_yoy_threshold: 0.10
   p_ref_nudge_pct: 0.05
+
+# Learning models. Every flag stays off until an operator accepts the
+# post-correction baseline and a later evaluation says otherwise.
+models:
+  learned_elasticity:
+    enabled: false
+  demand_shifts_price:
+    enabled: false
+  booking_horizon:
+    enabled: false
+  stay_pricing:
+    enabled: false
+  portfolio_pricing:
+    enabled: false

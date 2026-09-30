@@ -99,6 +99,7 @@ class ReplayResult:
     label_definition: str = LABEL_DEFINITION
     panel_counts: dict[str, Any] = field(default_factory=dict)
     excluded_rows: list[dict[str, Any]] = field(default_factory=list)
+    memory_set_hash: str = "memory_features_v1:empty"
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2, sort_keys=True)
@@ -370,6 +371,8 @@ def run_replay(
         "Every logged decision used the listed price recorded on that day."
     )
 
+    from src.memory.features import memory_catalog_hash
+
     return ReplayResult(
         generated_at=date.today().isoformat(),
         window_from=start.isoformat(),
@@ -383,6 +386,7 @@ def run_replay(
         direction=score_direction(rows),
         estimated_revenue=estimate_revenue(rows),
         price_ref_note=price_ref_note,
+        memory_set_hash=memory_catalog_hash(),
         warnings=(
             ["Rows repeat the same stay night across decision days; see deduplicated calibration."]
             if len({(r.property_id, r.stay_date) for r in rows}) < len(rows) else []
@@ -542,6 +546,14 @@ def estimate_revenue(rows: list[ReplayRow]) -> dict[str, Any]:
     engine_b = sum(r.recommended_price * _p(r) for r in comparable) / n
     listed_b = sum((r.listed_as_of or 0) * _p(r) for r in comparable) / n
 
+    from src.pricing import cancel_survival
+
+    def _surv(row: ReplayRow) -> float:
+        return cancel_survival(row.lead_time_days or 0)
+
+    engine_c = sum(r.recommended_price * _surv(r) for r in booked) / n
+    listed_c = sum((r.listed_as_of or 0) * _surv(r) for r in booked) / n
+
     return {
         "measurable": True,
         "comparable_nights": n,
@@ -551,6 +563,16 @@ def estimate_revenue(rows: list[ReplayRow]) -> dict[str, Any]:
                                "lift": engine_a - listed_a},
         "engine_demand_model": {"engine_revpan": engine_b, "listed_revpan": listed_b,
                                 "lift": engine_b - listed_b},
+        "cancel_hazard": {
+            "engine_revpan": engine_c,
+            "listed_revpan": listed_c,
+            "lift": engine_c - listed_c,
+            "note": (
+                "Lead-time survival from the frozen simulator hazards "
+                "(0.004/0.002/0.001/0.0004). Same multiplier at every price, "
+                "so it does not move the RevPAN argmax. Assumed, not fitted."
+            ),
+        },
     }
 
 

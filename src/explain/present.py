@@ -35,6 +35,11 @@ COMPOSE_REASON_CODES: frozenset[str] = frozenset({
     "guardrail",
     "weak_ceiling",
     "memory_constraint",
+    "learned_elasticity",
+    "demand_level",
+    "booking_horizon",
+    "stay_value",
+    "portfolio_cannibalization",
 })
 
 # Tokens that must never appear in the default owner surface.
@@ -304,6 +309,26 @@ def _tpl_season(f: dict[str, Any]) -> str:
     return f"This is a {_season_label(f.get('season'))} night, which sets the seasonal level."
 
 
+def _tpl_learned_elasticity(f: dict[str, Any]) -> str:
+    return "Recent bookings changed how strongly this night's rate should respond to price."
+
+
+def _tpl_demand_level(f: dict[str, Any]) -> str:
+    return "Pace, snow, and event demand shifted the reference rate for this night."
+
+
+def _tpl_booking_horizon(f: dict[str, Any]) -> str:
+    return "The rate weighs booking now against the chance a later guest still takes the night."
+
+
+def _tpl_stay_value(f: dict[str, Any]) -> str:
+    return "The rate accounts for the length of stay, including a short gap between bookings."
+
+
+def _tpl_portfolio_cannibalization(f: dict[str, Any]) -> str:
+    return "This home shares demand with its twin, so the reference rate was eased."
+
+
 OWNER_TEMPLATES: dict[str, Callable[[dict[str, Any]], str]] = {
     "revpan_optimum": _tpl_revpan_optimum,
     "base_compose": _tpl_base_compose,
@@ -324,6 +349,11 @@ OWNER_TEMPLATES: dict[str, Callable[[dict[str, Any]], str]] = {
     "lead_time": _tpl_lead_time,
     "dow": _tpl_dow,
     "season": _tpl_season,
+    "learned_elasticity": _tpl_learned_elasticity,
+    "demand_level": _tpl_demand_level,
+    "booking_horizon": _tpl_booking_horizon,
+    "stay_value": _tpl_stay_value,
+    "portfolio_cannibalization": _tpl_portfolio_cannibalization,
 }
 
 

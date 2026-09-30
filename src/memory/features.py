@@ -44,6 +44,52 @@ def empty_features() -> MemoryFeatures:
     return MemoryFeatures()
 
 
+def memory_catalog_hash(root: Path | None = None) -> str:
+    """Hash of the active price-bearing claim catalog, independent of one night.
+
+    Replay stores this so a later reader can see which operator file the run used.
+    A missing or unreadable store hashes as empty rather than as today's wall clock.
+    """
+    try:
+        store = assert_private_root(root if root is not None else default_memory_root())
+        if not store.exists():
+            return EMPTY_HASH
+        conn = _open_readonly(store)
+        if conn is None:
+            return EMPTY_HASH
+        try:
+            rows = conn.execute(
+                """
+                SELECT c.claim_id, c.revision, c.property_id, c.kind, c.status
+                FROM memory_claims c
+                JOIN (
+                    SELECT claim_id, MAX(revision) AS revision
+                    FROM memory_claims GROUP BY claim_id
+                ) latest
+                  ON c.claim_id = latest.claim_id AND c.revision = latest.revision
+                WHERE c.status = 'active' AND c.effect_class = 'price_bearing'
+                ORDER BY c.claim_id, c.revision
+                """
+            ).fetchall()
+        finally:
+            conn.close()
+    except (OSError, sqlite3.Error, ValueError):
+        return EMPTY_HASH
+    if not rows:
+        return EMPTY_HASH
+    payload = [
+        {
+            "claim_id": row["claim_id"],
+            "revision": int(row["revision"]),
+            "property_id": row["property_id"],
+            "kind": row["kind"],
+        }
+        for row in rows
+    ]
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return f"sha256:{digest}"
+
+
 def _day(value: str | None) -> date | None:
     if not value:
         return None

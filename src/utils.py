@@ -4,14 +4,33 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
+
+# Booking stamps arrive in UTC. The operator's day is Mountain Time, so a
+# late-evening check-in on the 1st must not become the 2nd.
+_DENVER = ZoneInfo("America/Denver")
+_UTC = ZoneInfo("UTC")
 
 
 def parse_date(value: str | date | datetime) -> date:
     if isinstance(value, datetime):
-        return value.date()
+        stamp = value
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=_UTC)
+        return stamp.astimezone(_DENVER).date()
     if isinstance(value, date):
         return value
-    return date.fromisoformat(str(value)[:10])
+    text = str(value).strip()
+    if "T" in text or (len(text) > 10 and " " in text):
+        normalized = text.replace("Z", "+00:00")
+        try:
+            stamp = datetime.fromisoformat(normalized)
+        except ValueError:
+            return date.fromisoformat(text[:10])
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=_UTC)
+        return stamp.astimezone(_DENVER).date()
+    return date.fromisoformat(text[:10])
 
 
 def daterange(start: date, end: date):

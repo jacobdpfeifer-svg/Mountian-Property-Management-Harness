@@ -137,12 +137,16 @@ def _optimize_revpan(
     floor: float,
     ceil: float,
     steps: int,
+    objective: Any | None = None,
 ) -> tuple[float, float, float]:
     """Return (best_price, prob_at_best, expected_revpan)."""
     if ceil <= floor:
         return floor, bp.prob_at(floor), bp.expected_revpan(floor)
     grid = np.linspace(floor, ceil, max(2, steps))
-    values = [bp.expected_revpan(float(p)) for p in grid]
+    if objective is None:
+        values = [bp.expected_revpan(float(p)) for p in grid]
+    else:
+        values = [float(objective(float(p))) for p in grid]
     i = int(np.argmax(values))
     best = float(grid[i])
     return best, bp.prob_at(best), float(values[i])
@@ -182,9 +186,13 @@ def _price_band(
     steps: int,
     round_to: int,
     risk: float,
+    objective: Any | None = None,
+    price_delta: float = 0.0,
 ) -> _Band:
     """Search and guard one floor. Memory runs this twice only when a claim raises it."""
-    optimum, _prob, _exp_revpan = _optimize_revpan(bp, floor, ceil, steps)
+    optimum, _prob, _exp_revpan = _optimize_revpan(bp, floor, ceil, steps, objective)
+    if price_delta:
+        optimum += price_delta
     findings = scan_leakage(feat, ceiling, optimum, policy, access_risk=risk)
     leaked_price, primary_leak = apply_leakage_price(optimum, findings)
     gap_action = None
@@ -235,6 +243,21 @@ def _price_band(
     )
 
 
+def _model_reason(code: str, message: str, contribution: float) -> Reason:
+    """Literal constructors so each model code has an owner template."""
+    if code == "learned_elasticity":
+        return Reason("learned_elasticity", message, contribution=contribution)
+    if code == "demand_level":
+        return Reason("demand_level", message, contribution=contribution)
+    if code == "booking_horizon":
+        return Reason("booking_horizon", message, contribution=contribution)
+    if code == "stay_value":
+        return Reason("stay_value", message, contribution=contribution)
+    if code == "portfolio_cannibalization":
+        return Reason("portfolio_cannibalization", message, contribution=contribution)
+    raise ValueError(f"unknown model reason {code}")
+
+
 def recommend_night(
     conn: sqlite3.Connection,
     feat: NightFeatures,
@@ -244,6 +267,7 @@ def recommend_night(
     *,
     as_of: date | None = None,
     include_booked: bool = False,
+    portfolio_quotes: dict[tuple[str, date], float] | None = None,
 ) -> Recommendation | None:
     if feat.status != "available":
         if not include_booked or feat.status != "booked":
@@ -273,6 +297,18 @@ def recommend_night(
     ceiling = compute_ceiling(conn, feat, policy, as_of=decision_date)
     floor, ceil = _search_bounds(feat, ceiling, policy)
     bp = bookprob.estimate(conn, feat, policy, as_of=decision_date)
+    from src.pricing import apply_models
+
+    adjustment = apply_models(
+        conn, feat, policy, bp,
+        as_of=decision_date,
+        floor=floor,
+        ceil=ceil,
+        sqi=ceiling.sqi,
+        steps=steps,
+        portfolio_quotes=portfolio_quotes,
+    )
+    bp = adjustment.probability
 
     from src.memory.features import FEATURE_VERSION, build_memory_features
 
@@ -291,17 +327,25 @@ def recommend_night(
     applied = _price_band(
         conn, feat, policy, ceiling, bp,
         floor=search_floor, ceil=ceil, steps=steps, round_to=round_to, risk=risk,
+        objective=adjustment.objective, price_delta=adjustment.price_delta,
     )
     baseline = applied
     if search_floor != base_floor:
         baseline = _price_band(
             conn, feat, policy, ceiling, bp,
             floor=base_floor, ceil=ceil, steps=steps, round_to=round_to, risk=risk,
+            objective=adjustment.objective, price_delta=adjustment.price_delta,
         )
     optimum = applied.optimum
     findings = applied.findings
     leaked_price = applied.leaked_price
     min_stay = applied.min_stay
+    if adjustment.min_stay_nights is not None:
+        min_stay = replace(
+            min_stay,
+            recommended_min_stay=adjustment.min_stay_nights,
+            detail=f"Stay model chose {adjustment.min_stay_nights} nights",
+        )
     ctx = applied.ctx
     softened = applied.softened
     deferred = applied.deferred
@@ -548,6 +592,9 @@ def recommend_night(
             facts={"claim_refs": list(mem.active_claim_refs)},
         ))
 
+    for code, message, contribution in adjustment.reasons:
+        reasons.append(_model_reason(code, message, contribution))
+
     top = select_top_reasons(reasons, max_n=max_reasons)
     occupancy = _property_occupancy(conn, feat.property_id)
     per_person = _per_person_nightly(recommended, occupancy, policy)
@@ -701,10 +748,11 @@ def generate_recommendations(
     allow_past: bool = False,
     *,
     as_of: date | None = None,
+    stay_dates: set[date] | None = None,
 ) -> tuple[list[Recommendation], DataHealth]:
     policy = policy or load_policy()
     run_id = run_id or uuid.uuid4().hex[:12]
-    health = assess_data_health(conn, policy, property_ids=property_ids)
+    health = assess_data_health(conn, policy, property_ids=property_ids, as_of=as_of)
     if persist:
         record_health(conn, run_id, health)
 
@@ -714,16 +762,26 @@ def generate_recommendations(
         # Backtests must opt in explicitly.
         today = date.today()
         features = [f for f in features if f.stay_date >= today]
+    if stay_dates is not None:
+        features = [f for f in features if f.stay_date in stay_dates]
     recs: list[Recommendation] = []
+    from src.pricing import enabled as model_enabled
+
+    portfolio_quotes: dict[tuple[str, date], float] = {}
+    if model_enabled(policy, "portfolio_pricing"):
+        # Overlook is before Summit in property-id order, so Summit sees Overlook's new price.
+        features = sorted(features, key=lambda feat: (feat.stay_date, feat.property_id))
     # Signals and demand tables are read-only while a run prices; memoize the
     # per-night re-derivations (SQI, demand index) for this run only.
     with engine_run_cache():
         for feat in features:
             rec = recommend_night(
-                conn, feat, policy=policy, health=health, run_id=run_id, as_of=as_of
+                conn, feat, policy=policy, health=health, run_id=run_id, as_of=as_of,
+                portfolio_quotes=portfolio_quotes,
             )
             if rec is None:
                 continue
+            portfolio_quotes[(rec.property_id, rec.stay_date)] = rec.recommended_price
             if persist:
                 persist_recommendation(conn, rec)
             recs.append(rec)

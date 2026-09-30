@@ -86,7 +86,8 @@ def test_estimate_revenue_is_labeled_and_not_a_win():
     assert "do not respond to price" in out["assumption"]
     assert out["comparable_nights"] == 2
     # Both figures are price-swap under fixed bookings; they are references, not proof.
-    assert "bookings_unchanged" in out and "engine_demand_model" in out
+    assert "cancel_hazard" in out
+    assert out["cancel_hazard"]["engine_revpan"] < out["bookings_unchanged"]["engine_revpan"]
 
 
 # --------------------------------------------------------------- run_replay guards

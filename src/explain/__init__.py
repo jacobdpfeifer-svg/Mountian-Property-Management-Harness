@@ -35,6 +35,11 @@ ReasonCode = Literal[
     "access_cliff",
     "weak_ceiling",
     "memory_constraint",
+    "learned_elasticity",
+    "demand_level",
+    "booking_horizon",
+    "stay_value",
+    "portfolio_cannibalization",
 ]
 
 

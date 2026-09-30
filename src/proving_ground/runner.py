@@ -194,11 +194,17 @@ def _build_run(
             comp_prices=comp_prices,
         )
 
-        determinism = (
-            verify_determinism(level, seed, world=world, decision_step_days=decision_step_days)
-            if check_determinism
-            else "identical_output_hashes"
-        )
+        determinism = "identical_output_hashes"
+        if check_determinism:
+            # One rebuild. The previous gate built the season twice more.
+            other = _build_run(
+                level, seed, world=world, decision_step_days=decision_step_days, check_determinism=False
+            )
+            same = (
+                other["scores"] == [asdict(score) for score in scores]
+                and other["engine_run"] == asdict(engine_result)
+            )
+            determinism = "identical_output_hashes" if same else "hash_mismatch"
         hard_gates = build_hard_gates(
             conn,
             run_id=engine_result.run_id,

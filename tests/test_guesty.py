@@ -120,26 +120,51 @@ def test_demand_tier_separates_holiday_from_ordinary_peak():
 
 def test_anchor_prefers_same_demand_tier(db: Path):
     """peak_ski spans 15 Dec - 31 Mar. Without tier matching, a Christmas night anchors
-    to a mid-January price."""
+    to a mid-January price. History has to be before the night being priced."""
     policy = load_policy()
     with connect(db) as conn:
-        # cheap ordinary peak nights (Jan) + expensive holiday nights (late Dec)
+        # Prior-year ordinary peak (cheap) and prior-year holiday (expensive).
         for i in range(40):
-            d = date(2027, 1, 10) + timedelta(days=i)
+            d = date(2026, 1, 10) + timedelta(days=i)
             conn.execute(
                 "INSERT INTO nightly_inventory (property_id,stay_date,listed_price,status,day_of_week)"
                 " VALUES ('test_haus',?,700,'available',?)", (d.isoformat(), d.weekday()))
         for i in range(14):
-            d = date(2026, 12, 21) + timedelta(days=i)
+            d = date(2025, 12, 21) + timedelta(days=i)
+            conn.execute(
+                "INSERT INTO nightly_inventory (property_id,stay_date,listed_price,status,day_of_week)"
+                " VALUES ('test_haus',?,2800,'available',?)", (d.isoformat(), d.weekday()))
+        # The night being priced. Its own listed price is not history.
+        conn.execute(
+            "INSERT INTO nightly_inventory (property_id,stay_date,listed_price,status,day_of_week)"
+            " VALUES ('test_haus','2026-12-23',900,'available',2)")
+        conn.commit()
+        feats = build_features_for_property(conn, "test_haus", date(2026, 12, 23),
+                                            date(2026, 12, 23), policy=policy)
+        anchor = seasonal_anchor(feats[0], policy, conn, as_of=date(2026, 12, 23))
+    assert feats[0].demand_strength >= 0.8, "Christmas should read as high demand"
+    assert anchor > 2000, f"holiday anchored to ordinary-peak price: ${anchor:.0f}"
+
+
+def test_anchor_ignores_future_listed_prices(db: Path):
+    """A forward cluster of engine-pushed holiday rates must not raise the anchor."""
+    policy = load_policy()
+    with connect(db) as conn:
+        for i in range(30):
+            d = date(2025, 12, 20) + timedelta(days=i)
+            conn.execute(
+                "INSERT INTO nightly_inventory (property_id,stay_date,listed_price,status,day_of_week)"
+                " VALUES ('test_haus',?,500,'available',?)", (d.isoformat(), d.weekday()))
+        for i in range(20):
+            d = date(2026, 12, 20) + timedelta(days=i)
             conn.execute(
                 "INSERT INTO nightly_inventory (property_id,stay_date,listed_price,status,day_of_week)"
                 " VALUES ('test_haus',?,2800,'available',?)", (d.isoformat(), d.weekday()))
         conn.commit()
-        feats = build_features_for_property(conn, "test_haus", date(2026, 12, 23),
-                                            date(2026, 12, 23), policy=policy)
-        anchor = seasonal_anchor(feats[0], policy, conn)
-    assert feats[0].demand_strength >= 0.8, "Christmas should read as high demand"
-    assert anchor > 2000, f"holiday anchored to ordinary-peak price: ${anchor:.0f}"
+        feats = build_features_for_property(conn, "test_haus", date(2026, 12, 25),
+                                            date(2026, 12, 25), policy=policy)
+        anchor = seasonal_anchor(feats[0], policy, conn, as_of=date(2026, 9, 29))
+    assert anchor < 800, f"future listed prices entered the anchor: ${anchor:.0f}"
 
 
 # ----------------------------------------------------------------- deference
@@ -307,6 +332,75 @@ def test_sync_calendar_and_reservations_trace_realised_price_into_nightly_invent
     assert report.reservations == 1
     assert report.booked_nights_priced == 2
     assert report.reservations_with_confirmed_at == 1
+
+
+def test_sync_stores_city_and_party_and_drops_contact_fields(db: Path):
+    listing = _listing(listing_id="abc123", nickname="Test Haus")
+    reservation = {
+        "_id": "res-guest",
+        "listingId": "abc123",
+        "checkIn": "2026-12-21",
+        "checkOut": "2026-12-23",
+        "nightsCount": 2,
+        "status": "confirmed",
+        "source": "airbnb",
+        "guest": {
+            "fullName": "Should Not Store",
+            "email": "nope@example.com",
+            "phone": "555-0100",
+            "hometown": "Denver",
+            "address": {"street": "1 Main", "state": "CO", "country": "US"},
+        },
+        "numberOfGuests": {
+            "numberOfAdults": 6,
+            "numberOfChildren": 2,
+            "numberOfInfants": 1,
+            "numberOfPets": 0,
+        },
+        "money": {"fareAccommodation": 1000.0},
+    }
+    client = _FakeGuestyClient([listing], {}, [reservation])
+    with connect(db) as conn:
+        listings = sync_listings(conn, client, SyncReport())
+        sync_reservations(conn, client, listings, SyncReport())
+        row = conn.execute("SELECT * FROM reservations WHERE reservation_id='res-guest'").fetchone()
+    assert row["guest_city"] == "Denver"
+    assert row["guest_state"] == "CO"
+    assert row["guest_country"] == "US"
+    assert row["adults"] == 6
+    assert row["children"] == 2
+    assert row["infants"] == 1
+    assert row["pets"] == 0
+    assert "nope@example.com" not in (row["raw_json"] or "")
+    assert "Should Not Store" not in (row["raw_json"] or "")
+    assert "555-0100" not in (row["raw_json"] or "")
+
+
+def test_inquiry_conversion_reads_guesty_inquiry_rows(db: Path):
+    from src.elasticity import inquiry_conversion
+
+    with connect(db) as conn:
+        for i in range(5):
+            conn.execute(
+                """
+                INSERT INTO reservations (
+                    reservation_id, property_id, check_in, check_out, status
+                ) VALUES (?, 'test_haus', '2026-12-21', '2026-12-23', 'inquiry')
+                """,
+                (f"inq-{i}",),
+            )
+        for i in range(2):
+            conn.execute(
+                """
+                INSERT INTO reservations (
+                    reservation_id, property_id, check_in, check_out, status
+                ) VALUES (?, 'test_haus', '2026-12-21', '2026-12-23', 'confirmed')
+                """,
+                (f"book-{i}",),
+            )
+        conn.commit()
+        rate = inquiry_conversion(conn, "test_haus")
+    assert rate == pytest.approx(2 / 5)
 
 
 def test_sync_reservations_skips_cancelled_and_unmatched_listing(db: Path):
