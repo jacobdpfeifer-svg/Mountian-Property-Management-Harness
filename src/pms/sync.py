@@ -25,6 +25,8 @@ from src.pms.guesty import (
     GuestyClient,
     GuestyListing,
     parse_guesty_date,
+    extract_guest_place,
+    extract_party,
     parse_guesty_datetime,
     reservation_guest_count,
 )
@@ -244,6 +246,8 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
         confirmed = parse_guesty_datetime(res.get("confirmedAt") or res.get("createdAt"))
         created = parse_guesty_datetime(res.get("createdAt"))
         guests = reservation_guest_count(res)
+        party = extract_party(res)
+        place = extract_guest_place(res)
         if confirmed and booking:
             report.reservations_with_confirmed_at += 1
         ci_iso = ci.isoformat()
@@ -256,8 +260,9 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
             INSERT INTO reservations (
                 reservation_id, property_id, listing_id, check_in, check_out, nights,
                 status, source, confirmed_at, created_at_pms, guest_count,
+                guest_city, guest_state, guest_country, adults, children, infants, pets,
                 fare_accommodation, nightly_rate, raw_json, synced_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(reservation_id) DO UPDATE SET
                 property_id=excluded.property_id,
                 check_in=excluded.check_in,
@@ -268,6 +273,13 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
                 confirmed_at=COALESCE(excluded.confirmed_at, reservations.confirmed_at),
                 created_at_pms=COALESCE(excluded.created_at_pms, reservations.created_at_pms),
                 guest_count=COALESCE(excluded.guest_count, reservations.guest_count),
+                guest_city=COALESCE(excluded.guest_city, reservations.guest_city),
+                guest_state=COALESCE(excluded.guest_state, reservations.guest_state),
+                guest_country=COALESCE(excluded.guest_country, reservations.guest_country),
+                adults=COALESCE(excluded.adults, reservations.adults),
+                children=COALESCE(excluded.children, reservations.children),
+                infants=COALESCE(excluded.infants, reservations.infants),
+                pets=COALESCE(excluded.pets, reservations.pets),
                 fare_accommodation=COALESCE(excluded.fare_accommodation, reservations.fare_accommodation),
                 nightly_rate=COALESCE(excluded.nightly_rate, reservations.nightly_rate),
                 synced_at=datetime('now')
@@ -275,6 +287,8 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
             (
                 res.get("_id"), pid, res.get("listingId"), ci_iso, co.isoformat(), nights,
                 res.get("status"), source, confirmed if booking else None, created, guests,
+                place["city"], place["state"], place["country"],
+                party["adults"], party["children"], party["infants"], party["pets"],
                 float(fare) if fare is not None else None, nightly,
                 json.dumps({
                     "status": res.get("status"), "source": res.get("source"),

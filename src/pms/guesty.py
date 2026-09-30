@@ -351,18 +351,72 @@ def parse_guesty_datetime(value: Any) -> str | None:
 def reservation_guest_count(raw: dict[str, Any]) -> int | None:
     for key in ("guestsCount", "numberOfGuests"):
         value = raw.get(key)
-        if value is not None:
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                continue
+        if isinstance(value, bool) or value is None:
+            continue
+        if isinstance(value, dict):
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
     guests = raw.get("guests")
     if isinstance(guests, dict):
         for key in ("numberOfGuests", "count"):
             value = guests.get(key)
-            if value is not None:
-                try:
-                    return int(value)
-                except (TypeError, ValueError):
-                    continue
-    return None
+            if isinstance(value, bool) or value is None or isinstance(value, dict):
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
+    party = extract_party(raw)
+    total = sum(party[name] or 0 for name in ("adults", "children", "infants"))
+    return total or None
+
+
+def _as_int(value: Any) -> int | None:
+    if isinstance(value, bool) or value is None or isinstance(value, dict):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def extract_party(raw: dict[str, Any]) -> dict[str, int | None]:
+    """Adults, children, infants, pets. Contact fields are ignored."""
+    block = raw.get("numberOfGuests")
+    if not isinstance(block, dict):
+        guests = raw.get("guests")
+        block = guests if isinstance(guests, dict) else {}
+        nested = block.get("numberOfGuests") if isinstance(block, dict) else None
+        if isinstance(nested, dict):
+            block = nested
+    return {
+        "adults": _as_int(block.get("numberOfAdults") if isinstance(block, dict) else None),
+        "children": _as_int(block.get("numberOfChildren") if isinstance(block, dict) else None),
+        "infants": _as_int(block.get("numberOfInfants") if isinstance(block, dict) else None),
+        "pets": _as_int(block.get("numberOfPets") if isinstance(block, dict) else None),
+    }
+
+
+def extract_guest_place(raw: dict[str, Any]) -> dict[str, str | None]:
+    """City, state, country only. Names, emails, phones, and street addresses are dropped."""
+    guest = raw.get("guest") if isinstance(raw.get("guest"), dict) else {}
+    hometown = guest.get("hometown") or raw.get("guestHometown") or guest.get("guestHometown")
+    city = None
+    if isinstance(hometown, str) and hometown.strip():
+        city = hometown.strip()
+    elif isinstance(hometown, dict):
+        city = hometown.get("city") or hometown.get("town")
+    address = guest.get("address") if isinstance(guest.get("address"), dict) else {}
+    state = guest.get("state") or address.get("state") or guest.get("region")
+    country = guest.get("country") or guest.get("nationality") or address.get("country")
+
+    def _clean(value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        text = " ".join(value.split())
+        return text or None
+
+    return {"city": _clean(city), "state": _clean(state), "country": _clean(country)}
