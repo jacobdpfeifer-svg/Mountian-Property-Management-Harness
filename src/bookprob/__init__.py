@@ -39,12 +39,14 @@ grid spanning [floor, ceiling].
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 from src.features import NightFeatures
+from src.runcache import memo
 from src.utils import parse_date, season_for
 
 
@@ -164,6 +166,71 @@ def pacing_ratio(
     return booked_now / float(ref["occ"]) if float(ref["occ"]) > 0 else None
 
 
+def _lead_observations(
+    conn: sqlite3.Connection,
+    decision: date,
+    seasons: dict[str, Any],
+) -> list[tuple[str, str, bool]]:
+    """(lead_bucket, season, booked) — one per resolved night per lead bucket.
+
+    A night counts once per bucket, at the first decision-day snapshot where it was
+    still available at that lead time; it is a positive if a real sale landed after
+    that snapshot and on/before check-in. Only nights that checked in before the
+    decision date are used, so every label is known at the decision date.
+    """
+    fingerprint = json.dumps(seasons, sort_keys=True, default=str)
+
+    def _load() -> list[tuple[str, str, bool]]:
+        from src.inventory.events import booking_events
+
+        events = booking_events(conn)
+        first: dict[tuple[str, str, str], str] = {}
+        for r in conn.execute(
+            """
+            SELECT property_id, stay_date, as_of, days_out FROM pacing_snapshots
+            WHERE status = 'available' AND as_of <= ? AND stay_date < ?
+            ORDER BY as_of
+            """,
+            (decision.isoformat(), decision.isoformat()),
+        ):
+            key = (r["property_id"], r["stay_date"], _lead_bucket(int(r["days_out"])))
+            first.setdefault(key, r["as_of"])
+        out = []
+        for (pid, stay_iso, leadb), seen in first.items():
+            stay = parse_date(stay_iso)
+            ev = events.get((pid, stay_iso))
+            booked = ev is not None and parse_date(seen) < parse_date(ev) <= stay
+            out.append((leadb, season_for(stay, seasons)[0], booked))
+        return out
+
+    return memo(("bookprob_lead_obs", id(conn), decision, fingerprint), _load)
+
+
+def _pooled_rows(
+    conn: sqlite3.Connection,
+    seasons: dict[str, Any],
+) -> list[tuple[str, date, str, str, sqlite3.Row]]:
+    """(stay_iso, stay, season, dow_class, row) for every available/booked night."""
+    fingerprint = json.dumps(seasons, sort_keys=True, default=str)
+
+    def _load() -> list[tuple[str, date, str, str, sqlite3.Row]]:
+        out = []
+        for r in conn.execute(
+            """
+            SELECT stay_date, status, day_of_week, listed_price, booked_price,
+                   lead_time_days, booked_at
+            FROM nightly_inventory
+            WHERE status IN ('available', 'booked')
+            """
+        ).fetchall():
+            stay = parse_date(r["stay_date"])
+            dow = int(r["day_of_week"] if r["day_of_week"] is not None else stay.weekday())
+            out.append((str(r["stay_date"]), stay, season_for(stay, seasons)[0], _dow_class(dow), r))
+        return out
+
+    return memo(("bookprob_pooled_rows", id(conn), fingerprint), _load)
+
+
 def estimate(
     conn: sqlite3.Connection,
     feat: NightFeatures,
@@ -191,6 +258,12 @@ def estimate(
         """Coarse SQI regime so a drought Christmas never pools with a normal one."""
         if not use_sqi:
             return "all"
+        return memo(
+            ("bookprob_regime", id(conn), feat.market_id, stay, as_of or date.today()),
+            lambda: _regime_uncached(stay),
+        )
+
+    def _regime_uncached(stay) -> str:
         try:
             from src.signals.features.sqi import compute_sqi
             from src.signals.store import SignalStore
@@ -210,15 +283,14 @@ def estimate(
     bucket = f"{feat.season}/{tier}/{target_regime}/{dowc}/{leadb}"
 
     # Pooled across properties: per-property cells are far too small at 4 doors.
-    rows = conn.execute(
-        """
-        SELECT stay_date, status, day_of_week, listed_price, booked_price, lead_time_days,
-               booked_at
-        FROM nightly_inventory
-        WHERE status IN ('available', 'booked') AND stay_date < ?
-        """,
-        (feat.stay_date.isoformat(),),
-    ).fetchall()
+    # Same-season, same-dow-class rows before the target stay, in table order.
+    # The parsed pool is built once per run (see src.runcache) and filtered here.
+    target_iso = feat.stay_date.isoformat()
+    rows = [
+        (stay, r)
+        for stay_iso, stay, season, row_dowc, r in _pooled_rows(conn, seasons)
+        if stay_iso < target_iso and season == feat.season and row_dowc == dowc
+    ]
 
     # Point-in-time replay must not learn from a sale that had not happened yet.
     # `booked_at` is the "when we knew it booked" stamp (schema comment on the
@@ -242,13 +314,7 @@ def estimate(
     def _collect(match_tier: bool, match_regime: bool) -> tuple[int, int, list[float]]:
         booked = total = 0
         prices: list[float] = []
-        for r in rows:
-            stay = parse_date(r["stay_date"])
-            if season_for(stay, seasons)[0] != feat.season:
-                continue
-            dow = int(r["day_of_week"] if r["day_of_week"] is not None else stay.weekday())
-            if _dow_class(dow) != dowc:
-                continue
+        for stay, r in rows:
             if match_tier and demand_tier(demand.get(stay, 0.2), policy) != tier:
                 continue
             if match_regime and target_regime != "all" and _regime_for(stay) != target_regime:
@@ -279,6 +345,25 @@ def estimate(
         if prices
         else max(feat.listed_price or feat.base_ceiling_rate, 1.0)
     )
+
+    # Lead conditioning. The pooled rate above is "did this kind of night ever
+    # sell"; a night still open N days out is a different question. Replay showed
+    # the unconditioned rate predicting ~91% for near-term open nights that booked
+    # ~2% of the time. Shrink toward the observed rate for nights that were still
+    # available at this lead bucket (same season when there is enough of it).
+    lead_cfg = cfg.get("lead_conditioning", {}) or {}
+    if lead_cfg.get("enabled", True) and leadb != "unknown":
+        obs = _lead_observations(conn, as_of or date.today(), seasons)
+        pool = [o for o in obs if o[0] == leadb and o[1] == feat.season]
+        scope = "season"
+        if len(pool) < int(lead_cfg.get("min_same_season", 20)):
+            pool = [o for o in obs if o[0] == leadb]
+            scope = "all_seasons"
+        if pool:
+            m = float(lead_cfg.get("shrinkage_k", 12))
+            hits = sum(1 for o in pool if o[2])
+            p_ref = (hits + m * p_ref) / (len(pool) + m)
+            bucket += f"(lead:{scope} n={len(pool)})"
 
     elas = cfg.get("elasticity_by_season", {})
     beta = float(elas.get(feat.season, elas.get("default", -1.2)))

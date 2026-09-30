@@ -166,16 +166,21 @@ def _build_run(
             conn, run_id=engine_result.run_id, property_id=world.property_id
         )
 
+        # The loop is closed (engine prices become listed prices), so each policy
+        # needs its own untouched world or it would start from the other's prices.
         moat_run_id = f"pg-l{level}-{seed}-moatoff"
+        moat_conn = bootstrap_disposable_db(Path(tmp) / "moat_off.db", property_id=world.property_id)
+        world.extend_inventory(moat_conn)
         run_engine_season(
-            conn,
+            moat_conn,
             world,
             level=level,
             moat_off=True,
             run_id=moat_run_id,
             decision_step_days=decision_step_days,
         )
-        moat_prices = read_engine_prices(conn, run_id=moat_run_id, property_id=world.property_id)
+        moat_prices = read_engine_prices(moat_conn, run_id=moat_run_id, property_id=world.property_id)
+        moat_conn.close()
 
         comp_prices = _comp_median_prices(conn, world.property_id, stay_dates)
         scores = _score_all_policies(

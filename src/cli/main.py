@@ -416,6 +416,20 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
         return 0 if result.get("status") == "ok" else 1
 
 
+def cmd_repair_bookings(args: argparse.Namespace) -> int:
+    """Undo nights marked booked by inquiries / owner stays (dry-run by default)."""
+    from dataclasses import asdict
+
+    from src.inventory.repair import repair_booking_contamination
+
+    with connect(args.db) as conn:
+        report = repair_booking_contamination(conn, apply=args.apply)
+    print(json.dumps(asdict(report), indent=2))
+    if not args.apply:
+        print("Dry run — nothing changed. Re-run with --apply (changes are logged to data_repairs).")
+    return 0
+
+
 def _make_provider(args: argparse.Namespace, policy: dict):
     if args.provider == "fixture":
         return FixtureProvider(args.fixture)
@@ -807,6 +821,13 @@ def build_parser() -> argparse.ArgumentParser:
                         "exit 1 if degraded or failed")
     s.add_argument("--since", help="Verify window start (default: earliest Guesty sync date)")
     s.set_defaults(func=cmd_snapshot)
+
+    s = sub.add_parser(
+        "repair-bookings",
+        help="Fix nights marked booked by inquiries/owner stays (dry-run unless --apply)",
+    )
+    s.add_argument("--apply", action="store_true", help="Write the repair (logged to data_repairs)")
+    s.set_defaults(func=cmd_repair_bookings)
 
     s = sub.add_parser("sync-guesty", help="Pull listings/calendar/reservations from Guesty")
     s.add_argument("--horizon", type=int, default=365, help="Days forward to pull")

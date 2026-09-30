@@ -4,16 +4,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from src.memory.claims import PRICE_KINDS
 from src.memory.paths import assert_private_root, default_memory_root
 
 FEATURE_VERSION = "memory_features_v1"
 EMPTY_HASH = "memory_features_v1:empty"
+# Confirmation stamps are stored in UTC. The decision date is a Mountain Time
+# day, so an evening confirmation must count that same day.
+_OPERATOR_TZ = ZoneInfo("America/Denver")
 
 
 @dataclass(frozen=True)
@@ -42,7 +47,26 @@ def empty_features() -> MemoryFeatures:
 def _day(value: str | None) -> date | None:
     if not value:
         return None
-    return date.fromisoformat(str(value)[:10])
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def _accepted_day(value: str | None) -> date | None:
+    """Calendar day in Mountain Time for a UTC confirmation stamp."""
+    if not value:
+        return None
+    text = str(value).strip()
+    if "T" not in text:
+        return _day(text)
+    try:
+        stamp = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return _day(text)
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return stamp.astimezone(_OPERATOR_TZ).date()
 
 
 def _open_readonly(root: Path) -> sqlite3.Connection | None:
@@ -97,7 +121,7 @@ def build_memory_features(
     for row in rows:
         if row["kind"] not in PRICE_KINDS:
             continue
-        accepted = _day(row["accepted_at"])
+        accepted = _accepted_day(row["accepted_at"])
         if accepted is None or accepted > as_of:
             continue
         review = _day(row["review_after"])
@@ -107,7 +131,10 @@ def build_memory_features(
         end = _day(row["stay_to"])
         if start is None or end is None or not (start <= stay_date <= end):
             continue
-        value = json.loads(row["value_json"] or "{}")
+        try:
+            value = json.loads(row["value_json"] or "{}")
+        except json.JSONDecodeError:
+            continue
         if row["kind"] == "no_decrease":
             if listed_price is None:
                 continue
@@ -115,7 +142,12 @@ def build_memory_features(
         else:
             if "minimum" not in value:
                 continue
-            target = float(value["minimum"])
+            try:
+                target = float(value["minimum"])
+            except (TypeError, ValueError):
+                continue
+        if not math.isfinite(target) or target <= 0:
+            continue
         ref = f"claim:{row['claim_id']}@{int(row['revision'])}"
         selected.append((ref, row["kind"], target))
 

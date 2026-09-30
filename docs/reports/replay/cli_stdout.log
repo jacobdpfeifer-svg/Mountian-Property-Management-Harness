@@ -1,0 +1,6 @@
+Replayed 10 decision day(s) over 9644 night-decisions; censor 2026-09-29; Guesty writes=0
+Calibration: measurable on 52 resolved nights (Brier 0.575)
+  json: docs/reports/replay/replay_2026-09-29.json
+  csv: docs/reports/replay/replay_2026-09-29.csv
+  html: docs/reports/replay/replay_2026-09-29.html
+EXIT:0

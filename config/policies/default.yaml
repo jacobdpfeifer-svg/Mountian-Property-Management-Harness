@@ -144,6 +144,14 @@ booking_probability:
   pacing_behind_threshold: 0.70
   # Do not print p(book) as a percentage until pacing history meets this bar.
   min_pacing_days_for_display: 14
+  # P(book | still available at this lead time), learned from pacing snapshots of
+  # nights that have already checked in. Shrinks the pooled rate toward it.
+  # Price is unchanged by this (linear demand's argmax does not depend on p_ref);
+  # it fixes the probability shown and scored.
+  lead_conditioning:
+    enabled: true
+    shrinkage_k: 12
+    min_same_season: 20
 
 # --------------------------------------------------------------------- leakage
 leakage:

@@ -37,6 +37,22 @@ _STATUS = {
     "reserved": "booked",
 }
 
+# Reservation statuses that are a sale. Everything else (inquiry, declined, expired,
+# canceled, awaiting_payment, ...) is recorded in `reservations` as demand evidence but
+# must never mark a night booked: before this, 130 nights across the portfolio were
+# "booked" only because a guest had asked, which hid real availability from pricing
+# and fed inquiry quotes into the ceiling as realised prices.
+BOOKING_STATUSES = frozenset({"confirmed", "checked_in", "checked_out"})
+# Owner stays remove a night from sale; they are not market demand or a price.
+OWNER_SOURCES = frozenset({"owner"})
+
+
+def is_market_booking(status: object, source: object) -> bool:
+    return (
+        str(status or "").lower() in BOOKING_STATUSES
+        and str(source or "").lower() not in OWNER_SOURCES
+    )
+
 
 @dataclass
 class SyncReport:
@@ -175,6 +191,14 @@ def sync_calendar(conn: sqlite3.Connection, client: GuestyClient,
                         listed_price=excluded.listed_price,
                         status=excluded.status,
                         day_of_week=excluded.day_of_week,
+                        -- A night Guesty no longer shows as booked (cancellation,
+                        -- moved stay) must not keep the old sale's price and stamp.
+                        booked_price=CASE WHEN excluded.status = 'booked'
+                            THEN nightly_inventory.booked_price END,
+                        booked_at=CASE WHEN excluded.status = 'booked'
+                            THEN nightly_inventory.booked_at END,
+                        reservation_id=CASE WHEN excluded.status = 'booked'
+                            THEN nightly_inventory.reservation_id END,
                         channel='guesty',
                         min_stay=excluded.min_stay,
                         evidence_kind='guesty_readonly',
@@ -198,14 +222,19 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
                       listings: list[GuestyListing], report: SyncReport) -> None:
     by_listing = {l.listing_id: l.property_id for l in listings}
     for res in client.reservations():
-        if str(res.get("status", "")).lower() in {"canceled", "cancelled", "declined", "expired"}:
-            continue
         listing_id = res.get("listingId")
         pid = by_listing.get(str(listing_id)) if listing_id is not None else None
         ci, co = parse_guesty_date(res.get("checkIn")), parse_guesty_date(res.get("checkOut"))
         if not pid or not ci or not co:
             continue
-        report.reservations += 1
+        status = str(res.get("status", "")).lower()
+        source = res.get("source") or "guesty"
+        booking = is_market_booking(status, source)
+        owner_stay = (
+            status in BOOKING_STATUSES and str(source).lower() in OWNER_SOURCES
+        )
+        if booking or owner_stay:
+            report.reservations += 1
         money = res.get("money") or {}
         fare = money.get("fareAccommodation")
         nights = int(res.get("nightsCount") or (co - ci).days or 1)
@@ -215,7 +244,7 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
         confirmed = parse_guesty_datetime(res.get("confirmedAt") or res.get("createdAt"))
         created = parse_guesty_datetime(res.get("createdAt"))
         guests = reservation_guest_count(res)
-        if confirmed:
+        if confirmed and booking:
             report.reservations_with_confirmed_at += 1
         ci_iso = ci.isoformat()
         if report.reservation_checkin_min is None or ci_iso < report.reservation_checkin_min:
@@ -245,7 +274,7 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
             """,
             (
                 res.get("_id"), pid, res.get("listingId"), ci_iso, co.isoformat(), nights,
-                res.get("status"), res.get("source") or "guesty", confirmed, created, guests,
+                res.get("status"), source, confirmed if booking else None, created, guests,
                 float(fare) if fare is not None else None, nightly,
                 json.dumps({
                     "status": res.get("status"), "source": res.get("source"),
@@ -254,6 +283,38 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
                 }),
             ),
         )
+        if owner_stay:
+            # Owner use: the night is off the market, not sold.
+            for i in range(nights):
+                stay = ci + timedelta(days=i)
+                conn.execute(
+                    """
+                    INSERT INTO nightly_inventory (property_id, stay_date, listed_price,
+                        booked_price, status, day_of_week, channel, reservation_id,
+                        updated_at)
+                    VALUES (?, ?, NULL, NULL, 'blocked', ?, 'owner', ?, datetime('now'))
+                    ON CONFLICT(property_id, stay_date) DO UPDATE SET
+                        status='blocked', booked_price=NULL, booked_at=NULL,
+                        channel='owner', reservation_id=excluded.reservation_id,
+                        updated_at=datetime('now')
+                    """,
+                    (pid, stay.isoformat(), stay.weekday(), res.get("_id")),
+                )
+            continue
+        if not booking:
+            # Inquiry / cancellation / decline: demand evidence only. Clear any
+            # booking facts an earlier sync wrote for this reservation id; the
+            # calendar sync (run first) stays the authority on status.
+            conn.execute(
+                """
+                UPDATE nightly_inventory
+                SET booked_price=NULL, booked_at=NULL, reservation_id=NULL,
+                    updated_at=datetime('now')
+                WHERE reservation_id = ?
+                """,
+                (res.get("_id"),),
+            )
+            continue
         for i in range(nights):
             stay = ci + timedelta(days=i)
             conn.execute(
@@ -272,7 +333,7 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
                     updated_at=datetime('now')
                 """,
                 (pid, stay.isoformat(), nightly, stay.weekday(),
-                 res.get("source") or "guesty", res.get("_id"), confirmed, guests),
+                 source, res.get("_id"), confirmed, guests),
             )
             if nightly:
                 report.booked_nights_priced += 1

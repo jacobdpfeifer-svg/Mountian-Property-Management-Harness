@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Point-in-time replay</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --line:#e2e2e2; --warn:#8a1c1c; --bg:#fff; }
+  body { font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; color:var(--ink);
+         background:var(--bg); margin:0; padding:24px; max-width:860px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:28px 0 8px; border-bottom:1px solid var(--line); padding-bottom:4px; }
+  h3 { font-size:14px; margin:14px 0 6px; }
+  .sub { color:var(--muted); margin:0 0 16px; }
+  .strip { background:#f6f6f4; border:1px solid var(--line); border-radius:8px; padding:12px 16px;
+            font-size:13px; color:var(--muted); }
+  table { border-collapse:collapse; width:100%; margin:8px 0; font-size:14px; }
+  th,td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  .unmeasurable { font-weight:600; }
+  .note { color:var(--muted); font-size:13px; }
+  .assumption { font-style:italic; color:var(--muted); }
+  .warn { color:var(--warn); font-weight:600; }
+</style></head>
+<body>
+  <h1>Point-in-time replay — method demonstration</h1>
+  <p class="sub">Window 2026-09-20 &rarr; 2026-09-29 ·
+     censor 2026-09-29 · properties summit_haus, overlook_ridge, cloud_9 ·
+     generated 2026-09-29</p>
+
+  <div class="strip">
+    Data ceiling (from the DB, not assumed): pacing observed
+    2026-08-18 &rarr; 2026-09-29;
+    10 decision day(s); 88 reservation(s);
+    31806 night(s) carry an as-of listed price.
+    A two-winter revenue proof is not claimed.
+  </div>
+
+  <h2>1 · No peeking</h2>
+  <p>Decision days: 2026-09-20, 2026-09-21, 2026-09-22, 2026-09-23, 2026-09-24, 2026-09-25, 2026-09-26, 2026-09-27, 2026-09-28, 2026-09-29.</p>
+  <p>Public snow/ENSO vintages are gated by <code>published_at &le; D</code> and every signal
+     passed <code>assert_no_lookahead</code>. Guesty write count: <strong>0</strong>.</p>
+  <p class="note"><strong>Label definition:</strong> For a decision on D for stay date S, label booked=true iff a confirmed booking event occurs after D and on or before min(S, censor); already-booked-at-D nights are excluded and reported separately.</p>
+  <p class="note">Every logged decision used the listed price recorded on that day.</p>
+
+  <h2>Panel accounting</h2>
+  <p class="note">Decision-day candidate, emitted, resolved, unresolved, blocked, and
+     already-booked counts are included in the JSON provenance under
+     <code>panel_counts</code>. Repeated stay nights are flagged in the warnings and
+     calibration includes a deduplicated effective-N view.</p>
+
+  <h2>2 · Were the predictions sound</h2>
+  <h3>Calibration</h3>
+  <p class='unmeasurable'>Unmeasurable on this window (77 decision rows, 17 distinct nights, 4 positive booking events).</p><p class='note'>Predicted booking chance is terminal (books by check-in); nights still in the future are unresolved and are excluded so the curve is not misleading. Calibration floor not met: 17 distinct resolved nights &lt; 20; 4 positive booked events &lt; 5.</p>
+  <h3>Direction</h3>
+  <p>Priced above listed (30 nights) booked 0%; priced below (42 nights) booked 7%.</p>
+
+  <h2>3 · Estimated revenue (estimate, not a verdict)</h2>
+  <p class='assumption'>Assumption: bookings do not respond to price (price-swap only) — not a causal result.</p><table><thead><tr><th>Basis</th><th>Engine RevPAN</th><th>Listed RevPAN</th><th>Difference</th></tr></thead><tbody><tr><td>Bookings held fixed (real outcomes)</td><td>$23</td><td>$24</td><td>$-1</td></tr><tr><td>Engine's own demand model</td><td>$235</td><td>$235</td><td>$-0</td></tr></tbody></table><p class='note'>Per available night, over 77 comparable nights (4 booked by the censor).</p><p class='warn'>This run does not show the engine beat the market. Both rows swap the price while holding bookings fixed, which cannot prove causation.</p>
+
+  <h2>How to grow this</h2>
+  <p class="note">Run <code>wp-price shadow-record</code> daily on the operator DB
+     (no Guesty writes) so future months accumulate nights that have actually checked
+     in. A real crystal-ball check waits until those resolved nights exist.</p>
+</body></html>

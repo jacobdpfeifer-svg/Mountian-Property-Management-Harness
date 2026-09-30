@@ -34,6 +34,7 @@ from src.features import NightFeatures, build_features
 from src.guardrails import DataHealth, apply_guardrails, assess_data_health, record_health
 from src.leakage import apply_leakage_price, scan_leakage
 from src.min_stay import decide_min_stay
+from src.runcache import engine_run_cache
 from src.utils import clamp_price, round_price_conservative
 
 
@@ -354,8 +355,10 @@ def recommend_night(
             level = "suggest"
     if verdict.blocked or mem.floor_above_ceiling:
         level = "escalate"
-    elif abs(memory_contribution) >= 0.01 and level == "handle":
-        # First accepted memory cycle stays suggestion-only. Handle must not push it.
+    elif mem.active_claim_refs and level == "handle":
+        # v1 never auto-pushes a run touched by a price-bearing memory claim.
+        # This is intentionally stricter than the general health gate: a person
+        # must first see the claim and its counterfactual on the receipt.
         level = "suggest"
 
     # ---- attribution -------------------------------------------------------
@@ -628,7 +631,12 @@ def persist_recommendation(conn: sqlite3.Connection, rec: Recommendation) -> int
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(run_id, property_id, stay_date) DO UPDATE SET
             recommended_price=excluded.recommended_price,
+            ceiling_price=excluded.ceiling_price,
             floor_price=excluded.floor_price,
+            listed_price_at_run=excluded.listed_price_at_run,
+            ceiling_confidence=excluded.ceiling_confidence,
+            rule_version=excluded.rule_version,
+            model_version=excluded.model_version,
             autonomy_level=excluded.autonomy_level,
             expected_book_prob=excluded.expected_book_prob,
             expected_revpan=excluded.expected_revpan,
@@ -707,15 +715,18 @@ def generate_recommendations(
         today = date.today()
         features = [f for f in features if f.stay_date >= today]
     recs: list[Recommendation] = []
-    for feat in features:
-        rec = recommend_night(
-            conn, feat, policy=policy, health=health, run_id=run_id, as_of=as_of
-        )
-        if rec is None:
-            continue
-        if persist:
-            persist_recommendation(conn, rec)
-        recs.append(rec)
+    # Signals and demand tables are read-only while a run prices; memoize the
+    # per-night re-derivations (SQI, demand index) for this run only.
+    with engine_run_cache():
+        for feat in features:
+            rec = recommend_night(
+                conn, feat, policy=policy, health=health, run_id=run_id, as_of=as_of
+            )
+            if rec is None:
+                continue
+            if persist:
+                persist_recommendation(conn, rec)
+            recs.append(rec)
     if persist:
         conn.commit()
     return recs, health

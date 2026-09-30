@@ -114,10 +114,10 @@ def _pii_hit(data: bytes, mime: str) -> bool:
 
 
 def _malware_code(path: Path) -> str | None:
-    """None means the structural scan passed and clamscan is absent or clean."""
+    """Return a fail-closed scan result; clean is the only None outcome."""
     exe = shutil.which("clamscan")
     if exe is None:
-        return None
+        return "malware_scanner_unavailable"
     try:
         proc = subprocess.run(
             [exe, "--no-summary", str(path)],
@@ -129,6 +129,8 @@ def _malware_code(path: Path) -> str | None:
         return "malware_scan_failed"
     if proc.returncode == 0:
         return None
+    if proc.returncode == 1:
+        return "malware_detected"
     return "malware_scan_failed"
 
 
@@ -218,6 +220,16 @@ def _ingest(
     file_id = uuid.uuid4().hex
     sniffed = _sniff(data)
 
+    # Do not copy a flood into quarantine. Keep only an auditable metadata record
+    # and require a deliberate later re-submission once the queue is clear.
+    if _daily_count(conn) >= DAILY_FILE_LIMIT:
+        _insert_file(
+            conn, file_id=file_id, digest=digest, storage_key="discarded",
+            ext=suffix, mime=sniffed or "application/octet-stream", size=len(data),
+            source=source, status="discarded", pii_status="overflow",
+        )
+        return IntakeResult("queue_overflow", file_id=file_id)
+
     if suffix in _ROUTE_EXT:
         key = _write(layout / "quarantine", file_id, data)
         _insert_file(
@@ -249,27 +261,33 @@ def _ingest(
         )
         return IntakeResult("pii_quarantine", file_id=file_id)
 
-    if _daily_count(conn) >= DAILY_FILE_LIMIT:
+    # Non-text formats have no PII extractor or typed-claim extractor in v1.
+    # Keep them in quarantine rather than making a false “clear” claim.
+    if sniffed not in _TEXT_COMPAT:
         key = _write(layout / "quarantine", file_id, data)
         _insert_file(
             conn, file_id=file_id, digest=digest, storage_key=key, ext=suffix,
             mime=expected, size=len(data), source=source,
-            status="quarantined", pii_status="overflow",
+            status="quarantined", pii_status="not_scanned",
         )
-        return IntakeResult("queue_overflow", file_id=file_id)
+        return IntakeResult("manual_privacy_review_required", file_id=file_id)
 
-    key = _write(layout / "files", file_id, data)
-    scan = _malware_code(layout / "files" / file_id)
+    # The file is quarantined while anti-malware runs. It reaches durable evidence
+    # storage only after a clean result; an unavailable scanner is fail-closed.
+    quarantine_key = _write(layout / "quarantine", file_id, data)
+    scan = _malware_code(layout / "quarantine" / file_id)
     if scan is not None:
-        dest = layout / "quarantine" / file_id
-        (layout / "files" / file_id).replace(dest)
-        os.chmod(dest, 0o600)
         _insert_file(
-            conn, file_id=file_id, digest=digest, storage_key=f"quarantine/{file_id}",
+            conn, file_id=file_id, digest=digest, storage_key=quarantine_key,
             ext=suffix, mime=expected, size=len(data), source=source,
             status="quarantined", pii_status="clear",
         )
         return IntakeResult(scan, file_id=file_id)
+
+    dest = layout / "files" / file_id
+    (layout / "quarantine" / file_id).replace(dest)
+    os.chmod(dest, 0o600)
+    key = f"files/{file_id}"
 
     _insert_file(
         conn, file_id=file_id, digest=digest, storage_key=key, ext=suffix,
@@ -329,7 +347,21 @@ def ingest_inbox(root: Path | None = None) -> list[IntakeResult]:
     conn = connect_memory(layout)
     try:
         for path in sorted(inbox.iterdir()):
-            if not path.is_file() or path.name.startswith("."):
+            if path.name.startswith("."):
+                continue
+            if path.is_symlink():
+                path.unlink()
+                results.append(IntakeResult("rejected_symlink"))
+                continue
+            if not path.is_file():
+                continue
+            try:
+                size = path.stat().st_size
+            except OSError:
+                results.append(IntakeResult("inbox_race"))
+                continue
+            if size > MAX_BYTES:
+                results.append(_quarantine_large_inbox_file(conn, layout, path, size))
                 continue
             data = path.read_bytes()
             result = _ingest(conn, layout, data, path.suffix.lower(), "inbox")
@@ -339,6 +371,35 @@ def ingest_inbox(root: Path | None = None) -> list[IntakeResult]:
     finally:
         conn.close()
     return results
+
+
+def _quarantine_large_inbox_file(
+    conn: sqlite3.Connection, layout: Path, path: Path, size: int
+) -> IntakeResult:
+    """Move an oversized inbox file without reading it into process memory."""
+    digest = hashlib.sha256()
+    head = b""
+    with path.open("rb") as source:
+        while chunk := source.read(1024 * 1024):
+            if len(head) < 32:
+                head += chunk[: 32 - len(head)]
+            digest.update(chunk)
+    existing = conn.execute(
+        "SELECT file_id FROM memory_files WHERE sha256 = ?", (digest.hexdigest(),)
+    ).fetchone()
+    if existing is not None:
+        path.unlink()
+        return IntakeResult("duplicate", file_id=existing["file_id"])
+    file_id = uuid.uuid4().hex
+    dest = layout / "quarantine" / file_id
+    path.replace(dest)
+    os.chmod(dest, 0o600)
+    _insert_file(
+        conn, file_id=file_id, digest=digest.hexdigest(), storage_key=f"quarantine/{file_id}",
+        ext=path.suffix.lower(), mime=_sniff(head) or "application/octet-stream",
+        size=size, source="inbox", status="quarantined", pii_status="skipped",
+    )
+    return IntakeResult("too_large", file_id=file_id)
 
 
 def delete_file(conn: sqlite3.Connection, file_id: str, *, root: Path | None = None) -> str:
@@ -374,7 +435,7 @@ def export_file(conn: sqlite3.Connection, file_id: str, dest: Path, *, root: Pat
         "SELECT storage_key, status FROM memory_files WHERE file_id = ?",
         (file_id,),
     ).fetchone()
-    if row is None or row["status"] == "deleted":
+    if row is None or row["status"] in {"deleted", "discarded"}:
         raise ValueError("missing")
     source = layout / row["storage_key"]
     dest.parent.mkdir(parents=True, exist_ok=True)

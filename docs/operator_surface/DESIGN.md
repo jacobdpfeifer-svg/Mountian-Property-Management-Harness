@@ -1,5 +1,12 @@
 # The Mont Luxe Run Receipt + Evidence Inbox
 
+> **Implementation status — audited 2026-09-29:** the local HTML receipt, sidecar
+> SQLite store, Finder inbox CLI, typed-claim lifecycle, deterministic compose hook,
+> provenance columns and targeted tests now exist. This document remains the product
+> contract. PDF/image/audio intake is currently quarantine-only; text/Markdown is the
+> sole automatic claim-proposal format. See `AUDIT.md` for verified scope and residual
+> work.
+
 ## One-page operator pitch
 
 **Sunday:** after the normal recommendation run, open one local dated **Run Receipt**.
@@ -149,22 +156,25 @@ Important implementation choices:
 - A claim label is not a reason. It renders only when its typed feature changed a
   deterministic bound/candidate and has an actual signed contribution.
 
-## Thin-slice build order (only after approval)
+## Delivered thin slice and next gated work
 
-1. **Receipt read path:** add `wp-price receipt --run-id …`, HTML/print CSS, and tests
-   mapping every visible sentence to stored facts. Include health timeline, no-push
-   outcomes and a twin comparator. No migration beyond optional receipt metadata.
-2. **Sidecar foundation:** private application-support path checks, SQLite migration,
-   quarantine/store, hash/type/size/malware hooks, deletion/export procedure and
-   `wp-price memory status`. Never put private data under this repo.
-3. **Claim intake:** `annotation`, `question`, `minimum_rate`, `no_decrease`; deterministic
-   validation, CLI confirmation and receipt card. Start only with contract-listed types.
-4. **Feature + replay:** as-of builder, recommendation provenance fields,
-   `memory_constraint` reason, counterfactual and no-memory equivalence tests. First
-   accepted claim cycle remains suggestion-only.
-5. **Claim-review page:** only if CLI confirmation proves awkward. It is a loopback
+1. **Delivered:** `wp-price receipt --run-id …`, print-ready HTML, exact stored reasons,
+   health/no-push timeline, twin comparator and explicit applied/failed/dry-run counts.
+2. **Delivered:** private sidecar path checks, SQLite schema, quarantine/store,
+   hash/type/size gates, deletion/export/backup commands and `wp-price memory status`.
+   Text is accepted only after a clean required ClamAV scan; no scanner is fail-closed.
+3. **Delivered:** `annotation`, `question`, `minimum_rate`, `no_decrease`; deterministic
+   validation, CLI confirmation and receipt card. The card includes a proposed minimum,
+   so a human is never asked to approve a rate-bearing value blind.
+4. **Delivered:** as-of feature build, recommendation provenance fields,
+   `memory_constraint`, counterfactual and no-memory equivalence tests. Any active
+   price-bearing claim is `suggest`-only in v1.
+5. **Next, only after a privacy/parser review:** PDF, image and audio PII extraction;
+   then a sandboxed parser that can propose—not activate—claims. Until then those files
+   remain quarantined evidence.
+6. **Claim-review page:** only if CLI confirmation proves awkward. It is a loopback
    convenience, not a framework or pricing console.
-6. **Evaluate before expansion:** weekly memory exam; compare counterfactual, final
+7. **Evaluate before expansion:** weekly memory exam; compare counterfactual, final
    price, outcome and overrides; then decide if email/audio/notification merit risk.
 
 ## Acceptance criteria
@@ -177,15 +187,16 @@ Important implementation choices:
   including historical `as_of` backtests.
 - An accepted valid `no_decrease` affects only the named property/dates and cannot violate
   hard guardrails; floor-above-ceiling escalates.
-- Fake injection PDF, ZIP bomb, renamed executable and PII file create no active claim
-  and leak no raw content to logs/receipts.
+- Fake injection text, ZIP bomb, renamed executable, scanner-unavailable host and PII
+  text create no active claim and leak no raw content to logs/receipts. Binary formats
+  remain quarantined until their PII/parser controls exist.
 - Browser/extractor code cannot import Guesty credentials or rate-writing code.
 - At thirty doors, add filters and assignment/digests—not another tenant, browser write
   path, or non-property-scoped memory.
 
-## Decision requested
+## Gated decision
 
-Approve this **receipt-first, evidence-inbox second** thin slice before application code,
-migrations, watcher, framework or local server is written. Two build-time choices remain:
-private-storage/backup policy and who may confirm a price-bearing memory claim. Neither
-needs a browser-to-Guesty path.
+The audited thin slice is in the repository. Do not add PDF/OCR/audio parsing, email
+forwarding, a browser rate action, or a `handle` path for memory claims until the privacy
+scanner/parser design and confirmation authority are separately approved. Neither needs
+a browser-to-Guesty path.
