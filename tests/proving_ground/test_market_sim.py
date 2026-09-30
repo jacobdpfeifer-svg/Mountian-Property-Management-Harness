@@ -17,7 +17,7 @@ from proving_ground_exam.market.parameters import (
     load_scenario,
 )
 from src.db import connect
-from src.proving_ground.market_loop import run_market_job
+from src.proving_ground.market_loop import run_market_job, run_pool
 
 HELD_OUT = {"holiday_shift", "den_capacity_cut", "regime_change", "pandemic_collapse"}
 ROOT = Path(__file__).resolve().parents[2]
@@ -204,9 +204,131 @@ def test_incremental_reprice_matches_full_recommendation_fields(tmp_path: Path):
     assert _rec_digest(full) == _rec_digest(inc)
 
 
+def test_market_pool_can_retain_job_databases_for_audit(tmp_path: Path):
+    output = tmp_path / "retained"
+    run_pool("normal", 1, "flat", workers=1, output_dir=output, max_days=2, retain_dbs=True)
+    assert (output / "dbs" / "normal_flat_1.db").exists()
+
+
+def test_market_pool_discards_job_databases_by_default(tmp_path: Path):
+    output = tmp_path / "discarded"
+    run_pool("normal", 1, "flat", workers=1, output_dir=output, max_days=2)
+    assert not (output / "dbs" / "normal_flat_1.db").exists()
+
+
+def test_market_pool_retains_only_named_scenarios(tmp_path: Path):
+    output = tmp_path / "subset"
+    run_pool("all", 1, "flat", workers=1, output_dir=output, max_days=1, retain_dbs={"normal"})
+    kept = sorted(path.name for path in (output / "dbs").glob("*.db"))
+    assert kept == ["normal_flat_1.db"]
+
+
+def test_market_run_checkpoints_and_records_provenance(tmp_path: Path):
+    output = tmp_path / "ckpt"
+    paths = run_pool("normal", 2, "flat", workers=1, output_dir=output, max_days=2)
+    lines = (output / "results.jsonl").read_text().splitlines()
+    assert len(lines) == 2
+    provenance = json.loads(Path(paths["manifest"]).read_text())["provenance"]
+    assert provenance["completed_jobs"] == provenance["expected_jobs"] == 2
+    config = provenance["config"]
+    assert config["models_enabled"] == []
+    assert len(config["calibration_sha256"]) == 64
+    assert config["git_commit"]
+
+
+def test_market_run_refuses_to_mix_into_a_used_directory(tmp_path: Path):
+    output = tmp_path / "used"
+    run_pool("normal", 1, "flat", workers=1, output_dir=output, max_days=2)
+    with pytest.raises(FileExistsError):
+        run_pool("normal", 1, "flat", workers=1, output_dir=output, max_days=2)
+
+
+def test_market_resume_skips_finished_jobs_and_matches_a_clean_run(tmp_path: Path):
+    clean = run_pool("normal", 2, "flat", workers=1, output_dir=tmp_path / "clean", max_days=2)
+    partial = tmp_path / "partial"
+    run_pool("normal", 1, "flat", workers=1, output_dir=partial, max_days=2)
+    # Seed count is part of the config, so widen it the way a crashed run would
+    # look: keep the one finished row and let resume do the rest.
+    (partial / "run_config.json").unlink()
+    resumed = run_pool("normal", 2, "flat", workers=1, output_dir=partial, max_days=2, resume=True)
+    provenance = json.loads(Path(resumed["manifest"]).read_text())["provenance"]
+    assert provenance["resumed_jobs"] == 1
+    assert Path(resumed["csv"]).read_text() == Path(clean["csv"]).read_text()
+
+
+def test_market_resume_refuses_changed_config(tmp_path: Path):
+    output = tmp_path / "drift"
+    run_pool("normal", 1, "flat", workers=1, output_dir=output, max_days=2)
+    with pytest.raises(ValueError, match="max_days"):
+        run_pool("normal", 1, "flat", workers=1, output_dir=output, max_days=3, resume=True)
+
+
+def test_engine_recommendations_are_keyed_by_decision_day(tmp_path: Path):
+    db = tmp_path / "keyed.db"
+    run_market_job("normal", 1, "engine", db_path=db, decision_limit=2)
+    conn = connect(db)
+    try:
+        run_ids = [row[0] for row in conn.execute(
+            "SELECT DISTINCT run_id FROM price_recommendations ORDER BY run_id"
+        )]
+    finally:
+        conn.close()
+    cal = load_calibration()
+    assert run_ids[0] == f"sim-{cal['season_start']}"
+    assert len(run_ids) == 2
+
+
 @pytest.mark.slow
 def test_two_full_seasons_stay_deterministic(tmp_path: Path):
     first = run_market_job("normal", 1, "flat", db_path=tmp_path / "s1.db")
     second = run_market_job("normal", 1, "flat", db_path=tmp_path / "s2.db")
     assert first.content_hash == second.content_hash
     assert first.scores["confirmed"] > 0
+
+
+def test_market_run_stops_on_first_failure_and_records_it(tmp_path: Path, monkeypatch):
+    from src.proving_ground import market_loop
+
+    def boom(job):
+        raise RuntimeError(f"broken {job[0]}/{job[1]}")
+
+    monkeypatch.setattr(market_loop, "_pool_job", boom)
+    output = tmp_path / "fails"
+    with pytest.raises(RuntimeError, match="broken normal/1"):
+        run_pool("normal", 3, "flat", workers=1, output_dir=output, max_days=2)
+    failure = json.loads((output / "failure.json").read_text())
+    assert failure["job"] == {"scenario": "normal", "seed": 1, "policy": "flat"}
+    assert not (output / "scoreboard.csv").exists()
+
+
+def test_audit_flags_a_missing_seed():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("audit_market_sim", ROOT / "scripts" / "audit_market_sim.py")
+    audit_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit_mod)
+    rows = [
+        {"scenario": "normal", "seed": str(seed), "policy": policy, "revenue": "100", "held_out": "False"}
+        for seed in (1, 2)
+        for policy in ("engine", "flat", "comp_median", "tool")
+    ]
+    assert audit_mod.audit(rows, expect_seeds=2)["gates"]["complete"]
+    result = audit_mod.audit(rows[:-1], expect_seeds=2)
+    assert not result["gates"]["complete"]
+    assert result["completeness"]["missing"] == ["normal/tool/2"]
+
+
+def test_audit_can_score_only_unscreened_seeds():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("audit_market_sim", ROOT / "scripts" / "audit_market_sim.py")
+    audit_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit_mod)
+    rows = [
+        {"scenario": "normal", "seed": str(seed), "policy": policy, "revenue": str(seed), "held_out": "False"}
+        for seed in (1, 2, 3)
+        for policy in ("engine", "flat", "comp_median", "tool")
+    ]
+    result = audit_mod.audit(rows, expect_seeds=3, seeds_from=2)
+    assert result["gates"]["complete"]
+    assert result["engine_minus_flat"]["normal"]["n"] == 2
