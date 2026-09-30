@@ -17,7 +17,36 @@ class ElasticityContext:
     note: str
 
 
+_BOOKED_STATUSES = ("confirmed", "booked", "checked_in", "checked_out")
+
+
+def _guesty_inquiry_conversion(conn: sqlite3.Connection, property_id: str) -> float | None:
+    """Confirmed stays divided by Guesty inquiry rows on this property.
+
+    Returns None when fewer than five inquiry rows exist, so the CSV table can
+    still answer on a sample database that has no PMS inquiries.
+    """
+    placeholders = ",".join("?" for _ in _BOOKED_STATUSES)
+    row = conn.execute(
+        f"""
+        SELECT
+            COALESCE(SUM(CASE WHEN lower(status) = 'inquiry' THEN 1 ELSE 0 END), 0) AS inquiries,
+            COALESCE(SUM(CASE WHEN lower(status) IN ({placeholders}) THEN 1 ELSE 0 END), 0) AS conversions
+        FROM reservations
+        WHERE property_id = ?
+        """,
+        (*_BOOKED_STATUSES, property_id),
+    ).fetchone()
+    inquiries = int(row["inquiries"] or 0)
+    if inquiries < 5:
+        return None
+    return float(row["conversions"]) / float(inquiries)
+
+
 def inquiry_conversion(conn: sqlite3.Connection, property_id: str) -> float | None:
+    guesty = _guesty_inquiry_conversion(conn, property_id)
+    if guesty is not None:
+        return guesty
     row = conn.execute(
         """
         SELECT
