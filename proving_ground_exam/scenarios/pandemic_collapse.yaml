@@ -1,0 +1,19 @@
+name: pandemic_collapse
+snow: 0.55
+access: 0.95
+macro: 0.6
+supply_extra: 0.0
+scrape_outage: false
+pms_stale_days: 0
+holiday_offset_days: 0
+late_open_days: 0
+early_close_days: 0
+den_capacity: 1.0
+pandemic_factor: 0.15
+price_war: false
+i70_weekends: []
+regime_on: null
+regime_snow: 0.55
+regime_macro: 0.6
+held_out: true
+notes: Held out. Arrival rates fall to 15%.

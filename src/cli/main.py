@@ -178,7 +178,7 @@ def cmd_proving_ground_run(args: argparse.Namespace) -> int:
             args.level,
             seed=args.seed,
             output_dir=Path(args.output_dir),
-            decision_step_days=args.decision_step,
+            decision_step_days=getattr(args, "decision_step", 7),
         )
     except (ValueError, RuntimeError) as exc:
         print(str(exc), file=sys.stderr)
@@ -189,6 +189,26 @@ def cmd_proving_ground_run(args: argparse.Namespace) -> int:
     print(f"  report: {artifacts.report_path}")
     print(f"  queue:  {artifacts.approval_queue_path}")
     return 0 if artifacts.passed else 1
+
+
+def cmd_proving_ground_market(args: argparse.Namespace) -> int:
+    from src.proving_ground.market_loop import run_pool
+
+    paths = run_pool(
+        args.scenario,
+        args.seeds,
+        args.policy,
+        workers=args.workers,
+        output_dir=Path(args.output_dir),
+        max_days=args.max_days or None,
+        incremental=args.incremental,
+    )
+    print(f"Market sim {args.scenario} policy={args.policy} seeds={args.seeds}")
+    print(f"  manifest: {paths['manifest']}")
+    print(f"  scoreboard: {paths['csv']}")
+    print(f"  report: {paths['report']}")
+    print(f"  hash: {paths['hash']}")
+    return 0
 
 
 def cmd_proving_ground_build_vintages(_args: argparse.Namespace) -> int:
@@ -787,6 +807,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Days between pricing decisions (7 = weekly, 1 = daily). Default stays weekly.",
     )
     s.set_defaults(func=cmd_proving_ground_run)
+
+    s = pg_sub.add_parser("market", help="Run the shopper-market simulator")
+    s.add_argument("--scenario", required=True, help="Scenario name, or all")
+    s.add_argument("--seeds", type=int, default=30)
+    s.add_argument("--workers", type=int, default=1)
+    s.add_argument("--policy", default="engine", choices=["engine", "flat", "comp_median", "tool"])
+    s.add_argument("--output-dir", default=".testrun_runs/market_sim/runs")
+    s.add_argument("--max-days", type=int, default=0, help="Truncate the season (0 = full 180 days)")
+    s.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Reprice a night only when its lead bucket, neighbors, comps, or the property book digest changed",
+    )
+    s.set_defaults(func=cmd_proving_ground_market)
 
     s = pg_sub.add_parser("build-vintages", help="Download/freeze NRCS SNOTEL + NOAA ONI vintages")
     s.set_defaults(func=cmd_proving_ground_build_vintages)

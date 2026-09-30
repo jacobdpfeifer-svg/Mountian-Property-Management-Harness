@@ -1,0 +1,158 @@
+# Transcribed from docs/research/SIM_PARAMETERS.md before any engine score.
+# Every mapping that carries a "value" must also carry a "source".
+market_id: grand_home
+season_start: "2026-11-01"
+season_end: "2027-04-29"
+
+median_nightly: {value: 700, source: "assumed, SIM_PARAMETERS.md market median", confidence: low}
+arrival_mean: {value: 3.2, source: "assumed, swept", confidence: low, sweep: [2.0, 3.2, 5.0]}
+holiday_multiplier: {value: 1.8, source: "assumed, swept", confidence: low}
+conversion: {value: 0.55, source: "assumed, swept — not the 40/47 inquiry ratio", confidence: low}
+mixed_logit_sigma: {value: 0.25, source: "assumed, swept", confidence: low}
+fit_penalty: {value: -1.2, source: "assumed", confidence: low}
+fit_ratio: {value: 0.35, source: "assumed", confidence: low}
+outside_utility: {value: 0.0, source: "normalization", confidence: high}
+scrape_log_sigma: {value: 0.04, source: "assumed", confidence: low}
+scrape_missing_prob: {value: 0.08, source: "assumed", confidence: low}
+undercut_factor: {value: 0.92, source: "assumed, SIM_PARAMETERS competitor rules", confidence: low}
+
+cancel_hazard:
+  ge_60: {value: 0.004, source: "assumed, swept", confidence: low}
+  ge_21: {value: 0.002, source: "assumed, swept", confidence: low}
+  ge_8: {value: 0.001, source: "assumed, swept", confidence: low}
+  ge_0: {value: 0.0004, source: "assumed, swept", confidence: low}
+
+flat_price:
+  peak_ski: {value: 900, source: "assumed seasonal flat near the homes' base rates", confidence: low}
+  early_winter: {value: 750, source: "assumed seasonal flat near the homes' base rates", confidence: low}
+  shoulder_spring: {value: 650, source: "assumed seasonal flat near the homes' base rates", confidence: low}
+
+validation:
+  lead_le_21: {lo: 0.40, hi: 0.75, source: "first party 28/47 = 0.60, widened"}
+  los_mean: {lo: 2.5, hi: 6.5, source: "first party mean 3.64, widened for a winter mix"}
+  inquiry_per_confirmed: {lo: 0.40, hi: 1.60, source: "first party 40/47 = 0.85, widened"}
+  occupancy_peak: {lo: 0.25, hi: 0.75, source: "suggestive — partial 2026 book, widened"}
+  occupancy_early: {lo: 0.10, hi: 0.55, source: "suggestive — partial 2026 book, widened"}
+
+properties:
+  summit_haus:
+    name: Summit Haus
+    bedrooms: 5
+    sleeps: 16
+    floor: 330
+    base: 793
+    ceiling: 1800
+    owner_id: northwoods
+    twin: overlook_ridge
+    quality: {value: 1.0, source: "assumed, twins share a quality", confidence: low}
+  overlook_ridge:
+    name: Overlook Ridge
+    bedrooms: 5
+    sleeps: 16
+    floor: 336
+    base: 916
+    ceiling: 1800
+    owner_id: northwoods
+    twin: summit_haus
+    quality: {value: 1.0, source: "assumed, twins share a quality", confidence: low}
+  cloud_9:
+    name: Cloud 9 Chalet
+    bedrooms: 6
+    sleeps: 15
+    floor: 440
+    base: 1035
+    ceiling: 2000
+    owner_id: cloud9
+    twin: null
+    quality: {value: 0.95, source: "assumed", confidence: low}
+
+competitors:
+  comp_static:
+    agent: static_owner
+    sleeps: 14
+    quality: {value: 0.80, source: "assumed, swept", confidence: low}
+    base_peak: 680
+    base_other: 620
+  comp_follower:
+    agent: market_follower
+    sleeps: 12
+    quality: {value: 0.85, source: "assumed, swept", confidence: low}
+  comp_tool:
+    agent: generalized_tool
+    sleeps: 14
+    quality: {value: 0.90, source: "assumed, swept", confidence: low}
+    base: 700
+  comp_undercut:
+    agent: undercutter
+    sleeps: 10
+    quality: {value: 0.75, source: "assumed, swept", confidence: low}
+
+# Shares, lead buckets (0-7, 8-21, 22-60, 61+), LOS (2,3,4,5,7).
+# Numbers are the point values in SIM_PARAMETERS.md.
+segments:
+  families_at_holidays:
+    share: {peak_ski: 0.28, early_winter: 0.18, shoulder_spring: 0.12}
+    lead: [0.10, 0.20, 0.45, 0.25]
+    los: [0.05, 0.15, 0.30, 0.30, 0.20]
+    party: {low: 6, mode: 10, high: 16}
+    channel: {airbnb: 0.70, vrbo: 0.15, direct: 0.15}
+    wtp: {median: 1.20, sigma: 0.15}
+    price_coef: {peak_ski: -1.10, early_winter: -1.30, shoulder_spring: -1.40}
+    weights: {snow: 0.35, access: 0.45, macro: 0.20}
+    holiday_sensitive: true
+    source: "SIM_PARAMETERS.md families_at_holidays; shares assumed, swept"
+  ski_groups:
+    share: {peak_ski: 0.22, early_winter: 0.24, shoulder_spring: 0.10}
+    lead: [0.15, 0.40, 0.35, 0.10]
+    los: [0.25, 0.35, 0.25, 0.10, 0.05]
+    party: {low: 4, mode: 8, high: 12}
+    channel: {airbnb: 0.75, vrbo: 0.20, direct: 0.05}
+    wtp: {median: 1.05, sigma: 0.12}
+    price_coef: {peak_ski: -1.40, early_winter: -1.50, shoulder_spring: -1.60}
+    weights: {snow: 0.70, access: 0.35, macro: 0.15}
+    holiday_sensitive: false
+    source: "SIM_PARAMETERS.md ski_groups; assumed, swept"
+  couples:
+    share: {peak_ski: 0.10, early_winter: 0.16, shoulder_spring: 0.28}
+    lead: [0.40, 0.35, 0.20, 0.05]
+    los: [0.45, 0.35, 0.15, 0.05, 0.00]
+    party: {low: 2, mode: 2, high: 4}
+    channel: {airbnb: 0.80, vrbo: 0.10, direct: 0.10}
+    wtp: {median: 0.90, sigma: 0.10}
+    price_coef: {peak_ski: -1.80, early_winter: -1.80, shoulder_spring: -1.80}
+    weights: {snow: 0.20, access: 0.25, macro: 0.20}
+    holiday_sensitive: false
+    source: "SIM_PARAMETERS.md couples; assumed, swept"
+  international:
+    share: {peak_ski: 0.06, early_winter: 0.05, shoulder_spring: 0.06}
+    lead: [0.05, 0.10, 0.25, 0.60]
+    los: [0.05, 0.10, 0.25, 0.30, 0.30]
+    party: {low: 2, mode: 6, high: 10}
+    channel: {airbnb: 0.40, vrbo: 0.35, direct: 0.25}
+    wtp: {median: 1.15, sigma: 0.18}
+    price_coef: {peak_ski: -0.90, early_winter: -0.90, shoulder_spring: -0.90}
+    weights: {snow: 0.25, access: 0.20, macro: 0.50}
+    holiday_sensitive: false
+    source: "SIM_PARAMETERS.md international; assumed, swept"
+  multi_generational:
+    share: {peak_ski: 0.28, early_winter: 0.27, shoulder_spring: 0.24}
+    lead: [0.10, 0.25, 0.40, 0.25]
+    los: [0.05, 0.10, 0.25, 0.30, 0.30]
+    party: {low: 8, mode: 12, high: 16}
+    channel: {airbnb: 0.55, vrbo: 0.20, direct: 0.25}
+    wtp: {median: 1.30, sigma: 0.12}
+    price_coef: {peak_ski: -0.80, early_winter: -0.80, shoulder_spring: -0.80}
+    weights: {snow: 0.30, access: 0.40, macro: 0.25}
+    holiday_sensitive: true
+    source: "SIM_PARAMETERS.md multi_generational; assumed, swept. Inquiry LOS 7.95 is a hint only"
+  corporate_retreat:
+    share: {peak_ski: 0.06, early_winter: 0.10, shoulder_spring: 0.20}
+    lead: [0.10, 0.25, 0.45, 0.20]
+    los: [0.20, 0.40, 0.25, 0.10, 0.05]
+    party: {low: 6, mode: 10, high: 16}
+    channel: {airbnb: 0.20, vrbo: 0.10, direct: 0.70}
+    wtp: {median: 1.25, sigma: 0.10}
+    price_coef: {peak_ski: -0.70, early_winter: -0.70, shoulder_spring: -0.70}
+    weights: {snow: 0.10, access: 0.20, macro: 0.60}
+    holiday_sensitive: false
+    source: "SIM_PARAMETERS.md corporate_retreat; assumed, swept"
