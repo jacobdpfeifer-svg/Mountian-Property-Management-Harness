@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 @dataclass
@@ -52,12 +52,14 @@ class GuardrailVerdict:
     detail: str | None = None
 
 
-def _age_hours(text: str | None) -> float | None:
+def _age_hours(text: str | None, *, now: datetime | None = None) -> float | None:
     if not text:
         return None
+    clock = now or datetime.now()
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
-            return max(0.0, (datetime.now() - datetime.strptime(str(text)[:19], fmt)).total_seconds() / 3600.0)
+            stamp = datetime.strptime(str(text)[:19], fmt)
+            return max(0.0, (clock - stamp).total_seconds() / 3600.0)
         except ValueError:
             continue
     return None
@@ -67,8 +69,11 @@ def assess_data_health(
     conn: sqlite3.Connection,
     policy: dict[str, Any],
     property_ids: list[str] | None = None,
+    *,
+    as_of: date | None = None,
 ) -> DataHealth:
     cfg = policy.get("data_health", {})
+    clock = None if as_of is None else datetime.combine(as_of, datetime.max.time())
     max_level = policy.get("autonomy", {}).get("max_level", "suggest")
     failures: list[str] = []
     scope_key = "portfolio" if not property_ids else "properties:" + ",".join(sorted(property_ids))
@@ -82,7 +87,7 @@ def assess_data_health(
     row = conn.execute(
         f"SELECT MAX(updated_at) AS mx FROM nightly_inventory{prop_clause}", prop_params
     ).fetchone()
-    pms_age = _age_hours(row["mx"] if row else None)
+    pms_age = _age_hours(row["mx"] if row else None, now=clock)
     if pms_age is None:
         failures.append("no PMS data timestamp")
     elif pms_age > float(cfg.get("pms_max_staleness_hours", 24)):
@@ -110,7 +115,7 @@ def assess_data_health(
         "WHERE scrape_status = 'ok'" + comp_clause,
         comp_params,
     ).fetchone()
-    comp_age = _age_hours(row["mx"] if row else None)
+    comp_age = _age_hours(row["mx"] if row else None, now=clock)
     if comp_age is None:
         failures.append("no comp snapshots")
     elif comp_age > float(cfg.get("comp_max_staleness_hours", 48)):
@@ -178,7 +183,7 @@ def assess_data_health(
         from src.signals.promotion import signal_freshness_failures
         from src.signals.store import SignalStore
 
-        failures.extend(signal_freshness_failures(SignalStore(conn), _date.today()))
+        failures.extend(signal_freshness_failures(SignalStore(conn), as_of or _date.today()))
     except Exception as exc:
         # A health check that cannot run is not healthy.  Swallowing this error
         # could accidentally leave a run at `handle` during a schema or signal

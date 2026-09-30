@@ -108,6 +108,33 @@ def pacing_ratio(
     """
     health = policy.get("data_health", {})
     min_days = int(health.get("pacing_min_snapshot_days", 14))
+
+    def _reference(lo: int, hi: int, as_of_iso: str | None) -> tuple[float, int] | None:
+        def _load() -> tuple[float, int] | None:
+            if as_of_iso is None:
+                row = conn.execute(
+                    """
+                    SELECT AVG(CASE WHEN status = 'booked' THEN 1.0 ELSE 0.0 END) AS occ, COUNT(*) AS n
+                    FROM pacing_snapshots
+                    WHERE days_out BETWEEN ? AND ?
+                    """,
+                    (lo, hi),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT AVG(CASE WHEN status = 'booked' THEN 1.0 ELSE 0.0 END) AS occ, COUNT(*) AS n
+                    FROM pacing_snapshots
+                    WHERE days_out BETWEEN ? AND ? AND as_of <= ?
+                    """,
+                    (lo, hi, as_of_iso),
+                ).fetchone()
+            if row is None:
+                return None
+            return (float(row["occ"] or 0.0), int(row["n"] or 0))
+
+        return memo(("pacing_ref", id(conn), lo, hi, as_of_iso), _load)
+
     if as_of is None:
         distinct = conn.execute(
             "SELECT COUNT(DISTINCT as_of) AS c FROM pacing_snapshots"
@@ -126,14 +153,7 @@ def pacing_ratio(
             return None
         days_out = int(row["days_out"])
         booked_now = 1.0 if row["status"] == "booked" else 0.0
-        ref = conn.execute(
-            """
-            SELECT AVG(CASE WHEN status = 'booked' THEN 1.0 ELSE 0.0 END) AS occ, COUNT(*) AS n
-            FROM pacing_snapshots
-            WHERE days_out BETWEEN ? AND ?
-            """,
-            (max(0, days_out - 3), days_out + 3),
-        ).fetchone()
+        ref = _reference(max(0, days_out - 3), days_out + 3, None)
     else:
         distinct = conn.execute(
             "SELECT COUNT(DISTINCT as_of) AS c FROM pacing_snapshots WHERE as_of <= ?",
@@ -153,17 +173,10 @@ def pacing_ratio(
             return None
         days_out = int(row["days_out"])
         booked_now = 1.0 if row["status"] == "booked" else 0.0
-        ref = conn.execute(
-            """
-            SELECT AVG(CASE WHEN status = 'booked' THEN 1.0 ELSE 0.0 END) AS occ, COUNT(*) AS n
-            FROM pacing_snapshots
-            WHERE days_out BETWEEN ? AND ? AND as_of <= ?
-            """,
-            (max(0, days_out - 3), days_out + 3, as_of.isoformat()),
-        ).fetchone()
-    if ref is None or int(ref["n"] or 0) < 20 or not ref["occ"]:
+        ref = _reference(max(0, days_out - 3), days_out + 3, as_of.isoformat())
+    if ref is None or ref[1] < 20 or not ref[0]:
         return None
-    return booked_now / float(ref["occ"]) if float(ref["occ"]) > 0 else None
+    return booked_now / ref[0] if ref[0] > 0 else None
 
 
 def _lead_observations(
@@ -315,6 +328,8 @@ def estimate(
         booked = total = 0
         prices: list[float] = []
         for stay, r in rows:
+            if cutoff is not None and stay >= cutoff:
+                continue
             if match_tier and demand_tier(demand.get(stay, 0.2), policy) != tier:
                 continue
             if match_regime and target_regime != "all" and _regime_for(stay) != target_regime:

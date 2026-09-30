@@ -141,35 +141,56 @@ def seasonal_anchor(
         window_start = lookback_start(
             decision, float(cfg.get("history_lookback_years", 5))
         )
-
-        rows = conn.execute(
-            """
-            SELECT stay_date, listed_price FROM nightly_inventory
-            WHERE property_id = ? AND listed_price IS NOT NULL AND listed_price > 0
-              AND stay_date >= ?
-            """,
-            (feat.property_id, window_start.isoformat()),
-        ).fetchall()
-
-        same: list[float] = []
-        same_tier: list[float] = []
         target_tier = demand_tier(feat.demand_strength, policy)
-        for r in rows:
-            stay = parse_date(r["stay_date"])
-            if season_for(stay, seasons)[0] != feat.season:
-                continue
-            price = float(r["listed_price"])
-            same.append(price)
-            if demand_tier(demand.get(stay, 0.2), policy) == target_tier:
-                same_tier.append(price)
 
-        pool = same_tier if len(same_tier) >= tier_min_n else same
-        if len(pool) >= min(min_n, tier_min_n) and pool is same_tier:
-            return max(float(np.percentile(np.array(pool, dtype=float), pct * 100.0)),
-                       feat.min_floor_rate)
-        if len(same) >= min_n:
-            return max(float(np.percentile(np.array(same, dtype=float), pct * 100.0)),
-                       feat.min_floor_rate)
+        def _anchor() -> float:
+            # Nights before the decision only. A known sale uses booked_price.
+            # An unsold past night uses its listed price. Future listed prices,
+            # including rates this engine pushed, are not history. booked_at is
+            # interpreted in America/Denver by parse_date.
+            rows = conn.execute(
+                """
+                SELECT stay_date, listed_price, booked_price, status, booked_at
+                FROM nightly_inventory
+                WHERE property_id = ? AND stay_date >= ? AND stay_date < ?
+                  AND listed_price IS NOT NULL AND listed_price > 0
+                """,
+                (feat.property_id, window_start.isoformat(), decision.isoformat()),
+            ).fetchall()
+
+            same: list[float] = []
+            same_tier: list[float] = []
+            for r in rows:
+                stay = parse_date(r["stay_date"])
+                if season_for(stay, seasons)[0] != feat.season:
+                    continue
+                # A sale not yet known on the decision date does not enter the anchor.
+                sale_known = (
+                    r["status"] == "booked"
+                    and r["booked_price"] is not None
+                    and float(r["booked_price"]) > 0
+                    and (as_of is None or (r["booked_at"] and parse_date(r["booked_at"]) <= decision))
+                )
+                price = float(r["booked_price"] if sale_known else r["listed_price"])
+                same.append(price)
+                if demand_tier(demand.get(stay, 0.2), policy) == target_tier:
+                    same_tier.append(price)
+
+            pool = same_tier if len(same_tier) >= tier_min_n else same
+            if len(pool) >= min(min_n, tier_min_n) and pool is same_tier:
+                return max(float(np.percentile(np.array(pool, dtype=float), pct * 100.0)),
+                           feat.min_floor_rate)
+            if len(same) >= min_n:
+                return max(float(np.percentile(np.array(same, dtype=float), pct * 100.0)),
+                           feat.min_floor_rate)
+            return max(feat.base_ceiling_rate * feat.season_multiplier, feat.min_floor_rate)
+
+        from src.runcache import memo
+
+        return memo(
+            ("seasonal_anchor", id(conn), feat.property_id, feat.season, target_tier, decision.isoformat()),
+            _anchor,
+        )
     return max(feat.base_ceiling_rate * feat.season_multiplier, feat.min_floor_rate)
 
 
