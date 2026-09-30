@@ -40,6 +40,8 @@ COMPOSE_REASON_CODES: frozenset[str] = frozenset({
     "booking_horizon",
     "stay_value",
     "portfolio_cannibalization",
+    "turnover_cost",
+    "readiness",
 })
 
 # Tokens that must never appear in the default owner surface.
@@ -235,6 +237,11 @@ def _tpl_min_stay(f: dict[str, Any]) -> str:
             )
         return "Relax the minimum stay so the gap between bookings can sell."
     source = f.get("source")
+    if nights is not None and source == "ops":
+        return (
+            f"Operations suggests a {_nights(nights)} minimum so each turnover is "
+            "covered; this is a suggestion and is not sent to Guesty."
+        )
     if nights is not None and source == "policy":
         return (
             f"Minimum stay is {_nights(nights)} for this season and booking window."
@@ -329,6 +336,28 @@ def _tpl_portfolio_cannibalization(f: dict[str, Any]) -> str:
     return "This home shares demand with its twin, so the reference rate was eased."
 
 
+def _tpl_turnover_cost(f: dict[str, Any]) -> str:
+    standing, chosen, cost = f.get("standing"), f.get("chosen"), f.get("turn_cost")
+    basis = "estimated" if f.get("cost_basis") == "estimate" else "measured"
+    if standing and chosen and cost is not None and chosen != standing:
+        return (
+            f"Each stay needs a turnover ({basis} {_money(cost)}). A {standing}-night "
+            f"minimum spends {_money(f.get('per_night_turn_cost_standing'))} a night on it; "
+            f"a {chosen}-night minimum spends {_money(f.get('per_night_turn_cost_chosen'))}."
+        )
+    if f.get("disqualified"):
+        return "Some stay lengths leave too little time to get the home ready; a person should decide."
+    return "The stay length accounts for the cost of each turnover."
+
+
+def _tpl_readiness(f: dict[str, Any]) -> str:
+    state = str(f.get("state") or "").replace("_", " ")
+    system = f" ({f['system'].replace('_', ' ')})" if f.get("system") else ""
+    risk = f.get("revenue_at_risk")
+    tail = f" Revenue at risk: {_money(risk)}." if risk else ""
+    return f"The home is {state}{system}: {f.get('action', 'held for review')}.{tail}"
+
+
 OWNER_TEMPLATES: dict[str, Callable[[dict[str, Any]], str]] = {
     "revpan_optimum": _tpl_revpan_optimum,
     "base_compose": _tpl_base_compose,
@@ -354,6 +383,8 @@ OWNER_TEMPLATES: dict[str, Callable[[dict[str, Any]], str]] = {
     "booking_horizon": _tpl_booking_horizon,
     "stay_value": _tpl_stay_value,
     "portfolio_cannibalization": _tpl_portfolio_cannibalization,
+    "turnover_cost": _tpl_turnover_cost,
+    "readiness": _tpl_readiness,
 }
 
 

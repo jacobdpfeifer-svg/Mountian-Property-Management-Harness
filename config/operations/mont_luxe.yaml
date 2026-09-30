@@ -1,0 +1,74 @@
+# Operations profiles for the Mont Luxe homes.
+#
+# EVERY NUMBER BELOW IS AN ESTIMATE (basis: estimate) until the operator
+# confirms it. Imported task outcomes (wp-price ops import ...) replace these
+# estimates per property once there are enough observations; see
+# config/policies/operations.yaml -> economics.min_observed_turns.
+#
+# Minutes are WORKER-minutes (two cleaners for 3 hours = 360). Elapsed time on
+# site is worker-minutes / crew_size. Travel is per trip, per worker.
+#
+# TODO(operator-confirm): clean minutes, crew size, rates, laundry mode, and
+# whether each home has a hot tub. Set basis: operator_confirmed when done.
+
+defaults:
+  checkout_time: "10:00"
+  checkin_time: "16:00"
+  inspection_minutes: 45
+  laundry_mode: offsite          # onsite | offsite (linen service)
+  laundry_minutes: 0             # only counted when laundry_mode is onsite
+  crew_size: 3
+  labor_rate_per_hour: 40.0
+  fixed_cost_per_turn: 60.0      # supplies, consumables
+  laundry_cost_per_turn: 180.0   # linen service for a sleeps-16+ home
+  hot_tub_cost_per_turn: 50.0    # practitioner signal (~$50/stay), not a benchmark
+  snow_cost_per_visit: 85.0
+  basis: estimate
+
+properties:
+  summit_haus:                   # 312 Northwoods
+    base_clean_minutes: 480
+    hot_tub_reset_minutes: 60
+    snow_clearance_required: true
+    snow_clearance_minutes: 60
+    access_zone: northwoods
+    travel_minutes: 20
+  overlook_ridge:                # 300 Northwoods
+    base_clean_minutes: 480
+    hot_tub_reset_minutes: 60
+    snow_clearance_required: true
+    snow_clearance_minutes: 60
+    access_zone: northwoods
+    travel_minutes: 20
+  cloud_9:                       # Fraser
+    base_clean_minutes: 420
+    hot_tub_reset_minutes: 60
+    snow_clearance_required: true
+    snow_clearance_minutes: 45
+    access_zone: fraser
+    travel_minutes: 25
+
+# Names a task system or spreadsheet may use for each home. Imports resolve
+# a row's property by property_id, Guesty listing id, then these aliases
+# (case-insensitive). Unresolved rows are rejected, never guessed.
+aliases:
+  summit_haus: ["312 Northwoods", "312 Northwoods Dr", "Summit Haus"]
+  overlook_ridge: ["300 Northwoods", "300 Northwoods Dr", "Overlook Ridge"]
+  cloud_9: ["Cloud 9", "Cloud Nine", "1615 Pioneer Trail"]
+
+# Crew roster -> daily available worker-minutes per access zone. The manual
+# capacity source turns this into operations_capacity_snapshots. Imported
+# capacity (Breezeway, CSV) takes precedence when present for a date.
+# TODO(operator-confirm): real crew size, working days, and holiday coverage.
+capacity:
+  crews:
+    - name: primary_turnover
+      zones: [northwoods, fraser]
+      workers: 3
+      minutes_per_worker: 420     # 7 working hours
+      weekdays: [0, 1, 2, 3, 4, 5, 6]
+  # Dates where the roster differs (e.g. holiday shortfall).
+  overrides: []
+  #  - date: "2026-12-26"
+  #    zone: northwoods
+  #    available_worker_minutes: 840

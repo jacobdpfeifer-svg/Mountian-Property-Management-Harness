@@ -40,6 +40,8 @@ ReasonCode = Literal[
     "booking_horizon",
     "stay_value",
     "portfolio_cannibalization",
+    "turnover_cost",
+    "readiness",
 ]
 
 

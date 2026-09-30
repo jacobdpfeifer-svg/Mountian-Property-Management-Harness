@@ -1,0 +1,159 @@
+# Operations policy. Doctrine: docs/rules/OPERATIONS.md.
+#
+# Nothing in this file lets operations data LOWER a price, write availability,
+# or push a min-stay. Ops inputs can only: lengthen a suggested min-stay,
+# block upward moves, demote autonomy to suggest, or recommend (never perform)
+# an inventory closure.
+version: ops_v1
+
+economics:
+  # Observed task costs replace the profile estimate once a property has at
+  # least this many observed turnovers.
+  min_observed_turns: 5
+  # Snow clearance minutes/cost are added to a turn when forecast or observed
+  # snowfall on the service date reaches this many centimetres.
+  snow_clearance_cm: 5
+
+slack:
+  # Minutes added to predicted work when a signal crosses a threshold on the
+  # service date. Read point-in-time from signal_observations.
+  weather_buffers:
+    - signal_key: weather.snowfall_sum_cm
+      op: ">="
+      threshold: 15
+      minutes: 45
+    - signal_key: cdot.chain_law
+      op: ">="
+      threshold: 1
+      minutes: 30
+    - signal_key: cdot.berthoud_closed
+      op: ">="
+      threshold: 1
+      minutes: 90
+    - signal_key: weather.temp_mean_c
+      op: "<="
+      threshold: -18
+      minutes: 20
+
+ready_probability:
+  # Prior P(ready on time) by turn slack (minutes), shrunk toward observed
+  # on-time rates with pseudo-count `prior_strength`.
+  prior_strength: 10
+  buckets:
+    - {max_slack: 0, prior: 0.35}
+    - {max_slack: 60, prior: 0.70}
+    - {max_slack: 120, prior: 0.85}
+    - {max_slack: 240, prior: 0.93}
+    - {max_slack: null, prior: 0.97}
+
+capacity:
+  warn_utilization: 0.85
+  critical_utilization: 1.00
+
+stay:
+  # Used by models.ops_aware_stay (off by default). Each candidate stay is
+  # charged one turnover plus (1 - P(ready)) * risk_premium.
+  risk_premium: 1500.0
+  # Candidates whose next turn has P(ready) below this are disqualified and
+  # escalated to a human.
+  min_p_ready: 0.60
+  # The comparison assumes each candidate stay sells, so it cannot see demand
+  # lost to a longer minimum. Suggest a longer stay only when the per-night
+  # net gain is at least this share of the anchor night's price.
+  min_gain_pct: 0.05
+
+readiness:
+  # revenue_at_risk = confirmed booking value in the window
+  #                   + relocation_cost per affected reservation
+  #                   + review_loss_value per affected reservation
+  relocation_cost: 2000.0
+  review_loss_value: 500.0
+  # A sensor reading can verify readiness without a human only when every
+  # listed check passes. Anything else needs `--verified-by`.
+  sensor_verification:
+    heat: {min_temp_f: 50}
+    spa: {min_temp_f: 98}
+  # Signals may move a property to at_risk automatically (it only reduces
+  # autonomy). Nothing else is automatic.
+  auto_at_risk:
+    - signal_key: weather.temp_mean_c
+      op: "<="
+      threshold: -23
+      system_type: heat
+      note: Extreme cold - freeze risk for pipes and heat systems
+    - signal_key: cdot.berthoud_closed
+      op: ">="
+      threshold: 1
+      system_type: snow_access
+      note: Berthoud Pass closed - access to Grand County disrupted
+
+# Severity for sensor telemetry without an explicit severity
+# (src/ops/sources/telemetry.py). A critical reading sets at_risk automatically.
+telemetry:
+  heat: {critical_below_f: 45, warn_below_f: 55}
+  spa: {warn_below_f: 95}
+  lock: {warn_battery_below_pct: 20}
+
+incidents:
+  lookahead_days: 3
+  rules:
+    - type: access_closure
+      signal_key: cdot.berthoud_closed
+      op: ">="
+      threshold: 1
+      severity: critical
+      actions: [alert_responsible_agent, list_stranded_and_late, draft_guest_notice,
+                suggest_date_move, suppress_auto_price]
+    - type: access_severe_delay
+      signal_key: cdot.access_risk
+      op: ">="
+      threshold: 0.6
+      severity: warn
+      actions: [alert_responsible_agent, list_stranded_and_late, draft_guest_notice]
+    - type: extreme_cold
+      signal_key: weather.temp_mean_c
+      op: "<="
+      threshold: -20
+      severity: warn
+      actions: [alert_responsible_agent, add_heat_check, move_inspection_earlier,
+                suppress_auto_price]
+    - type: heavy_snowfall
+      signal_key: weather.snowfall_sum_cm
+      op: ">="
+      threshold: 30
+      severity: warn
+      actions: [alert_responsible_agent, add_snow_check, move_inspection_earlier,
+                draft_guest_notice]
+    - type: high_wind
+      signal_key: weather.wind_gust_max_mph
+      op: ">="
+      threshold: 60
+      severity: info
+      actions: [alert_responsible_agent, draft_guest_notice]
+    - type: resort_terrain_reduction
+      signal_key: resort.terrain_open_pct   # percent, 0-100
+      op: "<="
+      threshold: 25
+      severity: info
+      actions: [alert_responsible_agent]
+
+# Guest-notice drafts. Factual only: no promises, no refunds, no safety
+# determinations, no access codes. Drafts are written to a file for a human to
+# edit and send from Guesty; this system never sends them.
+guest_notice_templates:
+  access_closure: >-
+    Travel update for your stay at {property}: CDOT is reporting a closure on
+    US-40 / Berthoud Pass affecting {window}. Please check cotrip.org before you
+    travel. We will follow up with any changes to arrival timing.
+  access_severe_delay: >-
+    Travel update for your stay at {property}: CDOT is reporting significant
+    delays on the route to Winter Park around {window}. Please check cotrip.org
+    and allow extra travel time.
+  heavy_snowfall: >-
+    Snow update for your stay at {property}: heavy snowfall is forecast around
+    {window}. Four-wheel drive or chains are recommended; please check
+    cotrip.org for traction-law status before you travel.
+  high_wind: >-
+    Weather update for your stay at {property}: high winds are forecast around
+    {window}, which can affect lift operations and travel. Please check
+    conditions before you travel.

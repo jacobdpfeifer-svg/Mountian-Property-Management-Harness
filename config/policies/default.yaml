@@ -330,3 +330,13 @@ models:
     enabled: false
   portfolio_pricing:
     enabled: false
+  # Operations-aware stay length (src/ops/pricing_hook.py). Charges each
+  # candidate stay one turnover plus a readiness-risk premium and may suggest a
+  # LONGER minimum stay. Never moves price; its min-stay is never pushed.
+  ops_aware_stay:
+    enabled: false
+
+# Operations layer (docs/rules/OPERATIONS.md). The readiness gate only
+# restricts: with no recorded asset events it has no effect.
+operations:
+  readiness_gate: true

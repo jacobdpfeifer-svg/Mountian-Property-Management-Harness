@@ -20,6 +20,7 @@ MODEL_NAMES = (
     "booking_horizon",
     "stay_pricing",
     "portfolio_pricing",
+    "ops_aware_stay",
 )
 TWINS = ("overlook_ridge", "summit_haus")
 BETA_LO = -2.5
@@ -153,20 +154,44 @@ def candidate_min_stays(rule_nights: list[int], gap_nights: int | None, standing
     return found
 
 
-def stay_choice(
+@dataclass(frozen=True)
+class StayEvaluation:
+    """Result of comparing candidate minimum stays for one anchor night.
+
+    `disqualified` lists candidates whose operational readiness fell below
+    `min_p_ready`; a human decides those. `values` is net value per candidate.
+    """
+
+    length: int
+    delta: float
+    values: dict[int, float]
+    disqualified: tuple[int, ...] = ()
+
+
+def evaluate_stays(
     anchor: date,
     nightly_prices: dict[date, float],
     candidates: list[int],
     standing: int,
     orphan_gap: int,
-) -> tuple[int, float]:
-    """Pick the min-stay with the best value per night. Adjustment is dollars on the anchor night.
+    *,
+    turn_cost: float = 0.0,
+    p_ready: Callable[[int], float] | None = None,
+    min_p_ready: float = 0.0,
+    risk_premium: float = 0.0,
+) -> StayEvaluation:
+    """Pick the min-stay with the best net value per night.
 
-    A candidate is disqualified when any night in the stay has no price. An orphan
-    gap shorter than the candidate is charged half a night's price per leftover night.
-    The adjustment is capped at ±8% of the anchor night's myopic price.
+    Net value of a stay of length L is the sum of its nightly prices, less one
+    turnover (`turn_cost`), less (1 - P(ready)) x `risk_premium` when `p_ready`
+    is given. An orphan gap shorter than the candidate is charged half a night's
+    price per leftover night. Candidates with P(ready) below `min_p_ready` are
+    disqualified. The adjustment is dollars on the anchor night, capped at ±8%
+    of its myopic price. With the ops arguments defaulted this is the original
+    stay-pricing rule.
     """
     myopic = nightly_prices[anchor]
+    disqualified: list[int] = []
 
     def value_of(length: int) -> float | None:
         total = 0.0
@@ -177,17 +202,36 @@ def stay_choice(
             total += price
         if orphan_gap > 0 and orphan_gap < length:
             total -= 0.5 * myopic * orphan_gap
+        total -= turn_cost
+        if p_ready is not None:
+            total -= (1.0 - float(p_ready(length))) * risk_premium
         return total
 
+    def allowed(length: int) -> bool:
+        if p_ready is None or min_p_ready <= 0:
+            return True
+        if float(p_ready(length)) < min_p_ready:
+            if length not in disqualified:
+                disqualified.append(length)
+            return False
+        return True
+
+    values: dict[int, float] = {}
     standing_value = value_of(standing)
     if standing_value is None:
-        return standing, 0.0
+        return StayEvaluation(standing, 0.0, values, ())
+    values[standing] = standing_value
     best_length = standing
-    best_per = standing_value / standing
+    best_per = standing_value / standing if allowed(standing) else float("-inf")
     best_value = standing_value
     for length in candidates:
+        if length <= 0:
+            continue
         total = value_of(length)
-        if total is None or length <= 0:
+        if total is None:
+            continue
+        values[length] = total
+        if not allowed(length):
             continue
         per = total / length
         if per > best_per:
@@ -196,7 +240,21 @@ def stay_choice(
             best_value = total
     raw = (best_value - standing_value) / best_length
     cap = 0.08 * myopic
-    return best_length, float(min(cap, max(-cap, raw)))
+    return StayEvaluation(best_length, float(min(cap, max(-cap, raw))), values,
+                          tuple(sorted(disqualified)))
+
+
+def stay_choice(
+    anchor: date,
+    nightly_prices: dict[date, float],
+    candidates: list[int],
+    standing: int,
+    orphan_gap: int,
+    **ops: Any,
+) -> tuple[int, float]:
+    """(length, anchor-night adjustment). See `evaluate_stays` for the ops keywords."""
+    ev = evaluate_stays(anchor, nightly_prices, candidates, standing, orphan_gap, **ops)
+    return ev.length, ev.delta
 
 
 def portfolio_lambda(price_self: float, price_other: float) -> float:
@@ -246,6 +304,9 @@ class ModelAdjustment:
     objective: Callable[[float], float] | None
     price_delta: float
     min_stay_nights: int | None
+    # "ops" when the operations layer chose the stay length. Push never writes it.
+    min_stay_source: str | None = None
+    ops_facts: dict[str, Any] | None = None
 
 
 def _any_model(policy: dict[str, Any]) -> bool:
@@ -422,7 +483,11 @@ def apply_models(
 
     price_delta = 0.0
     min_stay_nights = None
-    if enabled(policy, "stay_pricing"):
+    stay_on = enabled(policy, "stay_pricing")
+    ops_on = enabled(policy, "ops_aware_stay")
+    min_stay_source = None
+    ops_facts = None
+    if stay_on or ops_on:
         rules = (policy.get("min_stay_rules") or {}).get("by_season", {}).get(feat.season, [])
         rule_nights = [int(row["min_nights"]) for row in rules]
         standing = int(feat.min_stay or (policy.get("min_stay_rules") or {}).get("fallback_min_nights", 2))
@@ -449,14 +514,46 @@ def apply_models(
         if feat.stay_date not in nightly and feat.listed_price:
             nightly[feat.stay_date] = float(feat.listed_price)
         if feat.stay_date in nightly and candidates:
-            chosen, delta = stay_choice(feat.stay_date, nightly, candidates, standing, gap)
-            price_delta = delta
-            if chosen != standing:
-                min_stay_nights = chosen
-            reasons.append((
-                "stay_value",
-                f"Stay length {chosen} versus standing {standing}",
-                delta,
-            ))
+            base = evaluate_stays(feat.stay_date, nightly, candidates, standing, gap)
+            chosen = standing
+            if stay_on:
+                chosen = base.length
+                price_delta = base.delta
+                if chosen != standing:
+                    min_stay_nights = chosen
+                reasons.append((
+                    "stay_value",
+                    f"Stay length {chosen} versus standing {standing}",
+                    base.delta,
+                ))
+            if ops_on:
+                from src.ops.pricing_hook import ops_stay_inputs
 
-    return ModelAdjustment(bp, reasons, objective, price_delta, min_stay_nights)
+                inputs = ops_stay_inputs(conn, feat, as_of=as_of)
+                if inputs is not None:
+                    ops_ev = evaluate_stays(
+                        feat.stay_date, nightly, candidates, standing, gap,
+                        turn_cost=inputs.turn_cost, p_ready=inputs.p_ready,
+                        min_p_ready=inputs.min_p_ready, risk_premium=inputs.risk_premium,
+                    )
+                    # Operations may only lengthen the stay; it never moves price.
+                    ops_len = max(ops_ev.length, chosen)
+                    if ops_len in ops_ev.disqualified:
+                        ops_len = chosen
+                    # The value comparison assumes every candidate stay sells; it
+                    # cannot see demand lost to a longer minimum. Only suggest a
+                    # change when the per-night saving is material.
+                    if ops_len != chosen and chosen in ops_ev.values and ops_len in ops_ev.values:
+                        anchor_price = nightly[feat.stay_date]
+                        gain = ops_ev.values[ops_len] / ops_len - ops_ev.values[chosen] / chosen
+                        if anchor_price <= 0 or gain / anchor_price < inputs.min_gain_pct:
+                            ops_len = chosen
+                    ops_facts = inputs.facts(standing, ops_len, ops_ev)
+                    if ops_len != chosen or ops_ev.disqualified:
+                        if ops_len != chosen:
+                            min_stay_nights = ops_len
+                            min_stay_source = "ops"
+                        reasons.append(("turnover_cost", inputs.message(standing, ops_len, ops_ev), 0.0))
+
+    return ModelAdjustment(bp, reasons, objective, price_delta, min_stay_nights,
+                           min_stay_source, ops_facts)

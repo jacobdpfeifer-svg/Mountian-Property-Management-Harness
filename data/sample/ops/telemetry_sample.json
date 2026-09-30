@@ -1,0 +1,6 @@
+[
+  {"property": "cloud_9", "system": "heat", "observed_at": "2026-12-20T06:15:00-07:00",
+   "device_id": "thermostat-main", "readings": {"temp_f": 44}},
+  {"property": "312 Northwoods", "system": "lock", "observed_at": "2026-12-20T07:00:00-07:00",
+   "device_id": "front-door", "readings": {"battery_pct": 12}}
+]

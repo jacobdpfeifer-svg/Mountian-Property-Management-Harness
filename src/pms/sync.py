@@ -56,6 +56,14 @@ def is_market_booking(status: object, source: object) -> bool:
     )
 
 
+def _money_or_none(value: object) -> float | None:
+    """Guesty money fields; cleaning fee and host payout feed the owner receipt only."""
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass
 class SyncReport:
     listings: int = 0
@@ -261,8 +269,10 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
                 reservation_id, property_id, listing_id, check_in, check_out, nights,
                 status, source, confirmed_at, created_at_pms, guest_count,
                 guest_city, guest_state, guest_country, adults, children, infants, pets,
-                fare_accommodation, nightly_rate, raw_json, synced_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                fare_accommodation, nightly_rate, fare_cleaning, host_payout,
+                raw_json, synced_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                      datetime('now'))
             ON CONFLICT(reservation_id) DO UPDATE SET
                 property_id=excluded.property_id,
                 check_in=excluded.check_in,
@@ -282,6 +292,8 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
                 pets=COALESCE(excluded.pets, reservations.pets),
                 fare_accommodation=COALESCE(excluded.fare_accommodation, reservations.fare_accommodation),
                 nightly_rate=COALESCE(excluded.nightly_rate, reservations.nightly_rate),
+                fare_cleaning=COALESCE(excluded.fare_cleaning, reservations.fare_cleaning),
+                host_payout=COALESCE(excluded.host_payout, reservations.host_payout),
                 synced_at=datetime('now')
             """,
             (
@@ -290,6 +302,8 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
                 place["city"], place["state"], place["country"],
                 party["adults"], party["children"], party["infants"], party["pets"],
                 float(fare) if fare is not None else None, nightly,
+                _money_or_none(money.get("fareCleaning")),
+                _money_or_none(money.get("hostPayout")),
                 json.dumps({
                     "status": res.get("status"), "source": res.get("source"),
                     "confirmedAt": res.get("confirmedAt"), "createdAt": res.get("createdAt"),

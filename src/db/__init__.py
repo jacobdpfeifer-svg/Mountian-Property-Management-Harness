@@ -62,6 +62,8 @@ _SCHEMA_PATCHES: list[tuple[str, str, str]] = [
     ("reservations", "children", "INTEGER"),
     ("reservations", "infants", "INTEGER"),
     ("reservations", "pets", "INTEGER"),
+    ("reservations", "fare_cleaning", "REAL"),
+    ("reservations", "host_payout", "REAL"),
     ("nightly_inventory", "evidence_kind", "TEXT"),
     ("properties", "listing_match_kind", "TEXT"),
     ("rate_changes", "rule_version", "TEXT"),
@@ -132,8 +134,10 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
         _seed_owner_ids(conn)
         _backfill_market_ids(conn)
     from src.eval.shadow import ensure_shadow_table
+    from src.ops.db import ensure_ops_tables
 
     ensure_shadow_table(conn)
+    ensure_ops_tables(conn)
 
 
 def _backfill_recommendation_inputs_hash(conn: sqlite3.Connection) -> None:
@@ -181,6 +185,8 @@ def _ensure_reservations_table(conn: sqlite3.Connection) -> None:
             pets            INTEGER,
             fare_accommodation REAL,
             nightly_rate    REAL,
+            fare_cleaning   REAL,
+            host_payout     REAL,
             raw_json        TEXT,
             synced_at       TEXT NOT NULL DEFAULT (datetime('now'))
         );

@@ -40,6 +40,7 @@ include = ["src*"]
 [tool.setuptools.package-data]
 "src.db" = ["schema.sql"]
 "src.memory" = ["schema.sql"]
+"src.ops" = ["schema.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
