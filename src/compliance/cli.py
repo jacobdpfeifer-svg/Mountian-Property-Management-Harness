@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
-from src.db import connect
+from src.db import connect, connect_readonly
 from src.utils import parse_date
 
 
@@ -47,8 +48,13 @@ def cmd_compliance_check(args: argparse.Namespace) -> int:
             return 2
         texts[pid] = Path(path).expanduser().read_text(encoding="utf-8")
     as_of = parse_date(args.as_of) if args.as_of else None
-    with connect(args.db) as conn:
-        report = check(conn, as_of, listing_texts=texts)
+    try:
+        with connect_readonly(args.db) as conn:
+            report = check(conn, as_of, listing_texts=texts)
+    except sqlite3.OperationalError as exc:
+        print(f"refused: compliance schema is not initialized ({exc}); run wp-price init-db once",
+              file=sys.stderr)
+        return 1
     print(json.dumps(report.as_dict(), indent=2) if args.json else render_text(report))
     return 0
 
@@ -74,7 +80,8 @@ def register(sub: argparse._SubParsersAction) -> None:
     s.add_argument("--property", required=True)
     s.add_argument("--jurisdiction", required=True)
     s.add_argument("--type", required=True, help="credential_type from the rule pack")
-    s.add_argument("--identifier")
+    s.add_argument("--identifier", required=True,
+                   help="Stable permit, policy, document, or contact identifier")
     s.add_argument("--issued")
     s.add_argument("--expires")
     s.add_argument("--evidence", help="Path to the document; its sha256 is stored")

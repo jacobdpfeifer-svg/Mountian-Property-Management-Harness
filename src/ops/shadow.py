@@ -23,7 +23,7 @@ from src.ops.economics import (
     ready_probability,
     turn_cost,
 )
-from src.ops.profiles import load_ops_config, load_ops_policy, load_profiles
+from src.ops.profiles import load_ops_config, load_ops_policy, load_profiles_as_of
 from src.ops.readiness import current_state
 from src.ops.turns import Turn, derive_turns
 from src.utils import parse_date
@@ -118,7 +118,7 @@ def build_report(
     as_of = as_of or date.today()
     ops_policy = load_ops_policy()
     ops_cfg = load_ops_config()
-    profiles = load_profiles()
+    profiles, profile_fallback = load_profiles_as_of(conn, as_of)
     if property_ids:
         profiles = {pid: p for pid, p in profiles.items() if pid in property_ids}
     report = OpsReport(as_of=as_of, start=start, end=end)
@@ -173,6 +173,12 @@ def build_report(
     if any(p.basis == "estimate" for p in profiles.values()):
         report.notes.append("Some profiles are estimates (config/operations/mont_luxe.yaml); "
                             "costs are labelled with their basis.")
+    if profile_fallback & set(profiles):
+        report.notes.append(
+            "No stored profile version existed by as_of for: "
+            + ", ".join(sorted(profile_fallback & set(profiles)))
+            + "; current YAML estimates were used and are not historical evidence."
+        )
     if any(r["available_source"] == "roster" for r in report.capacity):
         report.notes.append("Capacity from the roster counts a multi-zone crew in each zone; "
                             "utilization is optimistic until capacity is imported.")

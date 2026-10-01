@@ -245,7 +245,8 @@ class GuestyClient:
         fields = (
             "_id listingId checkIn checkOut nightsCount status source "
             "confirmedAt createdAt guestsCount "
-            "money.fareAccommodation money.fareCleaning money.hostPayout"
+            "money.fareAccommodation money.fareCleaning money.hostPayout "
+            "money.hostServiceFee money.hostServiceFeeTax money.hostServiceFeeIncTax"
         )
         filt: list[dict[str, str]] = [
             {"field": "checkIn", "operator": "$gte", "value": check_in_from},
@@ -402,14 +403,16 @@ def extract_party(raw: dict[str, Any]) -> dict[str, int | None]:
 
 def extract_guest_place(raw: dict[str, Any]) -> dict[str, str | None]:
     """City, state, country only. Names, emails, phones, and street addresses are dropped."""
-    guest = raw.get("guest") if isinstance(raw.get("guest"), dict) else {}
+    guest_raw = raw.get("guest")
+    guest: dict[str, Any] = guest_raw if isinstance(guest_raw, dict) else {}
     hometown = guest.get("hometown") or raw.get("guestHometown") or guest.get("guestHometown")
     city = None
     if isinstance(hometown, str) and hometown.strip():
         city = hometown.strip()
     elif isinstance(hometown, dict):
         city = hometown.get("city") or hometown.get("town")
-    address = guest.get("address") if isinstance(guest.get("address"), dict) else {}
+    address_raw = guest.get("address")
+    address: dict[str, Any] = address_raw if isinstance(address_raw, dict) else {}
     state = guest.get("state") or address.get("state") or guest.get("region")
     country = guest.get("country") or guest.get("nationality") or address.get("country")
 

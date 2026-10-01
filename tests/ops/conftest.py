@@ -17,14 +17,14 @@ PROPS = (
 
 
 def add_reservation(conn, rid, pid, check_in, check_out, *, fare=None, cleaning=None,
-                    payout=None, status="confirmed", source="airbnb"):
+                    payout=None, channel_commission=None, status="confirmed", source="airbnb"):
     nights = (check_out - check_in).days
     conn.execute(
         """INSERT INTO reservations (reservation_id, property_id, check_in, check_out, nights,
-               status, source, fare_accommodation, fare_cleaning, host_payout)
-           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+               status, source, fare_accommodation, fare_cleaning, host_payout, channel_commission)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
         (rid, pid, check_in.isoformat(), check_out.isoformat(), nights, status, source,
-         fare, cleaning, payout),
+         fare, cleaning, payout, channel_commission),
     )
     for i in range(nights):
         conn.execute(
@@ -73,4 +73,3 @@ def ops_db(tmp_path: Path, monkeypatch) -> Path:
             )
         conn.commit()
     return path
-

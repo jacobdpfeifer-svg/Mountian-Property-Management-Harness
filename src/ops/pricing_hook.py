@@ -21,7 +21,7 @@ from typing import Any, Callable
 
 from src.ops import OpsProfile
 from src.ops.economics import observed_readiness, ready_probability, turn_cost
-from src.ops.profiles import load_ops_policy, load_profiles
+from src.ops.profiles import load_ops_policy, load_profiles_as_of
 from src.ops.turns import build_turn, market_for, weather_buffer
 from src.runcache import memo
 
@@ -98,7 +98,10 @@ def _neighbour_gaps(conn: sqlite3.Connection, property_id: str, anchor: date,
 
 def ops_stay_inputs(conn: sqlite3.Connection, feat: Any, *, as_of: date) -> OpsStayInputs | None:
     """None when the property has no operations profile (the hook then does nothing)."""
-    profiles: dict[str, OpsProfile] = memo(("ops_profiles",), load_profiles)
+    profiles: dict[str, OpsProfile] = memo(
+        ("ops_profiles", id(conn), as_of.isoformat()),
+        lambda: load_profiles_as_of(conn, as_of)[0],
+    )
     profile = profiles.get(feat.property_id)
     if profile is None:
         return None

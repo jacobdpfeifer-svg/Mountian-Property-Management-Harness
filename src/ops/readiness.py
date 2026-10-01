@@ -39,7 +39,9 @@ _RANK = {READY: 0, VERIFIED_READY: 0, AT_RISK: 1, INSPECTION_REQUIRED: 2,
 EDGES: dict[str, frozenset[str]] = {
     READY: frozenset({AT_RISK, INSPECTION_REQUIRED, OUT_OF_SERVICE}),
     VERIFIED_READY: frozenset({READY, AT_RISK, INSPECTION_REQUIRED, OUT_OF_SERVICE}),
-    AT_RISK: frozenset({READY, VERIFIED_READY, INSPECTION_REQUIRED, OUT_OF_SERVICE}),
+    # A risk never clears merely because its estimated window ended. Recovery
+    # is explicit and evidenced: at_risk -> verified_ready -> ready.
+    AT_RISK: frozenset({AT_RISK, VERIFIED_READY, INSPECTION_REQUIRED, OUT_OF_SERVICE}),
     INSPECTION_REQUIRED: frozenset({VERIFIED_READY, OUT_OF_SERVICE}),
     OUT_OF_SERVICE: frozenset({REMEDIATION}),
     REMEDIATION: frozenset({VERIFIED_READY, OUT_OF_SERVICE}),
@@ -118,11 +120,48 @@ def current_state(conn: sqlite3.Connection, property_id: str,
 
 def state_for_night(conn: sqlite3.Connection, property_id: str, stay_date: date,
                     as_of: datetime | date | str | None = None) -> ReadinessState:
-    """The state that governs one stay date: the current state if its window covers it."""
-    st = current_state(conn, property_id, as_of)
-    if st.state in RESTRICTING and st.covers(stay_date):
-        return st
-    return ReadinessState(property_id, READY, None, None, st.since, None, None, None)
+    """Latest recorded state applicable to a night, with fail-safe expiry.
+
+    A later transition for a different future window must not hide an older
+    restriction that covers this night. Restricting states also do not silently
+    become ``ready`` when ``effective_to`` passes; only an evidenced recovery
+    transition can clear them.
+    """
+    try:
+        rows = conn.execute(
+            """SELECT * FROM readiness_transitions WHERE property_id=? AND at<=?
+               ORDER BY at DESC, transition_id DESC""",
+            (property_id, _iso_at(as_of)),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        rows = []
+
+    def from_row(row: sqlite3.Row) -> ReadinessState:
+        return ReadinessState(
+            property_id=property_id,
+            state=str(row["to_state"]),
+            effective_from=parse_date(row["effective_from"]) if row["effective_from"] else None,
+            effective_to=parse_date(row["effective_to"]) if row["effective_to"] else None,
+            since=str(row["at"]), evidence_event_id=row["evidence_event_id"],
+            actor=row["actor"], note=row["note"],
+        )
+
+    for row in rows:
+        st = from_row(row)
+        if st.covers(stay_date):
+            return st
+    if rows:
+        latest = from_row(rows[0])
+        # Expiry is an estimate of the affected window, not evidence of repair.
+        # Once the window has actually elapsed, keep a restrictive state
+        # fail-closed until recovery. Before then, nights beyond the forecast
+        # window remain unaffected.
+        decision_day = parse_date(_iso_at(as_of)[:10])
+        if (latest.state in RESTRICTING and latest.effective_to is not None
+                and decision_day > latest.effective_to):
+            return latest
+        return ReadinessState(property_id, READY, None, None, latest.since, None, None, None)
+    return ReadinessState(property_id, READY, None, None, None, None, None, None)
 
 
 def _sensor_verifies(conn: sqlite3.Connection, event_id: str, ops_policy: dict[str, Any]) -> bool:
@@ -178,12 +217,31 @@ def transition(
     if actor in AUTO_ACTORS and to_state != AT_RISK:
         raise ReadinessError(f"automatic actor {actor!r} may only set at_risk, not {to_state}")
     if to_state == VERIFIED_READY and actor in AUTO_ACTORS:
-        raise ReadinessError("verified_ready needs a human")
+        raise ReadinessError("verified_ready needs a named human or a passing sensor check")
     if to_state == VERIFIED_READY and actor == "sensor_check":
         from src.ops.profiles import load_ops_policy
 
         if not _sensor_verifies(conn, evidence_event_id, ops_policy or load_ops_policy()):
             raise ReadinessError("sensor reading does not pass readiness.sensor_verification")
+    if to_state == VERIFIED_READY and actor != "sensor_check" and actor.strip().lower() in {
+            "operator", "human", "user", "unknown"}:
+        raise ReadinessError("verified_ready needs the verifier's name, not a generic actor")
+    if to_state in (VERIFIED_READY, READY):
+        evidence = conn.execute(
+            "SELECT system_type FROM asset_health_events WHERE event_id=?", (evidence_event_id,)
+        ).fetchone()
+        assert evidence is not None  # existence was checked above
+        other_critical = conn.execute(
+            """SELECT event_id, system_type FROM asset_health_events
+               WHERE property_id=? AND status='open' AND severity='critical'
+                 AND system_type<>? AND observed_at<=? LIMIT 1""",
+            (property_id, evidence["system_type"], at_s),
+        ).fetchone()
+        if other_critical is not None:
+            raise ReadinessError(
+                f"cannot mark ready while critical {other_critical['system_type']} event "
+                f"{other_critical['event_id']} remains open"
+            )
     eff_from = effective_from or parse_date(at_s[:10])
     conn.execute(
         """INSERT INTO readiness_transitions
@@ -192,12 +250,14 @@ def transition(
         (property_id, cur.state, to_state, at_s, eff_from.isoformat(),
          effective_to.isoformat() if effective_to else None, evidence_event_id, actor, note),
     )
-    if to_state in (VERIFIED_READY, READY):
+    if to_state == VERIFIED_READY:
         conn.execute(
             """UPDATE asset_health_events SET status='resolved', resolved_at=?,
                    verified_by=COALESCE(verified_by, ?)
-               WHERE property_id=? AND status='open' AND observed_at<=?""",
-            (at_s, actor if actor not in AUTO_ACTORS else None, property_id, at_s),
+               WHERE property_id=? AND status='open' AND observed_at<=?
+                 AND system_type=(SELECT system_type FROM asset_health_events WHERE event_id=?)""",
+            (at_s, actor if actor not in AUTO_ACTORS else None, property_id, at_s,
+             evidence_event_id),
         )
     conn.commit()
     return current_state(conn, property_id, at_s)
@@ -208,8 +268,12 @@ def auto_escalate(conn: sqlite3.Connection, property_id: str, event_id: str, *, 
                   effective_from: date | None = None,
                   effective_to: date | None = None) -> bool:
     """Move a ready property to at_risk. No-op when it is already at_risk or worse."""
+    effective_day = effective_from or parse_date(_iso_at(at)[:10])
+    governing = state_for_night(conn, property_id, effective_day, _iso_at(at))
+    if _RANK[governing.state] > _RANK[AT_RISK]:
+        return False
     cur = current_state(conn, property_id, _iso_at(at))
-    if _RANK[cur.state] >= _RANK[AT_RISK]:
+    if governing.state == AT_RISK and cur.state == AT_RISK and cur.covers(effective_day):
         return False
     transition(conn, property_id, AT_RISK, evidence_event_id=event_id, actor=actor, at=at,
                effective_from=effective_from, effective_to=effective_to, note=note)

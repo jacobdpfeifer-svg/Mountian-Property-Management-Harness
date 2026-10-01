@@ -351,12 +351,14 @@ class MarketWorld:
                     continue
                 lead = (night - day).days
                 if agent == "static_owner":
-                    price = static_price(night, meta["base_peak"], meta["base_other"])
+                    price = static_price(
+                        night, float(str(meta["base_peak"])), float(str(meta["base_other"]))
+                    )
                 elif agent == "generalized_tool":
                     occ = occupancy(self.comp_booked[cid], day)
                     price = tool_price(
                         night,
-                        base=float(meta["base"]),
+                        base=float(str(meta["base"])),
                         holiday=self.is_holiday(night),
                         occupancy_30=occ,
                         lead_days=lead,

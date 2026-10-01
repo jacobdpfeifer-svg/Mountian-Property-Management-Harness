@@ -37,7 +37,9 @@ A rule in `config/policies/operations.yaml` that lists one fails the scan.
   - **Capacity utilization:** committed over available worker-minutes per zone and date.
 - **Shadow report** (`wp-price ops report`): turns, costs, readiness, capacity
   pressure, and the worst-case number of extra turns each min-stay setting
-  allows. It writes nothing.
+  allows. It opens SQLite in query-only mode and writes nothing. Historical
+  runs use profile versions stored by `wp-price ops profiles`; a missing
+  historical version is disclosed when the current YAML estimate is used.
 - **Ops-aware stay length** (`models.ops_aware_stay`, **off**):
   - Each candidate stay is charged one turn plus (1 − P(ready)) × risk premium.
   - Candidates below `min_p_ready` are escalated.
@@ -48,18 +50,28 @@ A rule in `config/policies/operations.yaml` that lists one fails the scan.
   - Every transition cites an asset event.
   - Signals and telemetry may only set `at_risk`.
   - `verified_ready` needs a named person, or a sensor reading that passes `readiness.sensor_verification`.
+  - An expired risk window does not prove recovery. After expiry the property
+    remains restricted until an evidenced recovery transition is recorded.
+  - Recovery resolves open events only for the evidenced system and refuses
+    while another critical system event remains open.
   - The compose gate (`operations.readiness_gate`, on) has no effect until an event is recorded.
 - **Incidents** (`src/ops/incidents.py`):
   - A threshold crossed on a signal becomes an idempotent incident, with the affected arrivals, departures and turns.
   - A person approves each action; every step is logged in `incident_actions`.
+  - Live Guesty task writes persist an intent before the request. A timeout is
+    marked `uncertain` and retries stop for reconciliation instead of risking a duplicate.
   - Outputs go to private operator storage (`~/Library/Application Support/MontLuxePricing/ops`), never the repo or iCloud.
 - **Compliance** (`src/compliance`, `config/compliance/*.yaml`):
   - Tracks documents and deadlines. Statuses are `evidence_on_file | unverified | expiring | expired | missing`, never "compliant".
+  - Every credential needs a stable identifier. A verified item needs a named
+    verifier and readable evidence whose stored hash still matches.
   - Rule packs carry source URLs and `reviewed_by: null` until a person reviews them. Every check warns while a pack is unreviewed.
 - **Owner receipt** (`wp-price owner-receipt`): net performance (revenue, channel
-  cost derived from Guesty payouts, invoiced vs estimated service, ledger,
+  cost from Guesty's itemized commission, invoiced vs estimated service, ledger,
   management fee), revenue decisions, property care, exceptions. It refuses
   placeholder owner names unless `--allow-placeholder-names` is passed.
+  If any stay lacks itemized commission or the management fee is unset, the
+  receipt withholds net rather than manufacturing a number from host payout.
   **Trust-account reconciliation is out of scope** until accounting access and
   licensed-professional review exist.
 
@@ -72,7 +84,7 @@ All of them write through `src/ops/db.py`. Outcomes are idempotent on `(source, 
 | Profiles + roster | `wp-price ops import --source manual --from … --to …` | works; values are estimates |
 | CSV (outcomes, capacity, asset_events, ledger, credentials) | `wp-price ops import --source csv --file F --kind K [--preset P]` | works; templates in `data/sample/ops/` |
 | CSV presets `turno`, `breezeway_export`, `guesty_tasks_export` | `--preset …` | header mappings are best guesses; check against a real export |
-| Guesty Tasks API | `--source guesty_tasks` | `GET /v1/tasks-open-api/tasks` per the public reference; not yet verified on the tenant. Supplies duration and lateness, not cost |
+| Guesty Tasks API | `--source guesty_tasks` | `GET /v1/tasks-open-api/tasks` per the public reference; not yet verified on the tenant. `plannedDuration` hours are normalized to minutes; flexible and fixed-time tasks are retained. Supplies duration and lateness, not cost |
 | Guesty task webhooks | `--source webhooks` | replays recorded `task.*` deliveries |
 | Breezeway API | `--source breezeway` | `BREEZEWAY_CLIENT_ID/SECRET`; paths per developer.breezeway.io; not verified |
 | Turno API | `--source turno` | partner access on request (`TURNO_API_TOKEN`); shape unverified |

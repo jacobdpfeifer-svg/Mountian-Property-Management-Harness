@@ -16,7 +16,7 @@ def _parse(value: str) -> date:
     return date.fromisoformat(value[:10])
 
 
-def realized(conn: sqlite3.Connection, properties: list[str]) -> dict[str, float]:
+def realized(conn: sqlite3.Connection, properties: list[str]) -> dict[str, Any]:
     rows = conn.execute(
         """
         SELECT property_id, check_in, nights, status, nightly_rate, created_at_pms, guest_count

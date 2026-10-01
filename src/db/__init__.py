@@ -64,6 +64,8 @@ _SCHEMA_PATCHES: list[tuple[str, str, str]] = [
     ("reservations", "pets", "INTEGER"),
     ("reservations", "fare_cleaning", "REAL"),
     ("reservations", "host_payout", "REAL"),
+    ("reservations", "channel_commission", "REAL"),
+    ("reservations", "first_seen_at", "TEXT"),
     ("nightly_inventory", "evidence_kind", "TEXT"),
     ("properties", "listing_match_kind", "TEXT"),
     ("rate_changes", "rule_version", "TEXT"),
@@ -106,6 +108,19 @@ def connect(db_path: Path | str | None = None) -> sqlite3.Connection:
     return conn
 
 
+def connect_readonly(db_path: Path | str | None = None) -> sqlite3.Connection:
+    """Open an existing database without migrations, backfills, or journal changes."""
+    path = (Path(db_path) if db_path else DEFAULT_DB_PATH).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"database does not exist: {path}")
+    conn = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA query_only = ON")
+    conn.execute("PRAGMA busy_timeout = 10000")
+    return conn
+
+
 def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
     return conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
@@ -124,6 +139,7 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
         if column not in cols:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
     _backfill_recommendation_inputs_hash(conn)
+    _backfill_reservation_first_seen(conn)
     if _table_exists(conn, "properties"):
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_properties_airbnb_room ON properties(airbnb_room_id)"
@@ -138,6 +154,19 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
 
     ensure_shadow_table(conn)
     ensure_ops_tables(conn)
+
+
+def _backfill_reservation_first_seen(conn: sqlite3.Connection) -> None:
+    if not _table_exists(conn, "reservations"):
+        return
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(reservations)").fetchall()}
+    if "first_seen_at" not in cols:
+        return
+    conn.execute(
+        """UPDATE reservations
+           SET first_seen_at=COALESCE(confirmed_at, created_at_pms, synced_at, datetime('now'))
+           WHERE first_seen_at IS NULL OR first_seen_at=''"""
+    )
 
 
 def _backfill_recommendation_inputs_hash(conn: sqlite3.Connection) -> None:
@@ -187,6 +216,8 @@ def _ensure_reservations_table(conn: sqlite3.Connection) -> None:
             nightly_rate    REAL,
             fare_cleaning   REAL,
             host_payout     REAL,
+            channel_commission REAL,
+            first_seen_at   TEXT NOT NULL DEFAULT (datetime('now')),
             raw_json        TEXT,
             synced_at       TEXT NOT NULL DEFAULT (datetime('now'))
         );

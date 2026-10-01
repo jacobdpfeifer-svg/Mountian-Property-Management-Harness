@@ -326,7 +326,7 @@ def validation_report(result: MarketResult, cal: dict[str, Any] | None = None) -
         "occupancy_peak": scores["occupancy_peak"],
         "occupancy_early": scores["occupancy_early"],
     }
-    report = {}
+    report: dict[str, Any] = {}
     for name, observed in checks.items():
         rule = rules[name]
         lo, hi = float(rule["lo"]), float(rule["hi"])
@@ -361,7 +361,7 @@ def write_scoreboard(
 ) -> dict[str, str]:
     output_dir.mkdir(parents=True, exist_ok=True)
     rows = [_result_row(result) for result in results]
-    manifest = {
+    manifest: dict[str, Any] = {
         "rows": rows,
         "note": "Paired comparisons use a common shopper seed. Intervals are not family-wise adjusted.",
     }

@@ -233,7 +233,7 @@ def push_recommendations(
                 min_stay = None
             elif source == "policy" and not policy_min_enabled:
                 min_stay = None
-            elif source not in ("policy", "gap_override", "inventory", None):
+            elif source not in ("policy", "gap_override", "inventory"):
                 # Operations-sourced (and any unknown) min-stays are suggestions
                 # only. They never reach the PMS.
                 min_stay = None

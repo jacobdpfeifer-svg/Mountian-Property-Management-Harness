@@ -12,7 +12,6 @@ cost still comes from profiles or another source.
 
 from __future__ import annotations
 
-import json
 from datetime import date
 from typing import Any, Callable, Iterator
 
@@ -53,16 +52,23 @@ def _results(body: Any) -> list[dict[str, Any]]:
     raise ValueError(f"unexpected Guesty tasks payload shape: {type(body).__name__}")
 
 
-def fetch_tasks(get: Getter, start: date, end: date, *, limit: int = 100) -> Iterator[dict[str, Any]]:
-    """Page through tasks whose start falls in [start, end]. `get(path, **params)`."""
-    filters = json.dumps([
-        {"field": "startTime", "operator": "$gte", "value": start.isoformat()},
-        {"field": "startTime", "operator": "$lte", "value": f"{end.isoformat()}T23:59:59Z"},
-    ])
+def fetch_tasks(get: Getter, start: date, end: date, *, limit: int = 25) -> Iterator[dict[str, Any]]:
+    """Page through tasks and retain tasks scheduled/completed in ``[start, end]``.
+
+    Guesty's Tasks API uses a different filter grammar from reservations, and
+    flexible tasks have no ``startTime``. Client-side filtering avoids silently
+    dropping those tasks while the tenant-specific filter shape is unverified.
+    """
     skip = 0
     while True:
-        page = _results(get(LIST_PATH, columns=COLUMNS, filters=filters, limit=limit, skip=skip))
-        yield from page
+        page = _results(get(LIST_PATH, columns=COLUMNS, limit=limit, skip=skip))
+        for task in page:
+            stamp = first(task, "startTime", "scheduledFor.startTime", "canStartAfter",
+                          "scheduledFor.canStartAfter", "mustFinishBefore",
+                          "scheduledFor.mustFinishBefore", "completedAt", "endTime")
+            day = as_iso_date(stamp)
+            if day is not None and start.isoformat() <= day <= end.isoformat():
+                yield task
         if len(page) < limit:
             break
         skip += limit
@@ -78,7 +84,8 @@ def normalize_task(task: dict[str, Any], resolver: PropertyResolver) -> Turnover
     pid = resolver.resolve(listing_id, first(task, "listing.title", "listing.nickname"))
     if blank(task_id) or pid is None:
         raise ValueError(f"task {task_id!r}: unknown listing {listing_id!r}")
-    start = first(task, "startTime", "scheduledFor.startTime", "canStartAfter", "scheduledFor.canStartAfter")
+    fixed_start = first(task, "startTime", "scheduledFor.startTime")
+    start = fixed_start or first(task, "canStartAfter", "scheduledFor.canStartAfter")
     completed = first(task, "completedAt", "endTime")
     deadline = first(task, "mustFinishBefore", "scheduledFor.mustFinishBefore")
     late = None
@@ -89,6 +96,7 @@ def normalize_task(task: dict[str, Any], resolver: PropertyResolver) -> Turnover
     service_date = as_iso_date(start) or as_iso_date(completed)
     if service_date is None:
         raise ValueError(f"task {task_id!r}: no start or completion time")
+    planned_hours = as_float(task.get("plannedDuration"))
     return TurnoverOutcome(
         property_id=pid,
         service_date=service_date,
@@ -98,8 +106,10 @@ def normalize_task(task: dict[str, Any], resolver: PropertyResolver) -> Turnover
         turn_id=None,
         scheduled_start=as_iso_datetime(start),
         completed_at=as_iso_datetime(completed),
-        required_minutes=as_float(task.get("plannedDuration")),
-        actual_minutes=minutes_between(start, completed) if status in DONE else None,
+        # Guesty documents plannedDuration in hours; our canonical unit is minutes.
+        required_minutes=planned_hours * 60.0 if planned_hours is not None else None,
+        # canStartAfter is an eligibility boundary, not an actual clock-in time.
+        actual_minutes=minutes_between(fixed_start, completed) if fixed_start else None,
         cost=None,
         late_ready_minutes=late,
         assignee_ref=None if blank(first(task, "assigneeId", "assignee.assigneeId")) else str(

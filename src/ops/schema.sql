@@ -153,6 +153,20 @@ CREATE TABLE IF NOT EXISTS incident_actions (
     outcome      TEXT
 );
 
+CREATE TABLE IF NOT EXISTS incident_task_writes (
+    incident_id     TEXT NOT NULL REFERENCES incidents(incident_id),
+    action_code     TEXT NOT NULL,
+    property_id     TEXT NOT NULL,
+    adapter         TEXT NOT NULL,
+    status          TEXT NOT NULL CHECK (status IN ('pending', 'created', 'uncertain')),
+    external_task_id TEXT,
+    response_json   TEXT,
+    error           TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (incident_id, action_code, property_id, adapter)
+);
+
 CREATE TABLE IF NOT EXISTS property_credentials (
     credential_id       INTEGER PRIMARY KEY AUTOINCREMENT,
     property_id         TEXT NOT NULL,

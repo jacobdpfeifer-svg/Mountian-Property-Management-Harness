@@ -722,20 +722,24 @@ def test_set_rate_reconciles_timeout_after_server_side_success(monkeypatch: pyte
 
 
 def test_sync_reservations_keeps_cleaning_fee_and_host_payout(db: Path):
-    """The owner receipt derives channel cost from fare + cleaning - payout."""
+    """Money fields remain itemized; channel cost is never inferred from payout."""
     listing = _listing(listing_id="abc123", nickname="Test Haus")
     reservation = {
         "_id": "res-money", "listingId": "abc123", "checkIn": "2026-12-21",
         "checkOut": "2026-12-23", "nightsCount": 2, "status": "confirmed", "source": "airbnb",
         "confirmedAt": "2026-10-01T00:00:00.000Z",
-        "money": {"fareAccommodation": 1500.0, "fareCleaning": 450.0, "hostPayout": "1720.5"},
+        "money": {"fareAccommodation": 1500.0, "fareCleaning": 450.0,
+                  "hostPayout": "1720.5", "hostServiceFee": 225.0,
+                  "hostServiceFeeTax": 12.5, "hostServiceFeeIncTax": 237.5},
     }
     client = _FakeGuestyClient([listing], {}, [reservation])
     with connect(db) as conn:
         listings = sync_listings(conn, client, SyncReport())
         sync_reservations(conn, client, listings, SyncReport())
         row = conn.execute(
-            "SELECT fare_cleaning, host_payout FROM reservations WHERE reservation_id='res-money'"
+            """SELECT fare_cleaning, host_payout, channel_commission
+               FROM reservations WHERE reservation_id='res-money'"""
         ).fetchone()
     assert row["fare_cleaning"] == pytest.approx(450.0)
     assert row["host_payout"] == pytest.approx(1720.5)
+    assert row["channel_commission"] == pytest.approx(237.5)

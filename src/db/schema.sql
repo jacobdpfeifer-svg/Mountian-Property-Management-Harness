@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS reservations (
     nightly_rate    REAL,
     fare_cleaning   REAL,
     host_payout     REAL,
+    channel_commission REAL,
+    first_seen_at   TEXT NOT NULL DEFAULT (datetime('now')),
     raw_json        TEXT,
     synced_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );

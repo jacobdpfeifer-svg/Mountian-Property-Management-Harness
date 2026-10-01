@@ -3,8 +3,8 @@
 Money rules (stated on the receipt too):
   * Booking revenue, cleaning fees, and channel cost are pro-rated by nights
     that fall in the month. Owner stays are excluded from revenue.
-  * Channel cost is derived: accommodation fare + cleaning fee - host payout.
-    Stays missing any of the three are counted and reported, not guessed.
+  * Channel cost uses Guesty's itemized channel commission. It is never inferred
+    from host payout, which also contains taxes and additional fees.
   * Service cost uses imported task costs where they exist and profile
     estimates for turns without one; the two are shown separately.
   * Management fee needs owners.<id>.management_fee_pct; otherwise the net is
@@ -91,7 +91,9 @@ class OwnerMonth:
         return sum(p.gross_accommodation for p in self.properties) * self.fee_pct
 
     @property
-    def net(self) -> float:
+    def net(self) -> float | None:
+        if self.fee_pct is None or any(p.channel_cost_missing for p in self.properties):
+            return None
         return self.gross - sum(self.costs.values()) - (self.management_fee or 0.0)
 
 
@@ -124,6 +126,10 @@ def load_owner_month(conn: sqlite3.Connection, owner_id: str, month: str,
             "set the real name or pass --allow-placeholder-names for an internal draft")
     fee = owner.get("management_fee_pct")
     start, end = month_bounds(month)
+    # A receipt is an accounting view generated now, not a reconstruction of
+    # what the pricing engine knew at month-end. Include late-arriving PMS and
+    # vendor records while still bounding the service dates to the month.
+    knowledge_as_of = max(date.today(), end + timedelta(days=1))
     pids = list(owner.get("properties") or [])
     names = {pid: str((cfg.get("properties") or {}).get(pid, {}).get("display_name") or pid) for pid in pids}
     profiles = load_profiles()
@@ -132,7 +138,8 @@ def load_owner_month(conn: sqlite3.Connection, owner_id: str, month: str,
     for pid in pids:
         pm = PropertyMonth(pid, names[pid])
         for r in conn.execute(
-            """SELECT check_in, check_out, fare_accommodation, fare_cleaning, host_payout, source
+            """SELECT check_in, check_out, fare_accommodation, fare_cleaning,
+                      channel_commission, source
                FROM reservations WHERE property_id=?
                  AND LOWER(status) IN ('confirmed','checked_in','checked_out')
                  AND check_in<=? AND check_out>?""",
@@ -150,8 +157,8 @@ def load_owner_month(conn: sqlite3.Connection, owner_id: str, month: str,
             clean = float(r["fare_cleaning"] or 0.0)
             pm.gross_accommodation += fare * share
             pm.cleaning_fees += clean * share
-            if r["fare_accommodation"] is not None and r["host_payout"] is not None:
-                pm.channel_cost += max(0.0, fare + clean - float(r["host_payout"])) * share
+            if r["channel_commission"] is not None:
+                pm.channel_cost += abs(float(r["channel_commission"])) * share
             else:
                 pm.channel_cost_missing += 1
         observed_dates: set[str] = set()
@@ -171,12 +178,14 @@ def load_owner_month(conn: sqlite3.Connection, owner_id: str, month: str,
                 pm.qa_passed += int(r["qa_pass"])
         profile = profiles.get(pid)
         if profile is not None:
-            for t in derive_turns(conn, profile, start, end, as_of=end + timedelta(days=1),
-                                  ops_policy=ops_policy):
+            for t in derive_turns(
+                conn, profile, start, end, as_of=knowledge_as_of, ops_policy=ops_policy,
+                point_in_time_reservations=False,
+            ):
                 if t.service_date.isoformat() in observed_dates:
                     continue
                 pm.turns_estimated += 1
-                pm.service_estimated += turn_cost(conn, profile, as_of=end + timedelta(days=1),
+                pm.service_estimated += turn_cost(conn, profile, as_of=knowledge_as_of,
                                                   ops_policy=ops_policy, snow=t.snow_expected).amount
         for r in conn.execute(
             """SELECT category, SUM(amount) AS total FROM owner_ledger_entries
@@ -266,6 +275,7 @@ def render(om: OwnerMonth) -> str:
         f"<tr><td>{_e(k.removeprefix('ledger_').capitalize())}</td><td class=n>{_m(-v)}</td></tr>"
         for k, v in c.items() if k.startswith("ledger_"))
     missing = sum(p.channel_cost_missing for p in om.properties)
+    net_label = "Net to owner" if om.net is not None else "Net to owner (incomplete)"
     prop_rows = "".join(
         f"<tr><td>{_e(p.display_name)}</td><td class=n>{p.nights_sold}</td>"
         f"<td class=n>{_m(p.gross_accommodation + p.cleaning_fees)}</td>"
@@ -319,10 +329,10 @@ def render(om: OwnerMonth) -> str:
     <tr><td>Turnover &amp; spa service (estimated, no invoice yet)</td><td class=n>{_m(-c['service_estimated'])}</td></tr>
     {ledger_rows}
     {fee_line}
-    <tr class=total><td>Net to owner</td><td class=n>{_m(om.net)}</td></tr>
+    <tr class=total><td>{net_label}</td><td class=n>{_m(om.net)}</td></tr>
   </table>
   <p class=note>Revenue and channel cost are pro-rated by nights in the month; owner stays are excluded.
-  Channel cost = fare + cleaning fee − host payout{f'; {missing} stay(s) lacked payout data and are not included' if missing else ''}.
+  Channel cost uses Guesty's itemized channel commission{f'; {missing} stay(s) lacked commission data, so net is intentionally withheld' if missing else ''}.
   Estimated service uses the property profile until task costs are imported.</p>
   <table>
     <tr><th>Home</th><th class=n>Nights</th><th class=n>Revenue</th><th class=n>Turns (invoiced+est.)</th><th class=n>QA pass</th></tr>

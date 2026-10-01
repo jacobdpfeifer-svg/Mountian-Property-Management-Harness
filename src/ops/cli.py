@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from datetime import date, timedelta
 
-from src.db import connect
+from src.db import connect, connect_readonly
 from src.utils import parse_date
 
 
@@ -29,7 +30,7 @@ def _print_result(result) -> int:
 def cmd_ops_sources(args: argparse.Namespace) -> int:
     from src.ops.sources import status
 
-    with connect(args.db) as conn:
+    with connect_readonly(args.db) as conn:
         for s in status(conn):
             flag = "configured" if s.configured else "UNCONFIGURED"
             last = s.last_run or {}
@@ -91,8 +92,13 @@ def cmd_ops_report(args: argparse.Namespace) -> int:
 
     start, end = parse_date(args.start), parse_date(args.end)
     props = [p.strip() for p in args.property.split(",")] if args.property else None
-    with connect(args.db) as conn:
-        report = build_report(conn, start, end, as_of=_as_of(args), property_ids=props)
+    try:
+        with connect_readonly(args.db) as conn:
+            report = build_report(conn, start, end, as_of=_as_of(args), property_ids=props)
+    except sqlite3.OperationalError as exc:
+        print(f"refused: operations schema is not initialized ({exc}); run wp-price init-db once",
+              file=sys.stderr)
+        return 1
     if args.json:
         print(json.dumps(report.as_dict(), indent=2, default=str))
     else:
@@ -104,8 +110,13 @@ def cmd_ops_capacity(args: argparse.Namespace) -> int:
     from src.ops.shadow import build_report
 
     day = parse_date(args.date)
-    with connect(args.db) as conn:
-        report = build_report(conn, day, day, as_of=_as_of(args))
+    try:
+        with connect_readonly(args.db) as conn:
+            report = build_report(conn, day, day, as_of=_as_of(args))
+    except sqlite3.OperationalError as exc:
+        print(f"refused: operations schema is not initialized ({exc}); run wp-price init-db once",
+              file=sys.stderr)
+        return 1
     if not report.capacity:
         print(f"No turns on {day}.")
         return 0
@@ -280,7 +291,8 @@ def register(sub: argparse._SubParsersAction) -> None:
     s.add_argument("--verified-by")
     s.add_argument("--state", choices=["ready", "at_risk", "inspection_required", "out_of_service",
                                        "remediation_in_progress", "verified_ready"])
-    s.add_argument("--actor", default="operator")
+    s.add_argument("--actor", required=True,
+                   help="Named person or one of the bounded automatic actors")
     s.add_argument("--note")
     s.set_defaults(func=cmd_ops_event_add)
 
