@@ -122,7 +122,10 @@ def test_unconfigured_api_sources_report_cleanly(ops_db, monkeypatch):
 GUESTY_TASKS = [
     {"_id": "g1", "status": "completed", "type": "cleaning", "listingId": "listing-312",
      "startTime": "2026-01-04T10:30:00Z", "endTime": "2026-01-04T14:30:00Z",
-     "mustFinishBefore": "2026-01-04T15:00:00Z", "plannedDuration": 240, "assigneeId": "a1"},
+     "mustFinishBefore": "2026-01-04T15:00:00Z", "plannedDuration": 4, "assigneeId": "a1"},
+    {"_id": "g-flex", "status": "completed", "type": "cleaning", "listingId": "listing-c9",
+     "canStartAfter": "2026-01-06T08:00:00Z", "mustFinishBefore": "2026-01-06T16:00:00Z",
+     "completedAt": "2026-01-06T14:00:00Z", "plannedDuration": 2},
     {"_id": "g2", "status": "pending", "listingId": "listing-312", "startTime": "2026-01-05T10:30:00Z"},
     {"_id": "g3", "status": "completed", "listing": {"listingId": "listing-unknown"},
      "startTime": "2026-01-05T10:30:00Z", "endTime": "2026-01-05T11:00:00Z"},
@@ -140,10 +143,14 @@ def test_guesty_tasks_normalize_duration_and_lateness(ops_db):
         result = import_guesty_tasks(conn, date(2026, 1, 1), date(2026, 1, 31), get=fake_get)
         rows = _outcomes(conn)
     assert calls[0][0] == "/v1/tasks-open-api/tasks" and "columns" in calls[0][1]
-    assert (result.accepted, result.rejected) == (1, 1)
+    assert "filters" not in calls[0][1]  # flexible tasks must not be filtered out server-side
+    assert (result.accepted, result.rejected) == (2, 1)
     g1 = rows["g1"]
     assert g1["actual_minutes"] == 240 and g1["late_ready_minutes"] == -30
+    assert g1["required_minutes"] == 240  # Guesty plannedDuration is hours
     assert g1["cost"] is None and g1["service_type"] == "turnover"
+    assert rows["g-flex"]["required_minutes"] == 120
+    assert rows["g-flex"]["actual_minutes"] is None  # eligibility is not clock-in
 
 
 def test_breezeway_maps_homes_then_tasks(ops_db):

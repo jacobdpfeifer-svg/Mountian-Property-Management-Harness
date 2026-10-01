@@ -307,6 +307,7 @@ class ModelAdjustment:
     # "ops" when the operations layer chose the stay length. Push never writes it.
     min_stay_source: str | None = None
     ops_facts: dict[str, Any] | None = None
+    requires_human: bool = False
 
 
 def _any_model(policy: dict[str, Any]) -> bool:
@@ -487,6 +488,7 @@ def apply_models(
     ops_on = enabled(policy, "ops_aware_stay")
     min_stay_source = None
     ops_facts = None
+    ops_requires_human = False
     if stay_on or ops_on:
         rules = (policy.get("min_stay_rules") or {}).get("by_season", {}).get(feat.season, [])
         rule_nights = [int(row["min_nights"]) for row in rules]
@@ -499,6 +501,7 @@ def apply_models(
             """
             SELECT stay_date, listed_price FROM nightly_inventory
             WHERE property_id = ? AND stay_date >= ? AND stay_date < ?
+              AND status = 'available'
               AND listed_price IS NOT NULL AND listed_price > 0
             """,
             (
@@ -549,6 +552,7 @@ def apply_models(
                         if anchor_price <= 0 or gain / anchor_price < inputs.min_gain_pct:
                             ops_len = chosen
                     ops_facts = inputs.facts(standing, ops_len, ops_ev)
+                    ops_requires_human = bool(ops_ev.disqualified)
                     if ops_len != chosen or ops_ev.disqualified:
                         if ops_len != chosen:
                             min_stay_nights = ops_len
@@ -556,4 +560,4 @@ def apply_models(
                         reasons.append(("turnover_cost", inputs.message(standing, ops_len, ops_ev), 0.0))
 
     return ModelAdjustment(bp, reasons, objective, price_delta, min_stay_nights,
-                           min_stay_source, ops_facts)
+                           min_stay_source, ops_facts, ops_requires_human)

@@ -101,10 +101,15 @@ def add_credential(conn: sqlite3.Connection, c: Credential) -> bool:
     ensure_ops_tables(conn)
     if c.verification_status not in ("unverified", "verified", "rejected"):
         raise ValueError(f"bad verification_status {c.verification_status!r}")
+    if not c.identifier or not c.identifier.strip():
+        raise ValueError("a credential needs a stable identifier")
     if c.verification_status == "verified" and not c.verified_by:
         raise ValueError("a verified credential needs verified_by")
+    digest = evidence_hash(c.evidence_ref)
+    if c.verification_status == "verified" and digest is None:
+        raise ValueError("a verified credential needs a readable evidence file")
     existed = conn.execute(
-        """SELECT 1 FROM property_credentials WHERE property_id=? AND credential_type=?
+        """SELECT credential_id FROM property_credentials WHERE property_id=? AND credential_type=?
            AND identifier IS ?""",
         (c.property_id, c.credential_type, c.identifier),
     ).fetchone()
@@ -114,15 +119,21 @@ def add_credential(conn: sqlite3.Connection, c: Credential) -> bool:
                verification_status, verified_at, verified_by, rule_pack_version, notes)
            VALUES (?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='verified' THEN datetime('now') END,?,?,?)
            ON CONFLICT(property_id, credential_type, identifier) DO UPDATE SET
-               jurisdiction=excluded.jurisdiction, permitted_occupancy=excluded.permitted_occupancy,
-               issued_at=excluded.issued_at, expires_at=excluded.expires_at,
-               evidence_ref=excluded.evidence_ref, evidence_hash=excluded.evidence_hash,
-               verification_status=excluded.verification_status, verified_at=excluded.verified_at,
-               verified_by=excluded.verified_by, rule_pack_version=excluded.rule_pack_version,
+               jurisdiction=excluded.jurisdiction,
+               permitted_occupancy=excluded.permitted_occupancy,
+               issued_at=excluded.issued_at,
+               expires_at=excluded.expires_at,
+               evidence_ref=excluded.evidence_ref,
+               evidence_hash=excluded.evidence_hash,
+               verification_status=excluded.verification_status,
+               verified_at=excluded.verified_at,
+               verified_by=excluded.verified_by,
+               rule_pack_version=excluded.rule_pack_version,
                notes=excluded.notes""",
-        (c.property_id, c.jurisdiction, c.credential_type, c.identifier, c.permitted_occupancy,
-         c.issued_at, c.expires_at, c.evidence_ref, evidence_hash(c.evidence_ref),
-         c.verification_status, c.verification_status, c.verified_by, c.rule_pack_version, c.notes),
+        (c.property_id, c.jurisdiction, c.credential_type, c.identifier,
+         c.permitted_occupancy, c.issued_at, c.expires_at, c.evidence_ref, digest,
+         c.verification_status, c.verification_status, c.verified_by,
+         c.rule_pack_version, c.notes),
     )
     conn.commit()
     return existed is None
@@ -189,6 +200,11 @@ def _check_requirement(
     for r in live:
         deadline = deadline_for(r, req.get("renewal") or {})
         status = "evidence_on_file" if r["verification_status"] == "verified" else "unverified"
+        if status == "evidence_on_file":
+            current_hash = evidence_hash(r["evidence_ref"])
+            if current_hash is None or current_hash != r["evidence_hash"]:
+                status = "unverified"
+                details.append(f"{r['identifier'] or ctype}: evidence file missing or changed")
         if deadline is not None:
             earliest = deadline if earliest is None or deadline < earliest else earliest
             if deadline < as_of:
@@ -228,9 +244,6 @@ def check(
     listing_texts: dict[str, str] | None = None,
     rule_dir: Path | None = None,
 ) -> ComplianceReport:
-    from src.ops.db import ensure_ops_tables
-
-    ensure_ops_tables(conn)
     as_of = as_of or date.today()
     report = ComplianceReport(as_of=as_of)
     props = load_portfolio_config().get("properties") or {}

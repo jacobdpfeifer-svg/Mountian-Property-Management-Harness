@@ -11,7 +11,7 @@ from conftest import add_reservation, add_signal
 
 from src.compose import generate_recommendations
 from src.config import load_policy
-from src.db import connect, init_db
+from src.db import DB_KIND_PRODUCTION, connect, init_db, mark_db_identity
 from src.ingest import CsvIngestAdapter
 from src.ops import AssetEvent
 from src.ops import incidents as inc
@@ -110,6 +110,57 @@ def test_window_limits_which_nights_are_restricted(ops_db):
         before = state_for_night(conn, "cloud_9", date(2026, 12, 23), date(2026, 12, 19))
     assert inside.state == "out_of_service"
     assert outside.state == "ready" and before.state == "ready"
+
+
+def test_expired_restriction_fails_closed_until_evidenced_recovery(ops_db):
+    with connect(ops_db) as conn:
+        e = _event(conn)
+        transition(conn, "cloud_9", "at_risk", evidence_event_id=e, actor="jacob",
+                   at="2026-12-20T06:30:00", effective_from=date(2026, 12, 20),
+                   effective_to=date(2026, 12, 21))
+        after_expiry = state_for_night(
+            conn, "cloud_9", date(2026, 12, 25), date(2026, 12, 22)
+        )
+        with pytest.raises(ReadinessError, match="verifier's name"):
+            transition(conn, "cloud_9", "verified_ready", evidence_event_id=e,
+                       actor="operator", at="2026-12-22T09:00:00")
+    assert after_expiry.state == "at_risk"
+
+
+def test_future_transition_does_not_mask_an_older_restriction(ops_db):
+    with connect(ops_db) as conn:
+        first = _event(conn, system="heat")
+        transition(conn, "cloud_9", "at_risk", evidence_event_id=first, actor="jacob",
+                   at="2026-12-20T06:30:00", effective_from=date(2026, 12, 22),
+                   effective_to=date(2026, 12, 24))
+        second = _event(conn, system="snow_access", at="2026-12-20T07:00:00")
+        transition(conn, "cloud_9", "at_risk", evidence_event_id=second, actor="signal",
+                   at="2026-12-20T07:05:00", effective_from=date(2026, 12, 28),
+                   effective_to=date(2026, 12, 29))
+        state = state_for_night(conn, "cloud_9", date(2026, 12, 23), date(2026, 12, 21))
+    assert state.evidence_event_id == first and state.state == "at_risk"
+
+
+def test_recovery_resolves_only_the_evidenced_system(ops_db):
+    with connect(ops_db) as conn:
+        heat = _event(conn, system="heat")
+        transition(conn, "cloud_9", "inspection_required", evidence_event_id=heat,
+                   actor="jacob", at="2026-12-20T06:30:00")
+        water = _event(conn, system="water", at="2026-12-20T07:00:00")
+        with pytest.raises(ReadinessError, match="critical water"):
+            transition(conn, "cloud_9", "verified_ready", evidence_event_id=heat,
+                       actor="jacob", at="2026-12-20T08:00:00")
+        conn.execute("UPDATE asset_health_events SET status='resolved' WHERE event_id=?", (water,))
+        record_asset_event(conn, AssetEvent(
+            property_id="cloud_9", system_type="snow_access",
+            observed_at="2026-12-20T07:30:00", severity="warn", source_type="manual",
+        ))
+        transition(conn, "cloud_9", "verified_ready", evidence_event_id=heat,
+                   actor="jacob", at="2026-12-20T08:05:00")
+        statuses = {r["system_type"]: r["status"] for r in conn.execute(
+            "SELECT system_type, status FROM asset_health_events"
+        )}
+    assert statuses == {"heat": "resolved", "water": "resolved", "snow_access": "open"}
 
 
 def test_revenue_at_risk_prorates_and_counts_exposure(ops_db):
@@ -250,6 +301,47 @@ def test_live_task_write_refuses_without_gate_and_on_demo_db(ops_db):
         failed = conn.execute(
             "SELECT COUNT(*) FROM incident_actions WHERE status='failed'").fetchone()[0]
     assert failed == 2
+
+
+def test_live_task_write_is_retry_safe_after_partial_timeout(ops_db, monkeypatch):
+    from src.ops.actions import _create_live_tasks
+
+    calls = []
+
+    def create(_post, body):
+        calls.append(body)
+        if len(calls) == 2:
+            raise TimeoutError("response lost")
+        return {"_id": "task-1"}
+
+    monkeypatch.setattr("src.ops.sources.guesty_tasks.client_poster", lambda: object())
+    monkeypatch.setattr("src.ops.sources.guesty_tasks.create_task", create)
+    bodies = [
+        {"property_id": "summit_haus", "title": "Heat", "type": "maintenance",
+         "canStartAfter": "2026-12-20T08:00:00-07:00",
+         "mustFinishBefore": "2026-12-21T15:00:00-07:00", "description": "one"},
+        {"property_id": "overlook_ridge", "title": "Heat", "type": "maintenance",
+         "canStartAfter": "2026-12-20T08:00:00-07:00",
+         "mustFinishBefore": "2026-12-21T15:00:00-07:00", "description": "two"},
+    ]
+    with connect(ops_db) as conn:
+        conn.execute(
+            """INSERT INTO incidents
+               (incident_id, incident_type, market_id, detected_at, severity, signal_key,
+                window_start, window_end, affected_json)
+               VALUES ('inc-1','cold','grand_home','2026-12-20T08:00:00','warn','temp',
+                       '2026-12-20','2026-12-21','{}')"""
+        )
+        mark_db_identity(conn, DB_KIND_PRODUCTION, "test", force=True)
+        with pytest.raises(TimeoutError):
+            _create_live_tasks(conn, "inc-1", "add_heat_check", "guesty", bodies)
+        states = [tuple(r) for r in conn.execute(
+            "SELECT property_id, status FROM incident_task_writes ORDER BY property_id"
+        )]
+        with pytest.raises(inc.IncidentError, match="reconcile"):
+            _create_live_tasks(conn, "inc-1", "add_heat_check", "guesty", bodies)
+    assert states == [("overlook_ridge", "uncertain"), ("summit_haus", "created")]
+    assert len(calls) == 2
 
 
 def test_misconfigured_rule_cannot_smuggle_a_forbidden_action(ops_db):

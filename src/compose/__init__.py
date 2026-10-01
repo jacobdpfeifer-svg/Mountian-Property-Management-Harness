@@ -410,6 +410,10 @@ def recommend_night(
             or (resort_cfg.get("demote_when_resort_closed", True) and is_closed)
         ):
             level = "suggest"
+    # A failed operations-readiness threshold is a human decision. Apply this
+    # after advisory demotions so no later suggest-only gate can downgrade it.
+    if adjustment.requires_human:
+        level = "escalate"
     # Property readiness (src/ops/readiness.py). Only restricts: a night in an
     # at_risk / inspection window is suggest-only, inspection also blocks upward
     # moves, and out_of_service blocks the night and recommends a closure that a
@@ -632,9 +636,11 @@ def recommend_night(
             facts={"claim_refs": list(mem.active_claim_refs)},
         ))
 
-    for code, message, contribution in adjustment.reasons:
-        reasons.append(_model_reason(code, message, contribution, facts=adjustment.ops_facts
-                                     if code == "turnover_cost" else None))
+    for adjustment_code, message, contribution in adjustment.reasons:
+        reasons.append(_model_reason(
+            adjustment_code, message, contribution,
+            facts=adjustment.ops_facts if adjustment_code == "turnover_cost" else None,
+        ))
     if readiness_state is not None:
         from src.ops.readiness import readiness_reason_facts
 

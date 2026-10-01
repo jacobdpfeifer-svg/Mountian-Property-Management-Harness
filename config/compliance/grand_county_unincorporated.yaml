@@ -7,6 +7,7 @@ version: grand_county_2026_09_30
 effective_from: "2024-01-01"
 source_urls:
   - https://www.co.grand.co.us/943/Short-Term-Rentals
+  - https://www.co.grand.co.us/DocumentCenter/View/17041/SECTION-148
 reviewed_by: null
 reviewed_at: null
 notes: >-
@@ -20,6 +21,9 @@ requirements:
     warn_days: 45
     listing_match: true
     occupancy_check: true
+  - credential_type: sales_tax_license
+    label: Colorado sales-tax license for the short-term rental
+    renewal: {kind: none}
   - credential_type: emergency_contact
     label: Local emergency contact (full-time Grand County resident)
     renewal: {kind: none}

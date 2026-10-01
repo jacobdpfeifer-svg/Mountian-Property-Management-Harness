@@ -46,14 +46,19 @@ def test_listing_match_ignores_punctuation():
     assert listing_mentions("STR-2025-014", None) is None
 
 
-def test_statuses_never_claim_compliance(ops_db, portfolio):
+def test_statuses_never_claim_compliance(ops_db, portfolio, tmp_path):
+    permit = tmp_path / "permit.pdf"
+    policy = tmp_path / "policy.pdf"
+    permit.write_bytes(b"permit")
+    policy.write_bytes(b"policy")
     with connect(ops_db) as conn:
         add_credential(conn, Credential("summit_haus", "winter_park", "str_registration", "WP-1",
                                         issued_at="2025-10-01", verification_status="verified",
-                                        verified_by="jacob", permitted_occupancy=16))
+                                        verified_by="jacob", permitted_occupancy=16,
+                                        evidence_ref=str(permit)))
         add_credential(conn, Credential("summit_haus", "winter_park", "liability_insurance", "POL-9",
                                         expires_at="2026-10-10", verification_status="verified",
-                                        verified_by="jacob"))
+                                        verified_by="jacob", evidence_ref=str(policy)))
         add_credential(conn, Credential("summit_haus", "winter_park", "responsible_agent", "Agent A"))
         rep = check(conn, date(2026, 9, 30), listing_texts={"summit_haus": "Permit WP-1. Sleeps 16."})
         late = check(conn, date(2026, 10, 1))
@@ -71,14 +76,16 @@ def test_statuses_never_claim_compliance(ops_db, portfolio):
     assert any("not been reviewed" in w for w in rep.warnings)
 
 
-def test_emergency_contacts_count_and_occupancy_cap(ops_db, portfolio):
+def test_emergency_contacts_count_and_occupancy_cap(ops_db, portfolio, tmp_path):
+    permit = tmp_path / "permit.pdf"
+    permit.write_bytes(b"permit")
     with connect(ops_db) as conn:
         conn.execute("UPDATE properties SET max_occupancy=18 WHERE property_id='overlook_ridge'")
         add_credential(conn, Credential("overlook_ridge", "grand_county_unincorporated",
                                         "emergency_contact", "Contact 1"))
         add_credential(conn, Credential("overlook_ridge", "grand_county_unincorporated", "str_permit",
                                         "GC-7", issued_at="2026-06-01", verification_status="verified",
-                                        verified_by="jacob"))
+                                        verified_by="jacob", evidence_ref=str(permit)))
         rep = check(conn, date(2026, 9, 30), listing_texts={"overlook_ridge": "GC-7"})
     r = _results(rep, "overlook_ridge")
     assert r["emergency_contact"].status == "missing" and "1 of 2" in r["emergency_contact"].detail
@@ -97,6 +104,21 @@ def test_verified_needs_a_person(ops_db):
                                         verification_status="verified"))
 
 
+def test_verified_needs_stable_identity_and_live_evidence(ops_db, tmp_path):
+    evidence = tmp_path / "permit.pdf"
+    evidence.write_bytes(b"version one")
+    with connect(ops_db) as conn:
+        with pytest.raises(ValueError, match="stable identifier"):
+            add_credential(conn, Credential("cloud_9", "fraser", "str_registration"))
+        add_credential(conn, Credential(
+            "cloud_9", "fraser", "str_registration", "F-1", evidence_ref=str(evidence),
+            verification_status="verified", verified_by="jacob",
+        ))
+        evidence.write_bytes(b"changed")
+        rep = check(conn, date(2026, 9, 30), property_ids=["cloud_9"])
+    assert _results(rep, "cloud_9")["str_registration"].status == "unverified"
+
+
 def test_owner_receipt_refuses_placeholder_names(ops_db):
     with connect(ops_db) as conn, pytest.raises(PlaceholderOwnerName):
         load_owner_month(conn, "northwoods", "2026-08")
@@ -104,9 +126,10 @@ def test_owner_receipt_refuses_placeholder_names(ops_db):
 
 def test_owner_receipt_arithmetic(ops_db, portfolio):
     with connect(ops_db) as conn:
-        # 4 of 5 nights in August; payout implies $600 channel cost on the whole stay.
+        # 4 of 5 nights in August; Guesty itemizes $600 channel cost on the whole stay.
         add_reservation(conn, "a", "summit_haus", date(2026, 8, 28), date(2026, 9, 2),
-                        fare=5000.0, cleaning=500.0, payout=4900.0)
+                        fare=5000.0, cleaning=500.0, payout=4900.0,
+                        channel_commission=600.0)
         add_reservation(conn, "own", "overlook_ridge", date(2026, 8, 10), date(2026, 8, 12), source="owner")
         add_reservation(conn, "b", "overlook_ridge", date(2026, 8, 14), date(2026, 8, 16), fare=2000.0)
         result = start_import(conn, "csv", "outcomes")
@@ -127,6 +150,5 @@ def test_owner_receipt_arithmetic(ops_db, portfolio):
     # The owner stay's checkout (08-12) is a turn without an invoice → estimated.
     assert overlook.turns_estimated == 1 and overlook.service_estimated == 720.0
     assert om.management_fee == pytest.approx(0.25 * 6000.0)
-    expected = (4400.0 + 2000.0) - 480.0 - 700.0 - 720.0 - 340.0 - 1500.0
-    assert om.net == pytest.approx(expected)
-    assert "Test Family" in html and "Net to owner" in html
+    assert om.net is None
+    assert "Test Family" in html and "Net to owner (incomplete)" in html

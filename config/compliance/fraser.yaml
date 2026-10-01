@@ -8,6 +8,7 @@ version: fraser_2026_09_30
 effective_from: "2025-01-01"
 source_urls:
   - https://www.frasercolorado.com/303/Short-Term-Rental
+  - https://frasercolorado.com/DocumentCenter/View/1577/Ordinance-No-488-Short-Term-Registration-Fees
 reviewed_by: null
 reviewed_at: null
 requirements:
@@ -17,6 +18,9 @@ requirements:
     warn_days: 45
     listing_match: true
     occupancy_check: true
+  - credential_type: proof_of_ownership
+    label: Proof of ownership (deed, mortgage statement, or water/sewer bill)
+    renewal: {kind: none}
   - credential_type: operating_license
     label: Operating license (annual; displayed inside the rental)
     renewal: {kind: annual_from_issue}
@@ -28,6 +32,17 @@ requirements:
   - credential_type: emergency_contact
     label: Emergency contact able to attend within 1.5 hours, 24/7
     renewal: {kind: none}
+  - credential_type: parking_plan
+    label: Parking plan
+    renewal: {kind: none}
+  - credential_type: booking_tax_receipt
+    label: Booking receipt showing Town taxes collected (within 60 days, if applicable)
+    renewal: {kind: none}
+    optional: true
+  - credential_type: posted_registration
+    label: Current registration posted conspicuously inside the property
+    renewal: {kind: annual_from_issue}
+    warn_days: 45
   - credential_type: sales_tax_license
     label: Colorado sales tax license (sales and lodging tax remitted via CDOR)
     renewal: {kind: none}

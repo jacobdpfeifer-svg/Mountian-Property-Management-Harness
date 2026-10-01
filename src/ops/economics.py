@@ -76,8 +76,8 @@ def observed_costs(conn: sqlite3.Connection, property_id: str, as_of: date) -> l
     rows = conn.execute(
         """SELECT cost FROM turnover_outcomes
            WHERE property_id=? AND service_type='turnover' AND cost IS NOT NULL
-             AND service_date < ?""",
-        (property_id, as_of.isoformat()),
+             AND service_date < ? AND substr(imported_at,1,10) <= ?""",
+        (property_id, as_of.isoformat(), as_of.isoformat()),
     ).fetchall()
     return [float(r["cost"]) for r in rows]
 
@@ -139,8 +139,9 @@ def observed_readiness(
         rows = conn.execute(
             """SELECT turn_id, service_date, late_ready_minutes FROM turnover_outcomes
                WHERE property_id=? AND service_type='turnover'
-                 AND late_ready_minutes IS NOT NULL AND service_date >= ? AND service_date < ?""",
-            (profile.property_id, start.isoformat(), as_of.isoformat()),
+                 AND late_ready_minutes IS NOT NULL AND service_date >= ? AND service_date < ?
+                 AND substr(imported_at,1,10) <= ?""",
+            (profile.property_id, start.isoformat(), as_of.isoformat(), as_of.isoformat()),
         ).fetchall()
         if not rows:
             continue

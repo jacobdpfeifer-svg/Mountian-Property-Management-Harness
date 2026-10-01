@@ -302,15 +302,18 @@ def _import_credentials(conn, rows, resolver, result):
     for i, row in enumerate(rows, start=2):
         result.rows_in += 1
         pid = resolver.resolve(row.get("property_id"), row.get("property"))
-        if pid is None or blank(row.get("credential_type")) or blank(row.get("jurisdiction")):
+        if (pid is None or blank(row.get("credential_type")) or blank(row.get("jurisdiction"))
+                or blank(row.get("identifier"))):
             result.rejected += 1
-            result.errors.append(f"line {i}: needs known property, jurisdiction, credential_type")
+            result.errors.append(
+                f"line {i}: needs known property, jurisdiction, credential_type, identifier"
+            )
             continue
         created = add_credential(conn, Credential(
             property_id=pid,
             jurisdiction=str(row["jurisdiction"]).strip(),
             credential_type=str(row["credential_type"]).strip(),
-            identifier=None if blank(row.get("identifier")) else str(row["identifier"]).strip(),
+            identifier=str(row["identifier"]).strip(),
             issued_at=as_iso_date(row.get("issued_at")),
             expires_at=as_iso_date(row.get("expires_at")),
             evidence_ref=None if blank(row.get("evidence_ref")) else str(row["evidence_ref"]).strip(),

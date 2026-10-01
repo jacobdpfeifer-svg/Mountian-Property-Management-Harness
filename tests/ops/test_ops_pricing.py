@@ -95,6 +95,18 @@ def test_ops_suggestion_needs_a_material_saving(ops_db):
     assert adj.min_stay_nights is None and adj.reasons == []
 
 
+def test_ops_stay_value_never_counts_booked_nights_as_sellable(ops_db):
+    with connect(ops_db) as conn:
+        add_open_nights(conn, "cloud_9", ANCHOR, 6, price=1000.0, min_stay=2)
+        conn.execute(
+            "UPDATE nightly_inventory SET status='booked' WHERE property_id='cloud_9' AND stay_date=?",
+            ((ANCHOR + timedelta(days=2)).isoformat(),),
+        )
+        adj = apply_models(conn, _feat(), _policy(ops_aware_stay=True), _bp(),
+                           as_of=date(2026, 12, 1), floor=300, ceil=2000, sqi=1.0, steps=10)
+    assert adj.min_stay_nights is None
+
+
 def test_ops_never_shortens_what_the_stay_model_chose(ops_db):
     with connect(ops_db) as conn:
         add_open_nights(conn, "cloud_9", ANCHOR, 6, price=1000.0, min_stay=2)

@@ -10,6 +10,7 @@ import hashlib
 import json
 import sqlite3
 from dataclasses import asdict, fields
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +55,35 @@ def resolve_profiles(cfg: dict[str, Any]) -> dict[str, OpsProfile]:
 
 def load_profiles(path: Path | None = None) -> dict[str, OpsProfile]:
     return resolve_profiles(load_ops_config(path))
+
+
+def load_profiles_as_of(
+    conn: sqlite3.Connection, as_of: date
+) -> tuple[dict[str, OpsProfile], set[str]]:
+    """Load profile versions stored by ``as_of``; identify YAML fallbacks.
+
+    Historical reports must not silently substitute a newer profile. Properties
+    with no stored version retain the current YAML estimate for continuity, but
+    are returned in the fallback set so reports can disclose that limitation.
+    """
+    current = load_profiles()
+    try:
+        rows = conn.execute(
+            """SELECT * FROM property_operations_profile
+               WHERE loaded_at<=?
+               ORDER BY property_id, loaded_at, rowid""",
+            (f"{as_of.isoformat()}T23:59:59",),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        rows = []
+    stored: dict[str, OpsProfile] = {}
+    names = {f.name for f in fields(OpsProfile)}
+    for row in rows:
+        values = {name: row[name] for name in names}
+        values["snow_clearance_required"] = bool(values["snow_clearance_required"])
+        stored[str(row["property_id"])] = OpsProfile(**values)
+    fallback = set(current) - set(stored)
+    return {**current, **stored}, fallback
 
 
 def store_profiles(conn: sqlite3.Connection, profiles: dict[str, OpsProfile]) -> int:

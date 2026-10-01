@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -16,7 +17,14 @@ from src.ops.economics import (
     ready_probability,
     turn_cost,
 )
-from src.ops.profiles import load_ops_config, load_ops_policy, load_profiles, resolve_profiles
+from src.ops.profiles import (
+    load_ops_config,
+    load_ops_policy,
+    load_profiles,
+    load_profiles_as_of,
+    resolve_profiles,
+    store_profiles,
+)
 from src.ops.shadow import build_report
 from src.ops.turns import derive_turns
 
@@ -51,6 +59,27 @@ def test_profile_version_changes_with_content():
     assert resolve_profiles(cfg)["summit_haus"].version != a
 
 
+def test_historical_report_uses_the_profile_stored_by_as_of(ops_db, profiles):
+    old = profiles["summit_haus"]
+    newer = replace(old, version="opsprof_newer", base_clean_minutes=old.base_clean_minutes + 60)
+    with connect(ops_db) as conn:
+        store_profiles(conn, {old.property_id: old})
+        conn.execute(
+            "UPDATE property_operations_profile SET loaded_at='2026-01-01 00:00:00' WHERE version=?",
+            (old.version,),
+        )
+        store_profiles(conn, {newer.property_id: newer})
+        conn.execute(
+            "UPDATE property_operations_profile SET loaded_at='2026-12-01 00:00:00' WHERE version=?",
+            (newer.version,),
+        )
+        historical, fallback = load_profiles_as_of(conn, date(2026, 6, 1))
+        current, _ = load_profiles_as_of(conn, date(2026, 12, 2))
+    assert historical["summit_haus"].version == old.version
+    assert current["summit_haus"].version == newer.version
+    assert "summit_haus" not in fallback
+
+
 def test_unknown_profile_field_is_rejected():
     cfg = load_ops_config()
     cfg["properties"]["summit_haus"]["clean_minutes_typo"] = 1
@@ -75,6 +104,23 @@ def test_turns_cover_same_day_gap_and_open_departures(ops_db, profiles, policy):
     assert by_dep["r2"].gap_nights == 2
     assert by_dep["r3"].arriving_reservation == "own"  # owner stays still need a turn
     assert by_dep["own"].arriving_reservation is None and by_dep["own"].slack_minutes is None
+
+
+def test_historical_turns_exclude_reservations_not_known_yet(ops_db, profiles, policy):
+    with connect(ops_db) as conn:
+        add_reservation(conn, "late", "summit_haus", date(2026, 12, 20), date(2026, 12, 23))
+        conn.execute(
+            "UPDATE reservations SET first_seen_at='2026-12-10T10:00:00' WHERE reservation_id='late'"
+        )
+        before = derive_turns(
+            conn, profiles["summit_haus"], date(2026, 12, 1), date(2026, 12, 31),
+            as_of=date(2026, 12, 9), ops_policy=policy,
+        )
+        after = derive_turns(
+            conn, profiles["summit_haus"], date(2026, 12, 1), date(2026, 12, 31),
+            as_of=date(2026, 12, 10), ops_policy=policy,
+        )
+    assert before == [] and [t.departing_reservation for t in after] == ["late"]
 
 
 def test_weather_buffer_is_point_in_time(ops_db, profiles, policy):
@@ -109,6 +155,20 @@ def test_cost_switches_to_observed_median_with_enough_turns(ops_db, profiles, po
     assert (est.basis, est.amount, est.n) == ("estimate", 720.0, 4)
     assert (obs.basis, obs.amount, obs.n) == ("observed", 900.0, 5)
     assert future.basis == "estimate"
+
+
+def test_historical_cost_excludes_outcomes_imported_later(ops_db, profiles, policy):
+    with connect(ops_db) as conn:
+        result = start_import(conn, "csv", "outcomes")
+        record_outcomes(conn, [
+            TurnoverOutcome("summit_haus", f"2026-11-{i:02d}", "csv:generic", f"late-{i}", cost=999)
+            for i in range(1, 6)
+        ], result)
+        conn.execute(
+            "UPDATE turnover_outcomes SET imported_at='2026-12-02T00:00:00' WHERE source_task_id LIKE 'late-%'"
+        )
+        estimate = turn_cost(conn, profiles["summit_haus"], as_of=AS_OF, ops_policy=policy)
+    assert (estimate.basis, estimate.n) == ("estimate", 0)
 
 
 def test_ready_probability_shrinks_toward_the_bucket_prior(policy):

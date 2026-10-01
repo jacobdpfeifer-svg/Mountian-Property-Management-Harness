@@ -79,6 +79,8 @@ def load_stays(
     property_id: str,
     start: date | None = None,
     end: date | None = None,
+    *,
+    as_of: date | None = None,
 ) -> list[Stay]:
     """Occupying reservations whose checkout falls in [start - 60d, end + 60d]."""
     clauses = ["property_id = ?", f"LOWER(status) IN ({','.join('?' * len(OCCUPYING_STATUSES))})"]
@@ -89,6 +91,11 @@ def load_stays(
     if end is not None:
         clauses.append("check_in <= ?")
         params.append((end + timedelta(days=60)).isoformat())
+    if as_of is not None:
+        clauses.append(
+            "COALESCE(substr(confirmed_at,1,10), substr(first_seen_at,1,10)) <= ?"
+        )
+        params.append(as_of.isoformat())
     rows = conn.execute(
         "SELECT reservation_id, property_id, check_in, check_out, source, fare_accommodation "
         f"FROM reservations WHERE {' AND '.join(clauses)} ORDER BY check_in, check_out",
@@ -215,9 +222,13 @@ def derive_turns(
     *,
     as_of: date,
     ops_policy: dict[str, Any],
+    point_in_time_reservations: bool = True,
 ) -> list[Turn]:
     """Turns whose service date falls in [start, end]."""
-    stays = load_stays(conn, profile.property_id, start, end)
+    stays = load_stays(
+        conn, profile.property_id, start, end,
+        as_of=as_of if point_in_time_reservations else None,
+    )
     market = market_for(conn, profile.property_id)
     turns: list[Turn] = []
     for i, dep in enumerate(stays):
