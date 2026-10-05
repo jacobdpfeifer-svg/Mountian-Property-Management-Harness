@@ -89,9 +89,11 @@ def cmd_ops_import(args: argparse.Namespace) -> int:
 
 def cmd_ops_report(args: argparse.Namespace) -> int:
     from src.ops.shadow import build_report, render_text
+    from src.ops.profiles import portfolio_property_ids
 
     start, end = parse_date(args.start), parse_date(args.end)
-    props = [p.strip() for p in args.property.split(",")] if args.property else None
+    props = ([p.strip() for p in args.property.split(",")] if args.property
+             else sorted(portfolio_property_ids()))
     try:
         with connect_readonly(args.db) as conn:
             report = build_report(conn, start, end, as_of=_as_of(args), property_ids=props)
@@ -108,11 +110,13 @@ def cmd_ops_report(args: argparse.Namespace) -> int:
 
 def cmd_ops_capacity(args: argparse.Namespace) -> int:
     from src.ops.shadow import build_report
+    from src.ops.profiles import portfolio_property_ids
 
     day = parse_date(args.date)
     try:
         with connect_readonly(args.db) as conn:
-            report = build_report(conn, day, day, as_of=_as_of(args))
+            report = build_report(conn, day, day, as_of=_as_of(args),
+                                  property_ids=sorted(portfolio_property_ids()))
     except sqlite3.OperationalError as exc:
         print(f"refused: operations schema is not initialized ({exc}); run wp-price init-db once",
               file=sys.stderr)
@@ -168,12 +172,12 @@ def cmd_ops_event_add(args: argparse.Namespace) -> int:
 
 
 def cmd_ops_readiness(args: argparse.Namespace) -> int:
-    from src.ops.profiles import load_ops_policy, load_profiles
+    from src.ops.profiles import load_ops_policy, load_profiles, portfolio_property_ids
     from src.ops.readiness import RESTRICTING, current_state, revenue_at_risk, scan_signal_risk
 
     as_of = _as_of(args)
     policy = load_ops_policy()
-    pids = list(load_profiles())
+    pids = sorted(set(load_profiles()) & portfolio_property_ids())
     with connect(args.db) as conn:
         if args.scan_signals:
             for c in scan_signal_risk(conn, as_of, policy, pids):

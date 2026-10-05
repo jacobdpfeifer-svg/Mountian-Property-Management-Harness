@@ -19,7 +19,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from src.ops.actions import ForbiddenAction, IncidentError, check_action, execute
-from src.ops.profiles import load_ops_policy, load_profiles
+from src.ops.profiles import load_ops_policy, load_profiles, portfolio_property_ids
 from src.ops.turns import _crosses, market_for, signal_value
 
 __all__ = ["ForbiddenAction", "IncidentError", "scan", "approve", "reject", "record_outcome",
@@ -78,7 +78,7 @@ def scan(conn: sqlite3.Connection, as_of: date, ops_policy: dict[str, Any] | Non
     cfg = policy.get("incidents") or {}
     lookahead = int(cfg.get("lookahead_days", 3))
     by_market: dict[str, list[str]] = {}
-    for pid in load_profiles():
+    for pid in sorted(set(load_profiles()) & portfolio_property_ids()):
         by_market.setdefault(market_for(conn, pid), []).append(pid)
     found: list[IncidentCandidate] = []
     for rule in cfg.get("rules") or []:
