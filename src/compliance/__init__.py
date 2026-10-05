@@ -157,7 +157,9 @@ def deadline_for(cred: sqlite3.Row, renewal: dict[str, Any]) -> date | None:
         try:
             return issued.replace(year=issued.year + 1)
         except ValueError:  # Feb 29
-            return issued + timedelta(days=365)
+            # A Feb-29 credential renews on the last day of February in the
+            # following year; adding 365 days would incorrectly yield Mar 1.
+            return date(issued.year + 1, 2, 28)
     return None
 
 

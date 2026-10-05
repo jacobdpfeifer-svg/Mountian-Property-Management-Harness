@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from src.ops import OpsProfile
 from src.ops.profiles import minutes_of_day
@@ -185,16 +186,25 @@ def build_turn(
     buffer_minutes: float = 0.0,
     snow: bool = False,
     reasons: list[str] | None = None,
+    timezone_name: str = "America/Denver",
 ) -> Turn:
     worker = profile.worker_minutes(snow=snow)
     elapsed = profile.elapsed_minutes(snow=snow)
     slack: float | None = None
     if gap_nights is not None:
-        window = (
-            gap_nights * 1440
-            + minutes_of_day(profile.checkin_time)
-            - minutes_of_day(profile.checkout_time)
+        zone = ZoneInfo(timezone_name)
+        checkout = datetime.combine(service_date, datetime.min.time()).replace(
+            hour=minutes_of_day(profile.checkout_time) // 60,
+            minute=minutes_of_day(profile.checkout_time) % 60,
+            tzinfo=zone,
         )
+        checkin_date = service_date + timedelta(days=gap_nights)
+        checkin = datetime.combine(checkin_date, datetime.min.time()).replace(
+            hour=minutes_of_day(profile.checkin_time) // 60,
+            minute=minutes_of_day(profile.checkin_time) % 60,
+            tzinfo=zone,
+        )
+        window = (checkin.astimezone(timezone.utc) - checkout.astimezone(timezone.utc)).total_seconds() / 60
         slack = window - elapsed - profile.travel_minutes - buffer_minutes
     return Turn(
         turn_id=make_turn_id(profile.property_id, departing, arriving),

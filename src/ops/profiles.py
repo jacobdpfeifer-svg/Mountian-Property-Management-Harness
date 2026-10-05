@@ -14,7 +14,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from src.config import ROOT, load_yaml
+from src.config import ROOT, load_portfolio_config, load_yaml
 from src.ops import OpsProfile
 
 OPS_CONFIG_PATH = ROOT / "config" / "operations" / "mont_luxe.yaml"
@@ -55,6 +55,11 @@ def resolve_profiles(cfg: dict[str, Any]) -> dict[str, OpsProfile]:
 
 def load_profiles(path: Path | None = None) -> dict[str, OpsProfile]:
     return resolve_profiles(load_ops_config(path))
+
+
+def portfolio_property_ids() -> set[str]:
+    """Return the locked portfolio scope used by unscoped ops commands."""
+    return set((load_portfolio_config().get("properties") or {}).keys())
 
 
 def load_profiles_as_of(
