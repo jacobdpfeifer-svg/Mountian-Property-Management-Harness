@@ -264,18 +264,37 @@ def _import_asset_events(conn, headers, rows, resolver, result):
 
 
 def _import_ledger(conn, rows, resolver, source, result):
-    from src.db import PROPERTY_OWNER_IDS
+    from src.config import load_portfolio_config
 
+    portfolio = load_portfolio_config()
+    owner_of = {pid: str((cfg or {}).get("owner_id") or "")
+                for pid, cfg in (portfolio.get("properties") or {}).items()}
+    known_owners = set((portfolio.get("owners") or {}).keys())
     for i, row in enumerate(rows, start=2):
         result.rows_in += 1
+        named = str(row.get("property_id") or row.get("property") or "").strip()
         pid = resolver.resolve(row.get("property_id"), row.get("property"))
-        owner = (row.get("owner_id") or "").strip() or (PROPERTY_OWNER_IDS.get(pid or "") or "")
+        given = (row.get("owner_id") or "").strip()
+        owner = given or owner_of.get(pid or "", "")
         amount = as_float(row.get("amount"))
         entry_date = as_iso_date(row.get("entry_date") or row.get("date"))
         category = str(row.get("category") or "").strip().lower()
         if not owner or amount is None or entry_date is None or not category:
             result.rejected += 1
             result.errors.append(f"line {i}: needs owner/property, entry_date, category, amount")
+            continue
+        # A named property that does not resolve must not become an
+        # owner-level charge, and a row must never cross owners.
+        problem = None
+        if named and pid is None:
+            problem = f"unknown property {named!r}"
+        elif owner not in known_owners:
+            problem = f"unknown owner {owner!r}"
+        elif pid is not None and owner_of.get(pid) != owner:
+            problem = f"{pid} belongs to {owner_of.get(pid)!r}, not {owner!r}"
+        if problem:
+            result.rejected += 1
+            result.errors.append(f"line {i}: {problem}")
             continue
         try:
             cur = conn.execute(
