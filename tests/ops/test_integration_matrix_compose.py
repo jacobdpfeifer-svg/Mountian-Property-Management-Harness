@@ -226,3 +226,17 @@ def test_readiness_matrix(state_dbs, state, level, night, direction):
     reason = next(r for r in rec.reasons if r["code"] == "readiness")
     assert reason["contribution"] == pytest.approx(
         round(rec.recommended_price - base.recommended_price, 2), abs=0.01)
+
+
+def test_readiness_reason_is_never_ranked_out(state_dbs):
+    """An orphan gap on a guardrail night already pins min_stay and guardrail.
+    A tighter reason budget (or one more pinned reason) must not drop readiness."""
+    with connect(state_dbs["at_risk"]) as conn:
+        feat = replace(_night(conn, "orphan_gap"), listed_price=300.0)
+        policy = _policy(True)
+        policy.setdefault("explain", {})["max_reasons"] = 2
+        rec = recommend_night(conn, feat, policy=policy,
+                              health=DataHealth("handle", 0.0, 0.0, 1.0, 30, []),
+                              run_id="matrix", as_of=AS_OF)
+    codes = [r["code"] for r in rec.reasons]
+    assert codes[0] == "readiness", codes

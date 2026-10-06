@@ -651,7 +651,9 @@ def recommend_night(
         from src.ops.readiness import readiness_reason_facts
 
         facts = readiness_reason_facts(conn, readiness_state, decision_date)
-        reasons.append(Reason(
+        # First among pinned reasons: a property that may not be fit for a
+        # guest outranks every pricing explanation, so it is never cut.
+        reasons.insert(0, Reason(
             "readiness",
             facts["message"],
             contribution=readiness_shift,
