@@ -53,7 +53,11 @@ class CapacityView:
     @property
     def utilization(self) -> float | None:
         if self.available_worker_minutes <= 0:
-            return None
+            # No roster at all is unknown. A roster with nobody working that
+            # day while turns are due is over capacity, not unknown.
+            if self.available_source == "none" or self.committed_worker_minutes <= 0:
+                return None
+            return float("inf")
         return self.committed_worker_minutes / self.available_worker_minutes
 
     def as_dict(self) -> dict[str, Any]:
@@ -63,7 +67,7 @@ class CapacityView:
             "access_zone": self.access_zone,
             "available_worker_minutes": round(self.available_worker_minutes, 1),
             "committed_worker_minutes": round(self.committed_worker_minutes, 1),
-            "utilization": None if u is None else round(u, 3),
+            "utilization": None if u is None or u == float("inf") else round(u, 3),
             "available_source": self.available_source,
             "committed_source": self.committed_source,
             "turns": self.turns,
@@ -229,8 +233,9 @@ def capacity_view(
         committed = max(float(imported["committed_worker_minutes"] or 0.0), derived)
         committed_src = f"max({available_src}, derived_turns)"
     else:
-        available = roster_minutes(ops_cfg, zone, service_date) or 0.0
-        available_src = "roster"
+        rostered = roster_minutes(ops_cfg, zone, service_date)
+        available = rostered or 0.0
+        available_src = "roster" if rostered is not None else "none"
         committed = derived
         committed_src = "derived_turns"
     return CapacityView(service_date, zone, available, committed, available_src,

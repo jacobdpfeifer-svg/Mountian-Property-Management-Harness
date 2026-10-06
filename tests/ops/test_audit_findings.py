@@ -189,7 +189,6 @@ def test_overlapping_reservations_are_reported_not_silently_dropped(ops_db):
     assert flagged, f"overlap a/b produced turns {[t.turn_id for t in turns]} with no conflict"
 
 
-@pytest.mark.xfail(strict=True, reason="OPS-020 open")
 def test_a_day_with_no_rostered_crew_is_critical_not_unknown(ops_db):
     """OPS-020: a weekday with no crew rostered has 0 worker-minutes; the
     report labels the day 'unknown' instead of 'critical'."""
