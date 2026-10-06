@@ -240,3 +240,42 @@ def test_readiness_reason_is_never_ranked_out(state_dbs):
                               run_id="matrix", as_of=AS_OF)
     codes = [r["code"] for r in rec.reasons]
     assert codes[0] == "readiness", codes
+
+
+class _SpyAdapter:
+    """Dry-run adapter that records every payload it is handed."""
+
+    name = "dry_run"
+
+    def __init__(self):
+        self.calls = []
+
+    def fetch_calendar(self, property_id, start, end):
+        return []
+
+    def push_rate(self, property_id, stay_date, price, min_stay=None):
+        from src.pms import PushResult
+
+        self.calls.append((property_id, stay_date, price, min_stay))
+        return PushResult(property_id, stay_date, None, price, True, "dry_run")
+
+
+@pytest.mark.parametrize("state", STATES)
+def test_push_never_writes_a_restricted_night(state_dbs, state):
+    """Stage 3 push seam: with health granting handle, a restricted night is
+    never handed to the adapter, and the adapter has no availability write."""
+    from src.pms import DryRunAdapter, push_recommendations
+
+    with connect(state_dbs[state]) as conn:
+        feat = _night(conn, "shoulder")
+        feat = replace(feat, listed_price=_listed_for(conn, feat, "down", "handle"))
+        rec = _rec(conn, feat, True, "handle")
+        spy = _SpyAdapter()
+        counts = push_recommendations(conn, [rec], spy, "handle", policy=_policy(True))
+    if state in RESTRICTING:
+        assert spy.calls == [] and counts["applied"] == 0
+    else:
+        assert len(spy.calls) == 1
+    # The PMS contract has no availability, block, or reservation write at all.
+    surface = {n for n in dir(DryRunAdapter) if not n.startswith("_")}
+    assert surface == {"name", "fetch_calendar", "push_rate"}
