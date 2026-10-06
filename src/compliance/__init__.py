@@ -57,10 +57,13 @@ class CheckResult:
     detail: str
     deadline: str | None = None
     optional: bool = False
+    source: str | None = None
+    review: str = "unreviewed"
 
     def as_dict(self) -> dict[str, Any]:
         return {k: getattr(self, k) for k in ("property_id", "jurisdiction", "credential_type", "label",
-                                              "status", "detail", "deadline", "optional")}
+                                              "status", "detail", "deadline", "optional", "source",
+                                              "review")}
 
 
 @dataclass
@@ -82,7 +85,31 @@ def load_rule_pack(jurisdiction: str, directory: Path | None = None) -> dict[str
     for key in ("jurisdiction", "version", "source_urls", "requirements"):
         if key not in pack:
             raise ValueError(f"rule pack {path.name} missing {key!r}")
+    for req in pack["requirements"]:
+        # Every entry must say where it came from and whether a person has
+        # reviewed it, so nothing unreviewed can read as settled law.
+        for key in ("credential_type", "source", "review"):
+            if not req.get(key):
+                raise ValueError(f"rule pack {path.name}: {req.get('credential_type')!r} missing {key!r}")
     return pack
+
+
+def occupancy_cap(pack: dict[str, Any], bedrooms: int | None) -> tuple[int | None, str | None]:
+    """Lowest occupancy limit the pack implies for a home: flat cap or bedroom formula."""
+    caps: list[tuple[int, str]] = []
+    if pack.get("max_occupancy") is not None:
+        caps.append((int(pack["max_occupancy"]), f"pack maximum {int(pack['max_occupancy'])}"))
+    formula = pack.get("occupancy_formula") or {}
+    if formula and bedrooms is not None:
+        if int(bedrooms) == 0 and formula.get("studio") is not None:
+            caps.append((int(formula["studio"]), f"studio limit {int(formula['studio'])}"))
+        else:
+            n = int(formula.get("per_bedroom", 2)) * int(bedrooms) + int(formula.get("plus", 0))
+            caps.append((n, f"{formula.get('per_bedroom', 2)} per bedroom x {bedrooms} + "
+                            f"{formula.get('plus', 0)} = {n} ({formula.get('basis', 'formula')})"))
+    if not caps:
+        return None, None
+    return min(caps)
 
 
 def evidence_hash(ref: str | None) -> str | None:
@@ -191,7 +218,8 @@ def _check_requirement(
 
     def result(status: str, detail: str, deadline: date | None = None) -> CheckResult:
         return CheckResult(property_id, jurisdiction, ctype, label, status, detail,
-                           deadline.isoformat() if deadline else None, optional)
+                           deadline.isoformat() if deadline else None, optional,
+                           str(req.get("source") or ""), str(req.get("review") or "unreviewed"))
 
     if len(live) < need:
         have = f"{len(live)} of {need} on file" if need > 1 else "nothing on file"
@@ -231,7 +259,8 @@ def _check_requirement(
                 details.append(f"number {r['identifier']} not found in listing text")
         if req.get("occupancy_check"):
             permitted = r["permitted_occupancy"]
-            cap = permitted if permitted is not None else pack_max_occupancy
+            known = [c for c in (permitted, pack_max_occupancy) if c is not None]
+            cap = min(int(c) for c in known) if known else None
             if cap is not None and max_occupancy is not None and max_occupancy > int(cap):
                 status = max(status, "unverified", key=_SEVERITY.__getitem__)
                 details.append(f"listing sleeps {max_occupancy} but permit allows {cap}")
@@ -250,10 +279,12 @@ def check(
     as_of = as_of or date.today()
     report = ComplianceReport(as_of=as_of)
     props = load_portfolio_config().get("properties") or {}
-    occupancy = {}
+    occupancy: dict[str, Any] = {}
+    bedrooms: dict[str, Any] = {}
     try:
-        occupancy = {r["property_id"]: r["max_occupancy"] for r in conn.execute(
-            "SELECT property_id, max_occupancy FROM properties").fetchall()}
+        for r in conn.execute("SELECT property_id, max_occupancy, bedrooms FROM properties"):
+            occupancy[r["property_id"]] = r["max_occupancy"]
+            bedrooms[r["property_id"]] = r["bedrooms"]
     except sqlite3.OperationalError:
         pass
     seen_packs: set[str] = set()
@@ -264,7 +295,9 @@ def check(
         if not jurisdiction:
             report.results.append(CheckResult(pid, None, "jurisdiction", "STR jurisdiction",
                                               "missing", "jurisdiction not recorded in "
-                                              "config/portfolio/mont_luxe.yaml"))
+                                              "config/portfolio/mont_luxe.yaml; no rule pack "
+                                              "applies until it is",
+                                              review="operator_confirm"))
             continue
         pack = load_rule_pack(str(jurisdiction), rule_dir)
         if jurisdiction not in seen_packs:
@@ -280,14 +313,64 @@ def check(
         by_type: dict[str, list[sqlite3.Row]] = {}
         for r in rows:
             by_type.setdefault(r["credential_type"], []).append(r)
+        cap, cap_basis = occupancy_cap(pack, bedrooms.get(pid))
         for req in pack["requirements"]:
             report.results.append(_check_requirement(
                 by_type.get(req["credential_type"], []), req, property_id=pid,
                 jurisdiction=str(jurisdiction), as_of=as_of,
                 listing_text=(listing_texts or {}).get(pid),
-                max_occupancy=occupancy.get(pid), pack_max_occupancy=pack.get("max_occupancy"),
+                max_occupancy=occupancy.get(pid), pack_max_occupancy=cap,
             ))
+        report.results.append(_booked_occupancy(conn, pid, str(jurisdiction), as_of, rows, cap,
+                                                cap_basis, report))
     return report
+
+
+def _booked_occupancy(conn: sqlite3.Connection, pid: str, jurisdiction: str, as_of: date,
+                      creds: list[sqlite3.Row], pack_cap: int | None, cap_basis: str | None,
+                      report: ComplianceReport) -> CheckResult:
+    """Cross-check booked guest counts (last 12 months and next 12) against the cap."""
+    caps = [(int(r["permitted_occupancy"]),
+             f"{r['verification_status']} permit allows {int(r['permitted_occupancy'])}")
+            for r in creds
+            if r["permitted_occupancy"] is not None and r["verification_status"] != "rejected"]
+    if pack_cap is not None:
+        caps.append((pack_cap, cap_basis or f"limit {pack_cap}"))
+    label = "Booked guest counts within the occupancy limit"
+    source = "reservations.guest_count vs permit / rule pack occupancy"
+    if not caps:
+        return CheckResult(pid, jurisdiction, "booked_occupancy", label, "unverified",
+                           "no occupancy limit on file to compare bookings against",
+                           source=source, review="derived")
+    cap, basis = min(caps)
+    try:
+        rows = conn.execute(
+            """SELECT reservation_id, check_in, guest_count FROM reservations
+               WHERE property_id=? AND LOWER(status) IN ('confirmed','checked_in','checked_out')
+                 AND check_out>=? AND check_in<=? ORDER BY check_in""",
+            (pid, (as_of - timedelta(days=365)).isoformat(),
+             (as_of + timedelta(days=365)).isoformat()),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        rows = []
+    unknown = [r for r in rows if r["guest_count"] is None]
+    over = [r for r in rows if r["guest_count"] is not None and int(r["guest_count"]) > cap]
+    if over:
+        listed = ", ".join(f"{str(r['check_in'])[:10]} ({r['guest_count']} guests)" for r in over[:5])
+        report.warnings.append(f"{pid}: {len(over)} booking(s) exceed the occupancy limit of {cap} "
+                               f"({basis}): {listed}")
+        return CheckResult(pid, jurisdiction, "booked_occupancy", label, "unverified",
+                           f"{len(over)} of {len(rows)} booking(s) exceed {cap} ({basis}): {listed}",
+                           source=source, review="derived")
+    detail = f"{len(rows)} booking(s) checked against {cap} ({basis})"
+    if unknown:
+        detail += f"; {len(unknown)} with no guest count"
+    # Within the limit is only evidence when the limit is a verified permit;
+    # a limit from an unreviewed rule pack is itself unverified.
+    verified_cap = basis.startswith("verified permit")
+    status = "evidence_on_file" if rows and not unknown and verified_cap else "unverified"
+    return CheckResult(pid, jurisdiction, "booked_occupancy", label, status, detail,
+                       source=source, review="derived")
 
 
 def render_text(report: ComplianceReport) -> str:
@@ -304,5 +387,6 @@ def render_text(report: ComplianceReport) -> str:
             lines.append(f"{r.property_id} [{r.jurisdiction or 'jurisdiction unknown'}]")
         opt = " (optional)" if r.optional else ""
         due = f" due {r.deadline}" if r.deadline else ""
-        lines.append(f"  {r.status:<17} {r.label}{opt}{due} - {r.detail}")
+        review = "" if r.review == "reviewed" else f" [{r.review}]"
+        lines.append(f"  {r.status:<17} {r.label}{opt}{due}{review} - {r.detail}")
     return "\n".join(lines)

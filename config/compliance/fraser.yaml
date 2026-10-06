@@ -1,52 +1,124 @@
 # Town of Fraser short-term rental rule pack (Cloud 9 is physically in Fraser).
 # Tracks documents and deadlines only; never declares compliance.
-# Transcribed 2026-09-30 from the town page below, NOT reviewed. Fraser was
-# considering STR code amendments in 2025; confirm the current ordinance.
+# Transcribed 2026-09-30; checked against the official pages and Ordinances 488
+# and 516 on 2026-10-06 by the ops/compliance audit (research/
+# 05b_rule_pack_source_check.md). NOT reviewed by a person with authority.
+# Ordinance 449 is a scanned image and the code on municode was not readable,
+# so whether amendments after Ord. 516 (Dec 2024) exist is unverified.
 jurisdiction: fraser
 name: Town of Fraser
-version: fraser_2026_09_30
-effective_from: "2025-01-01"
+version: fraser_2026_10_06
+effective_from: "2025-02-28"
 source_urls:
   - https://www.frasercolorado.com/303/Short-Term-Rental
   - https://frasercolorado.com/DocumentCenter/View/1577/Ordinance-No-488-Short-Term-Registration-Fees
+  - https://www.frasercolorado.com/DocumentCenter/View/2124/Ordinance-516-Amending-Chapter-6-Article-8-Short-Term-Rental-Registration
 reviewed_by: null
 reviewed_at: null
+notes: >-
+  Penalties (Ord. 488 (p)): warning by certified mail with 10 business days to
+  cure, then $500, then $1,000, then revocation or suspension up to one year.
+  Unsecured wildlife-edible refuse: $100, then $200, then a misdemeanor (town
+  page). Registration does not transfer on sale (6-8-30(g)).
+# Ord. 488 (m): 2 per bedroom (assessor bedrooms plus extra sleeping areas with
+# a bed) + 4; studios 4. Uses properties.bedrooms, so extra sleeping areas are
+# not counted: confirm per home.
+occupancy_formula: {per_bedroom: 2, plus: 4, studio: 4, basis: "Fraser Ord. 488 (m)"}
 requirements:
   - credential_type: str_registration
-    label: STR registration
+    label: STR registration (permit number posted on every listing)
     renewal: {kind: annual_from_issue}
     warn_days: 45
     listing_match: true
     occupancy_check: true
+    source: Ord. 488 6-8-30(f); Ord. 516 (q); town page
+    review: unreviewed
   - credential_type: proof_of_ownership
     label: Proof of ownership (deed, mortgage statement, or water/sewer bill)
     renewal: {kind: none}
+    source: Ord. 488 (a)(2)
+    review: unreviewed
   - credential_type: operating_license
-    label: Operating license (annual; displayed inside the rental)
+    label: Business or STR operating license (annual; posted at the home or PM office)
     renewal: {kind: annual_from_issue}
     warn_days: 45
+    source: Ord. 516 (b); town page
+    review: unreviewed
   - credential_type: fire_inspection_certificate
-    label: Certificate of Inspection, East Grand Fire Protection District #4
+    label: East Grand Fire certificate of inspection dated within the previous 12 months
     renewal: {kind: annual_from_issue}
     warn_days: 30
-  - credential_type: emergency_contact
-    label: Emergency contact able to attend within 1.5 hours, 24/7
+    source: Ord. 516 (a)(6); town page
+    review: unreviewed
+  - credential_type: smoke_detectors
+    label: Smoke detectors installed and operable
+    renewal: {kind: annual_from_issue}
+    warn_days: 30
+    source: Ord. 488 (l)(1)
+    review: unreviewed
+  - credential_type: co_detectors
+    label: Carbon monoxide detectors installed and operable
+    renewal: {kind: annual_from_issue}
+    warn_days: 30
+    source: Ord. 488 (l)(2)
+    review: unreviewed
+  - credential_type: fire_extinguishers
+    label: Fire extinguisher on every floor, visible or clearly marked
+    renewal: {kind: annual_from_issue}
+    warn_days: 30
+    source: Ord. 488 (l)(3)
+    review: unreviewed
+  - credential_type: egress_clear
+    label: Egress doors and windows operable and kept clear of snow and debris
     renewal: {kind: none}
+    source: Ord. 488 (l)(4)
+    review: unreviewed
+  - credential_type: address_visible
+    label: Address clearly marked and visible from the road
+    renewal: {kind: none}
+    source: Ord. 488 (k)
+    review: unreviewed
+  - credential_type: emergency_contact
+    label: Emergency contact able to attend within 1.5 hours, 24/7 (changes updated within 7 days)
+    renewal: {kind: none}
+    source: Ord. 488 (a)(3), (i)
+    review: unreviewed
+  - credential_type: posted_contact
+    label: Emergency contact information posted inside the unit
+    renewal: {kind: none}
+    source: Ord. 488 (i)
+    review: unreviewed
   - credential_type: parking_plan
     label: Parking plan
     renewal: {kind: none}
-  - credential_type: booking_tax_receipt
-    label: Booking receipt showing Town taxes collected (within 60 days, if applicable)
+    source: Ord. 488 (a)(4), (n)
+    review: unreviewed
+  - credential_type: wildlife_refuse
+    label: Wildlife-edible refuse secured inside the home or garage
     renewal: {kind: none}
-    optional: true
+    source: town STR page
+    review: unreviewed
+  - credential_type: booking_tax_receipt
+    label: Booking receipt showing Town taxes collected (within 60 days of registration)
+    renewal: {kind: none}
+    # The ordinance does not say "if applicable". Whether it applies to
+    # renewals is an operator / legal review question.
+    source: Ord. 488 (a)(5)
+    review: unreviewed
   - credential_type: posted_registration
     label: Current registration posted conspicuously inside the property
     renewal: {kind: annual_from_issue}
     warn_days: 45
+    source: Ord. 488 (h)
+    review: unreviewed
   - credential_type: sales_tax_license
     label: Colorado sales tax license (sales and lodging tax remitted via CDOR)
     renewal: {kind: none}
+    source: town STR page
+    review: unreviewed
   - credential_type: liability_insurance
-    label: Liability insurance
+    label: Liability insurance (business item; no Fraser source opened requires it)
     renewal: {kind: expires_at}
     warn_days: 30
+    source: none found on the Fraser page, Ord. 488, or Ord. 516 (2026-10-06)
+    review: unreviewed

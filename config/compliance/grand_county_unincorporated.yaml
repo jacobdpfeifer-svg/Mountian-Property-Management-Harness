@@ -1,49 +1,105 @@
 # Unincorporated Grand County short-term rental rule pack.
 # Tracks documents and deadlines only; never declares compliance.
-# Transcribed 2026-09-30, NOT reviewed.
+# Transcribed 2026-09-30 from the 2021 Section 14.8 PDF, which is superseded.
+# Re-checked 2026-10-06 against Zoning Regulations Section 14.7 (last amended
+# 2026-07-28) by the ops/compliance audit (research/05b_rule_pack_source_check.md).
+# NOT reviewed by a person with authority.
 jurisdiction: grand_county_unincorporated
 name: Grand County (unincorporated)
-version: grand_county_2026_09_30
-effective_from: "2024-01-01"
+version: grand_county_2026_10_06
+effective_from: "2026-07-28"
 source_urls:
   - https://www.co.grand.co.us/943/Short-Term-Rentals
-  - https://www.co.grand.co.us/DocumentCenter/View/17041/SECTION-148
+  - https://www.co.grand.co.us/DocumentCenter/View/27506/Zoning-Regulations
+  - https://www.co.grand.co.us/FormCenter/Short-Term-Rentals-16/STR-Safety-Checklist-97
+  - https://www.co.grand.co.us/FAQ.aspx?QID=166
+  - https://www.co.grand.co.us/1470/Sales-Lodging-Tax
+  - https://eastgrandfire.com/fireprevention/str/
 reviewed_by: null
 reviewed_at: null
 notes: >-
-  Permit fee is $100 per maximum advertised occupant; maximum occupancy for a
-  permitted home is 16. Permits expire one year from approval.
+  Permit fee is $100 per maximum advertised occupant. Penalties (14.7(14)):
+  warning, $500, $1,000, then revocation or suspension up to a year on a 4th
+  violation within 2 years. Renewal is discretionary and may be denied for
+  complaints, code violations, or septic (OWTS) failure (14.7(4)). Guest rules
+  (quiet times 7 p.m. to 7 a.m., no overnight stays in vehicles or tents)
+  belong in the guest guide and the posted notice below.
 max_occupancy: 16
+# 14.7(7)(b) limits occupancy to the OWTS design volume + 2. The FAQ restates
+# it as 2 per bedroom + 2. Without a septic record this formula is the proxy;
+# record the septic design as an owts_capacity credential with
+# permitted_occupancy to use the real limit.
+occupancy_formula: {per_bedroom: 2, plus: 2, basis: "Grand County 14.7(7)(b) septic proxy, FAQ QID 166"}
 requirements:
   - credential_type: str_permit
-    label: STR permit (annual, one year from approval)
+    label: STR permit (one year from issuance; permit number on every listing)
     renewal: {kind: annual_from_issue}
     warn_days: 45
     listing_match: true
     occupancy_check: true
-  - credential_type: sales_tax_license
-    label: Colorado sales-tax license for the short-term rental
+    source: Zoning Regulations 14.7(2), (5), (6); county STR page
+    review: unreviewed
+  - credential_type: owts_capacity
+    label: Septic (OWTS) design capacity on file; occupancy limited to design + 2
     renewal: {kind: none}
+    occupancy_check: true
+    source: Zoning Regulations 14.7(7)(b); FAQ QID 166
+    review: unreviewed
+  - credential_type: sales_tax_license
+    label: Colorado sales-tax license (state and county sales tax, county 2% lodging tax via CDOR)
+    renewal: {kind: none}
+    source: Sales & Lodging Tax page; FAQ QID 166
+    review: unreviewed
   - credential_type: emergency_contact
-    label: Local emergency contact (full-time Grand County resident)
+    label: Local emergency contact (full-time Grand County resident, responds within 1 hour)
     renewal: {kind: none}
     count: 2
+    source: Zoning Regulations 14.7(7)(a); county STR page
+    review: unreviewed
   - credential_type: safety_checklist
     label: STR safety checklist
     renewal: {kind: annual_from_issue}
     warn_days: 30
-  - credential_type: fire_inspection
-    label: Annual fire inspection report (if applicable)
+    source: county STR page; STR Safety Checklist form
+    review: unreviewed
+  - credential_type: life_safety_devices
+    label: Smoke alarms (interconnected), CO alarms within 15 ft of sleeping rooms and near gas appliances, 5 lb extinguisher on every floor
     renewal: {kind: annual_from_issue}
     warn_days: 30
-    optional: true
+    source: Zoning Regulations 14.7(7)(e); STR Safety Checklist form
+    review: unreviewed
+  - credential_type: fire_inspection
+    label: Annual fire inspection report (required in the East Grand Fire district)
+    renewal: {kind: annual_from_issue}
+    warn_days: 30
+    # The county page says "if applicable"; East Grand Fire says its program
+    # covers all STRs in its district, including unincorporated Grand County.
+    # Operator: confirm each home's fire district.
+    source: eastgrandfire.com STR program; county STR page
+    review: unreviewed
+  - credential_type: posted_notice
+    label: Posted in the unit - permit, both contacts, max occupancy, parking plan, garbage day, quiet times
+    renewal: {kind: none}
+    source: Zoning Regulations 14.7(8)
+    review: unreviewed
+  - credential_type: address_posted
+    label: Address posted, visible from the street, kept clear of snow
+    renewal: {kind: none}
+    source: Zoning Regulations 14.7(7)(f)
+    review: unreviewed
   - credential_type: bear_proof_trash
-    label: Proof of bear-proof trash disposal
+    label: Proof of bear-proof trash disposal and a garbage plan
     renewal: {kind: none}
+    source: Zoning Regulations 14.7(7)(d); county STR page
+    review: unreviewed
   - credential_type: parking_plan
-    label: Parking plan
+    label: Parking plan (no parking in county or private road rights of way)
     renewal: {kind: none}
+    source: Zoning Regulations 14.7(7)(c)
+    review: unreviewed
   - credential_type: liability_insurance
-    label: Liability insurance
+    label: Liability insurance ("appropriate"; no minimum stated)
     renewal: {kind: expires_at}
     warn_days: 30
+    source: Zoning Regulations 14.7(13)
+    review: unreviewed
