@@ -66,7 +66,6 @@ def test_verifying_one_system_does_not_clear_another_systems_window(ops_db):
     assert night.state == AT_RISK, f"storm night shows {night.state} after an unrelated spa check"
 
 
-@pytest.mark.xfail(strict=True, reason="OPS-014 open")
 def test_signal_outside_an_inspection_window_does_not_abort_the_scan(ops_db):
     """OPS-014: inspection_required -> at_risk is not an edge. A signal for a
     night outside the inspection window raised ReadinessError and aborted the

@@ -244,8 +244,15 @@ def transition(
         raise ReadinessError(f"evidence event {evidence_event_id!r} not found for {property_id}")
     at_s = _iso_at(at)
     cur = current_state(conn, property_id, at_s)
-    if to_state not in EDGES[cur.state]:
-        raise ReadinessError(f"{property_id}: {cur.state} → {to_state} is not an allowed transition")
+    from_state = cur.state
+    if to_state == AT_RISK:
+        # at_risk restricts one window. Check the edge against the state that
+        # governs that window, not the latest row for some other window, so an
+        # inspection on Dec 2-3 does not refuse a storm risk on Dec 5.
+        from_state = state_for_night(conn, property_id,
+                                     effective_from or parse_date(at_s[:10]), at_s).state
+    if to_state not in EDGES[from_state]:
+        raise ReadinessError(f"{property_id}: {from_state} → {to_state} is not an allowed transition")
     if actor in AUTO_ACTORS and to_state != AT_RISK:
         raise ReadinessError(f"automatic actor {actor!r} may only set at_risk, not {to_state}")
     if to_state == VERIFIED_READY and actor in AUTO_ACTORS:
@@ -279,7 +286,7 @@ def transition(
         """INSERT INTO readiness_transitions
            (property_id, from_state, to_state, at, effective_from, effective_to,
             evidence_event_id, actor, note) VALUES (?,?,?,?,?,?,?,?,?)""",
-        (property_id, cur.state, to_state, at_s, eff_from.isoformat(),
+        (property_id, from_state, to_state, at_s, eff_from.isoformat(),
          effective_to.isoformat() if effective_to else None, evidence_event_id, actor, note),
     )
     if to_state == VERIFIED_READY:
