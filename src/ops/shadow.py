@@ -149,6 +149,7 @@ def build_report(
             "cost_basis": base_cost.basis,
             "observed_turns": base_cost.n,
             "low_readiness_turns": low_ready,
+            "overlapping_turns": sum(1 for t in turns if t.conflict),
         }
         report.readiness[pid] = current_state(conn, pid, as_of).as_dict()
         report.min_stay.extend(_min_stay_rows(conn, profile, start, end, base_cost.amount,
@@ -182,6 +183,11 @@ def build_report(
     if any(r["available_source"] == "roster" for r in report.capacity):
         report.notes.append("Capacity from the roster counts a multi-zone crew in each zone; "
                             "utilization is optimistic until capacity is imported.")
+    overlaps = sum(s["overlapping_turns"] for s in report.summary.values())
+    if overlaps:
+        report.notes.append(f"{overlaps} turn(s) depart a stay that overlaps another occupying "
+                            "reservation (double booking or stale duplicate); their slack is "
+                            "not trustworthy. See each turn's conflicts.")
     report.notes.append("Min-stay turn counts are worst case: each open window fully sold "
                         "with the shortest allowed stays.")
     return report

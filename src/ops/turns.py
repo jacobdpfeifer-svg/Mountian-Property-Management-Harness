@@ -51,6 +51,13 @@ class Turn:
     weather_buffer_minutes: float
     slack_minutes: float | None
     buffer_reasons: list[str] = field(default_factory=list)
+    # Other occupying reservations whose dates overlap the departing stay
+    # (a double booking or a stale duplicate). The slack is not trustworthy.
+    conflicts: list[str] = field(default_factory=list)
+
+    @property
+    def conflict(self) -> bool:
+        return bool(self.conflicts)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -68,6 +75,7 @@ class Turn:
             "weather_buffer_minutes": self.weather_buffer_minutes,
             "slack_minutes": None if self.slack_minutes is None else round(self.slack_minutes, 1),
             "buffer_reasons": list(self.buffer_reasons),
+            "conflicts": list(self.conflicts),
         }
 
 
@@ -247,6 +255,8 @@ def derive_turns(
         nxt = next((s for s in stays[i + 1:] if s.check_in >= dep.check_out), None)
         gap = None if nxt is None else (nxt.check_in - dep.check_out).days
         buf, snow, reasons = weather_buffer(conn, market, dep.check_out, as_of, ops_policy)
+        overlapping = [s.reservation_id for s in stays if s is not dep
+                       and s.check_in < dep.check_out and s.check_out > dep.check_in]
         turns.append(build_turn(
             profile,
             service_date=dep.check_out,
@@ -257,4 +267,5 @@ def derive_turns(
             snow=snow,
             reasons=reasons,
         ))
+        turns[-1].conflicts = overlapping
     return turns
