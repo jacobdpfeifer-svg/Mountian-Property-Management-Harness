@@ -337,3 +337,30 @@ def test_ops_report_runs_read_only_on_an_unmigrated_database(tmp_path, monkeypat
     assert rc in (0, None), out
     assert "cloud_9: 2 turn(s)" in out and "no operations tables" in out
     assert hashlib.sha256(db.read_bytes()).hexdigest() == before
+
+
+def test_booked_guest_counts_are_checked_against_the_occupancy_limit(ops_db):
+    """OPS-003: the register never compared booked guests with the limit.
+    Cloud 9 is in Fraser: 2 per bedroom + 4 = 16 for 6 bedrooms."""
+    from src.compliance import check
+
+    with connect(ops_db) as conn:
+        add_reservation(conn, "big", PID, date(2026, 12, 20), date(2026, 12, 27))
+        add_reservation(conn, "ok", PID, date(2027, 1, 3), date(2027, 1, 6))
+        conn.execute("UPDATE reservations SET guest_count=18 WHERE reservation_id='big'")
+        conn.execute("UPDATE reservations SET guest_count=10 WHERE reservation_id='ok'")
+        conn.commit()
+        report = check(conn, date(2026, 12, 1), property_ids=[PID])
+    row = next(r for r in report.results if r.credential_type == "booked_occupancy")
+    assert row.status == "unverified" and "1 of 2 booking(s) exceed 16" in row.detail
+    assert any("exceed the occupancy limit of 16" in w for w in report.warnings)
+
+
+def test_every_rule_pack_entry_names_its_source_and_review_state():
+    """2G: each entry carries a source and a review state; none is reviewed yet."""
+    from src.compliance import RULE_PACK_DIR, load_rule_pack
+
+    for path in RULE_PACK_DIR.glob("*.yaml"):
+        pack = load_rule_pack(path.stem)
+        assert pack["reviewed_by"] is None
+        assert {r["review"] for r in pack["requirements"]} == {"unreviewed"}

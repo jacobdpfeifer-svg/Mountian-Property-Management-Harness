@@ -48,9 +48,17 @@ def cmd_compliance_check(args: argparse.Namespace) -> int:
             return 2
         texts[pid] = Path(path).expanduser().read_text(encoding="utf-8")
     as_of = parse_date(args.as_of) if args.as_of else None
+    from src.ops.db import ops_tables_present, shadow_empty_ops_tables
+
     try:
         with connect_readonly(args.db) as conn:
+            no_register = not ops_tables_present(conn)
+            if no_register:
+                shadow_empty_ops_tables(conn)
             report = check(conn, as_of, listing_texts=texts)
+            if no_register:
+                report.warnings.insert(0, "This database has no credential register yet: every "
+                                          "document below is reported missing.")
     except sqlite3.OperationalError as exc:
         print(f"refused: compliance schema is not initialized ({exc}); run wp-price init-db once",
               file=sys.stderr)
