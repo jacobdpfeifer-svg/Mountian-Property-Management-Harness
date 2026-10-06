@@ -139,7 +139,6 @@ def _incident_policy():
         "threshold": 20, "severity": "warn", "actions": ["alert_responsible_agent"]}]}}
 
 
-@pytest.mark.xfail(strict=True, reason="OPS-017 open")
 def test_partial_rerun_inside_a_window_reuses_the_incident(ops_db):
     """OPS-017: incident_id = type|market|window_start. Rescanning on day 2 of a
     3-day storm sees a window that starts on day 2 and opens a second incident."""

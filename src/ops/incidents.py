@@ -104,8 +104,19 @@ def scan(conn: sqlite3.Connection, as_of: date, ops_policy: dict[str, Any] | Non
             for w in windows:
                 start, end = w[0][0], w[-1][0]
                 worst = max(w, key=lambda item: abs(item[1] - float(rule["threshold"])))[1]
+                # A rescan inside a running window sees it start later. Reuse
+                # the open incident whose window touches this one.
+                existing = conn.execute(
+                    """SELECT incident_id FROM incidents WHERE incident_type=? AND market_id=?
+                         AND status IN ('candidate','acknowledged')
+                         AND window_start<=? AND window_end>=?
+                       ORDER BY window_start LIMIT 1""",
+                    (rule["type"], market, (end + timedelta(days=1)).isoformat(),
+                     (start - timedelta(days=1)).isoformat()),
+                ).fetchone()
                 cand = IncidentCandidate(
-                    incident_id=_incident_id(rule["type"], market, start),
+                    incident_id=(existing["incident_id"] if existing is not None
+                                 else _incident_id(rule["type"], market, start)),
                     incident_type=rule["type"], market_id=market, window_start=start,
                     window_end=end, severity=rule.get("severity", "warn"),
                     signal_key=rule["signal_key"], signal_value=worst,
