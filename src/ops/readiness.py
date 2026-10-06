@@ -149,21 +149,50 @@ def state_for_night(conn: sqlite3.Connection, property_id: str, stay_date: date,
             actor=row["actor"], note=row["note"],
         )
 
-    for row in rows:
-        st = from_row(row)
-        if st.covers(stay_date):
+    as_of_s = _iso_at(as_of)
+    decision_day = parse_date(as_of_s[:10])
+    states = [from_row(row) for row in rows]
+    events: dict[str, sqlite3.Row | None] = {}
+
+    def event(st: ReadinessState) -> sqlite3.Row | None:
+        key = st.evidence_event_id or ""
+        if key not in events:
+            events[key] = conn.execute(
+                "SELECT system_type, status, resolved_at FROM asset_health_events WHERE event_id=?",
+                (key,),
+            ).fetchone()
+        return events[key]
+
+    def unresolved(st: ReadinessState) -> bool:
+        row = event(st)
+        return row is not None and (row["status"] == "open" or str(row["resolved_at"] or "") > as_of_s)
+
+    def expired(st: ReadinessState) -> bool:
+        return st.effective_to is not None and decision_day > st.effective_to
+
+    for i, st in enumerate(states):
+        if not st.covers(stay_date):
+            continue
+        if st.state in (READY, VERIFIED_READY):
+            # Recovery is evidence about one system. An older restriction on
+            # this night from another system still holds until its own
+            # evidence is resolved.
+            system = (event(st) or {"system_type": None})["system_type"]
+            for older in states[i + 1:]:
+                if (older.state in RESTRICTING and (older.covers(stay_date) or expired(older))
+                        and (event(older) or {"system_type": None})["system_type"] != system
+                        and unresolved(older)):
+                    return older
+        return st
+    # Expiry is an estimate of the affected window, not evidence of repair.
+    # Once a window has actually elapsed, an unresolved restriction stays
+    # fail-closed until recovery. Before then, nights beyond the forecast
+    # window remain unaffected.
+    for st in states:
+        if st.state in RESTRICTING and expired(st) and unresolved(st):
             return st
-    if rows:
-        latest = from_row(rows[0])
-        # Expiry is an estimate of the affected window, not evidence of repair.
-        # Once the window has actually elapsed, keep a restrictive state
-        # fail-closed until recovery. Before then, nights beyond the forecast
-        # window remain unaffected.
-        decision_day = parse_date(_iso_at(as_of)[:10])
-        if (latest.state in RESTRICTING and latest.effective_to is not None
-                and decision_day > latest.effective_to):
-            return latest
-        return ReadinessState(property_id, READY, None, None, latest.since, None, None, None)
+    if states:
+        return ReadinessState(property_id, READY, None, None, states[0].since, None, None, None)
     return ReadinessState(property_id, READY, None, None, None, None, None, None)
 
 
