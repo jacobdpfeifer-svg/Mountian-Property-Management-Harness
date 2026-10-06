@@ -84,13 +84,16 @@ class ReadinessState:
 
 
 def _iso_at(at: datetime | date | str | None) -> str:
+    """Canonical naive local text, so text order is time order (see normalize.LOCAL_TZ)."""
+    from src.ops.sources.normalize import as_local, as_local_iso
+
     if at is None:
         return datetime.now().replace(microsecond=0).isoformat()
     if isinstance(at, datetime):
-        return at.replace(microsecond=0).isoformat()
+        return as_local(at).replace(microsecond=0).isoformat()
     if isinstance(at, date):
         return f"{at.isoformat()}T23:59:59"
-    return str(at)
+    return as_local_iso(at) or str(at)
 
 
 def current_state(conn: sqlite3.Connection, property_id: str,
