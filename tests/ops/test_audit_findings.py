@@ -290,3 +290,50 @@ def test_ledger_rows_never_land_on_the_wrong_owner_or_level(ops_db, tmp_path):
             "SELECT owner_id, property_id, amount FROM owner_ledger_entries ORDER BY amount")]
     assert result.rejected == 2, result.errors
     assert rows == [("northwoods", None, 50.0), ("northwoods", "summit_haus", 300.0)]
+
+
+# ------------------------------------------------------------- read-only report
+
+
+def test_ops_report_runs_read_only_on_an_unmigrated_database(tmp_path, monkeypatch, capsys):
+    """OPS-012: the production DB has no ops tables and an older reservations
+    table without first_seen_at. `ops report` refused instead of reporting
+    turns from reservations, and must not write to the file either way."""
+    import hashlib
+    import sqlite3
+
+    from src.cli.main import main
+
+    monkeypatch.setenv("MONTLUXE_MEMORY_ROOT", str(tmp_path / "memroot"))
+    db = tmp_path / "prod_like.db"
+    conn = sqlite3.connect(db)
+    conn.executescript("""
+        CREATE TABLE properties (property_id TEXT PRIMARY KEY, name TEXT, market_id TEXT);
+        CREATE TABLE reservations (reservation_id TEXT PRIMARY KEY, property_id TEXT,
+            listing_id TEXT, check_in TEXT, check_out TEXT, nights INTEGER, status TEXT,
+            source TEXT, confirmed_at TEXT, created_at_pms TEXT, guest_count INTEGER,
+            fare_accommodation REAL, nightly_rate REAL, raw_json TEXT, synced_at TEXT);
+        CREATE TABLE nightly_inventory (property_id TEXT, stay_date TEXT, listed_price REAL,
+            status TEXT, min_stay INTEGER, reservation_id TEXT);
+        CREATE TABLE price_recommendations (id INTEGER PRIMARY KEY, property_id TEXT,
+            stay_date TEXT, recommended_min_stay INTEGER);
+        INSERT INTO properties VALUES ('cloud_9', 'Cloud 9', 'grand_home');
+        INSERT INTO reservations VALUES ('a','cloud_9','l','2026-07-01','2026-07-04',3,
+            'confirmed','airbnb2','2026-06-01T10:00:00Z','2026-06-01T10:00:00Z',4,900,300,'{}',
+            '2026-06-01 10:00:00');
+        INSERT INTO reservations VALUES ('b','cloud_9','l','2026-07-04','2026-07-07',3,
+            'confirmed','airbnb2','2026-06-02T10:00:00Z','2026-06-02T10:00:00Z',4,900,300,'{}',
+            '2026-06-02 10:00:00');
+    """)
+    conn.commit()
+    conn.close()
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    try:
+        rc = main(["--db", str(db), "ops", "report", "--from", "2026-07-01", "--to", "2026-07-10",
+                   "--as-of", "2026-06-15", "--property", "cloud_9"])
+    except SystemExit as exc:
+        rc = exc.code
+    out = capsys.readouterr().out
+    assert rc in (0, None), out
+    assert "cloud_9: 2 turn(s)" in out and "no operations tables" in out
+    assert hashlib.sha256(db.read_bytes()).hexdigest() == before

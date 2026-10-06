@@ -94,9 +94,19 @@ def cmd_ops_report(args: argparse.Namespace) -> int:
     start, end = parse_date(args.start), parse_date(args.end)
     props = ([p.strip() for p in args.property.split(",")] if args.property
              else sorted(portfolio_property_ids()))
+    from src.ops.db import ops_tables_present, shadow_empty_ops_tables
+
     try:
         with connect_readonly(args.db) as conn:
+            no_ops_data = not ops_tables_present(conn)
+            if no_ops_data:
+                shadow_empty_ops_tables(conn)
             report = build_report(conn, start, end, as_of=_as_of(args), property_ids=props)
+            if no_ops_data:
+                report.notes.insert(0, "This database has no operations tables: no task outcomes, "
+                                       "capacity, readiness, or profile history. Turns come from "
+                                       "reservations; every cost and probability is a profile "
+                                       "estimate or prior.")
     except sqlite3.OperationalError as exc:
         print(f"refused: operations schema is not initialized ({exc}); run wp-price init-db once",
               file=sys.stderr)
