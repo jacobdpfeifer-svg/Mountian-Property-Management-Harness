@@ -173,7 +173,12 @@ def asset_event_id(e: AssetEvent) -> str:
 
 def record_asset_event(conn: sqlite3.Connection, e: AssetEvent) -> tuple[str, bool]:
     """Insert one asset-health event. Returns (event_id, created)."""
+    from dataclasses import replace
+
+    from src.ops.sources.normalize import as_local_iso
+
     ensure_ops_tables(conn)
+    e = replace(e, observed_at=as_local_iso(e.observed_at) or e.observed_at)
     event_id = e.event_id or asset_event_id(e)
     cur = conn.execute(
         """
