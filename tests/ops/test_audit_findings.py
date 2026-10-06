@@ -43,7 +43,6 @@ def _ev(conn, system, *, severity="warn", source="manual", at="2026-12-01T08:00:
 # ------------------------------------------------------------- readiness
 
 
-@pytest.mark.xfail(strict=True, reason="OPS-013 open")
 def test_verifying_one_system_does_not_clear_another_systems_window(ops_db):
     """OPS-013: readiness is one state per property. A verified_ready for the
     hot tub (Dec 5) must not clear an open snow-access risk on Dec 20-22."""
