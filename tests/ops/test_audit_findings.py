@@ -115,7 +115,6 @@ def test_task_minutes_respect_mixed_offsets():
     assert minutes_between("2026-12-05T16:00:00", "2026-12-05T23:30:00+00:00") == 30
 
 
-@pytest.mark.xfail(strict=True, reason="OPS-016 open")
 def test_automatic_actor_names_outside_the_fixed_set_are_not_trusted(ops_db):
     """OPS-016: only 'signal', 'telemetry', 'system' are treated as automatic.
     An importer that writes actor='breezeway' (or any other non-human string)
@@ -171,7 +170,6 @@ def test_forbidden_action_in_a_rule_fails_even_without_a_signal(ops_db):
 # ------------------------------------------------------------- turns / capacity
 
 
-@pytest.mark.xfail(strict=True, reason="OPS-019 open")
 def test_overlapping_reservations_are_reported_not_silently_dropped(ops_db):
     """OPS-019: two occupying reservations that overlap (a double booking or a
     stale duplicate) yield no flag; the overlapped stay gets no arrival turn."""
