@@ -101,9 +101,12 @@ def load_stays(
         clauses.append("check_in <= ?")
         params.append((end + timedelta(days=60)).isoformat())
     if as_of is not None:
-        clauses.append(
-            "COALESCE(substr(confirmed_at,1,10), substr(first_seen_at,1,10)) <= ?"
-        )
+        # Same order as the first_seen_at backfill in src/db. A database that
+        # was never migrated (read-only reports) lacks first_seen_at.
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(reservations)").fetchall()}
+        known = [f"substr({c},1,10)" for c in
+                 ("confirmed_at", "first_seen_at", "created_at_pms", "synced_at") if c in cols]
+        clauses.append(f"COALESCE({', '.join(known)}) <= ?")
         params.append(as_of.isoformat())
     rows = conn.execute(
         "SELECT reservation_id, property_id, check_in, check_out, source, fare_accommodation "
