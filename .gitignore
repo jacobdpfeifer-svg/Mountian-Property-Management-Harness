@@ -28,3 +28,4 @@ data/.guesty_token.json
 docs/reports/**/*.db
 docs/reports/**/*.db-wal
 docs/reports/**/*.db-shm
+.hypothesis/
