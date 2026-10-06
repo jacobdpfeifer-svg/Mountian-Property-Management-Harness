@@ -24,7 +24,8 @@ def as_float(value: Any) -> float | None:
         return None
     if isinstance(value, (int, float)):
         return float(value)
-    cleaned = re.sub(r"[,$\s]", "", str(value))
+    # Vendors send money as text, e.g. Breezeway rate_paid "250.00 USD".
+    cleaned = re.sub(r"[,$\s]|(?i:usd)$", "", str(value).strip())
     if not cleaned:
         return None
     try:
@@ -84,8 +85,10 @@ def as_datetime(value: Any) -> datetime | None:
 
 
 def as_iso_date(value: Any) -> str | None:
+    """Local (America/Denver) calendar date. A UTC 01:30 task start is the
+    previous evening here, and service dates join turns by local date."""
     dt = as_datetime(value)
-    return None if dt is None else dt.date().isoformat()
+    return None if dt is None else as_local(dt).date().isoformat()
 
 
 def as_local(dt: datetime) -> datetime:
