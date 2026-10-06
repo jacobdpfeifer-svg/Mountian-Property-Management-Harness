@@ -46,7 +46,12 @@ EDGES: dict[str, frozenset[str]] = {
     OUT_OF_SERVICE: frozenset({REMEDIATION}),
     REMEDIATION: frozenset({VERIFIED_READY, OUT_OF_SERVICE}),
 }
-AUTO_ACTORS = frozenset({"signal", "telemetry", "system"})
+# Software actors. Importers and integrations are listed too, so a feed that
+# stamps its own name cannot pose as the named person verified_ready needs.
+AUTO_ACTORS = frozenset({
+    "signal", "telemetry", "system", "sensor", "import", "api", "webhook", "webhooks",
+    "csv", "guesty", "guesty_tasks", "breezeway", "turno", "automation", "bot",
+})
 # States that change what pricing may do for a night.
 RESTRICTING = frozenset({AT_RISK, INSPECTION_REQUIRED, OUT_OF_SERVICE, REMEDIATION})
 
