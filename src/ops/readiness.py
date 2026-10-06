@@ -175,6 +175,13 @@ def state_for_night(conn: sqlite3.Connection, property_id: str, stay_date: date,
     def expired(st: ReadinessState) -> bool:
         return st.effective_to is not None and decision_day > st.effective_to
 
+    def system_of(st: ReadinessState) -> Any:
+        return (event(st) or {"system_type": None})["system_type"]
+
+    def strongest(cands: list[ReadinessState]) -> ReadinessState | None:
+        # Newest first, so ties keep the most recent row.
+        return max(cands, key=lambda c: _RANK[c.state]) if cands else None
+
     for i, st in enumerate(states):
         if not st.covers(stay_date):
             continue
@@ -182,20 +189,36 @@ def state_for_night(conn: sqlite3.Connection, property_id: str, stay_date: date,
             # Recovery is evidence about one system. An older restriction on
             # this night from another system still holds until its own
             # evidence is resolved.
-            system = (event(st) or {"system_type": None})["system_type"]
+            system = system_of(st)
+            held = strongest([
+                older for older in states[i + 1:]
+                if older.state in RESTRICTING and (older.covers(stay_date) or expired(older))
+                and system_of(older) != system and unresolved(older)])
+            return held or st
+        if st.state == AT_RISK:
+            # at_risk is the weakest restriction. A later at_risk (often an
+            # automatic signal) must never mask an older, stronger restriction
+            # on this night unless a recovery for that system came in between.
+            recovered: set[Any] = set()
+            cands = [st]
             for older in states[i + 1:]:
-                if (older.state in RESTRICTING and (older.covers(stay_date) or expired(older))
-                        and (event(older) or {"system_type": None})["system_type"] != system
-                        and unresolved(older)):
-                    return older
+                if older.state in (READY, VERIFIED_READY) and older.covers(stay_date):
+                    recovered.add(system_of(older))
+                    continue
+                if _RANK[older.state] <= _RANK[AT_RISK] or system_of(older) in recovered:
+                    continue
+                if older.covers(stay_date) or (expired(older) and unresolved(older)):
+                    cands.append(older)
+            return strongest(cands) or st
         return st
     # Expiry is an estimate of the affected window, not evidence of repair.
     # Once a window has actually elapsed, an unresolved restriction stays
     # fail-closed until recovery. Before then, nights beyond the forecast
     # window remain unaffected.
-    for st in states:
-        if st.state in RESTRICTING and expired(st) and unresolved(st):
-            return st
+    held = strongest([st for st in states
+                      if st.state in RESTRICTING and expired(st) and unresolved(st)])
+    if held is not None:
+        return held
     if states:
         return ReadinessState(property_id, READY, None, None, states[0].since, None, None, None)
     return ReadinessState(property_id, READY, None, None, None, None, None, None)
