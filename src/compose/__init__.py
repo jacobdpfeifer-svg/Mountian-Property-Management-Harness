@@ -420,6 +420,7 @@ def recommend_night(
     # human performs in Guesty. No recorded events means no effect.
     readiness_state = None
     readiness_blocked = False
+    readiness_floor_conflict = False
     readiness_shift = 0.0
     if (policy.get("operations") or {}).get("readiness_gate", True):
         from src.ops.readiness import (
@@ -435,13 +436,18 @@ def recommend_night(
             level = "suggest"
         if (readiness_state.state == INSPECTION_REQUIRED and feat.listed_price
                 and recommended > float(feat.listed_price)):
-            readiness_shift = float(feat.listed_price) - recommended
-            recommended = float(feat.listed_price)
+            # Hold at the listed price, but never below the floor. When the
+            # floor sits above the listed price the two rules conflict, so a
+            # person decides.
+            held = max(float(feat.listed_price), float(floor))
+            readiness_floor_conflict = held > float(feat.listed_price)
+            readiness_shift = held - recommended
+            recommended = held
         if readiness_state.state in (OUT_OF_SERVICE, REMEDIATION):
             readiness_blocked = True
         if readiness_state.state not in (AT_RISK, INSPECTION_REQUIRED, OUT_OF_SERVICE, REMEDIATION):
             readiness_state = None
-    if verdict.blocked or mem.floor_above_ceiling or readiness_blocked:
+    if verdict.blocked or mem.floor_above_ceiling or readiness_blocked or readiness_floor_conflict:
         level = "escalate"
     elif mem.active_claim_refs and level == "handle":
         # v1 never auto-pushes a run touched by a price-bearing memory claim.
