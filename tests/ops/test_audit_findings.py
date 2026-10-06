@@ -271,3 +271,28 @@ def test_no_output_calls_a_property_compliant(ops_db):
         text = render_text(check(conn, date(2026, 12, 1)))
     lowered = text.lower().replace("not a legal determination", "")
     assert " compliant" not in lowered and "compliant " not in lowered
+
+
+# ------------------------------------------------------------- owner ledger
+
+
+def test_ledger_rows_never_land_on_the_wrong_owner_or_level(ops_db, tmp_path):
+    """OPS-023: a misspelled property became an owner-level charge, and an
+    owner/property mismatch was accepted and then vanished from both receipts."""
+    from src.ops.sources.csv_import import import_csv
+
+    csv = tmp_path / "ledger.csv"
+    csv.write_text(
+        "owner_id,property,entry_date,category,amount,memo\n"
+        "northwoods,312 Northwods,2026-12-03,maintenance,500,typo\n"
+        "cloud9,312 Northwoods,2026-12-03,maintenance,400,wrong owner\n"
+        "northwoods,312 Northwoods,2026-12-03,maintenance,300,good\n"
+        "northwoods,,2026-12-03,other,50,owner-level\n",
+        encoding="utf-8",
+    )
+    with connect(ops_db) as conn:
+        result = import_csv(conn, csv, kind="ledger")
+        rows = [tuple(r) for r in conn.execute(
+            "SELECT owner_id, property_id, amount FROM owner_ledger_entries ORDER BY amount")]
+    assert result.rejected == 2, result.errors
+    assert rows == [("northwoods", None, 50.0), ("northwoods", "summit_haus", 300.0)]
