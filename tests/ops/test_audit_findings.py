@@ -158,7 +158,6 @@ def test_partial_rerun_inside_a_window_reuses_the_incident(ops_db):
     assert n == 1
 
 
-@pytest.mark.xfail(strict=True, reason="OPS-018 open")
 def test_forbidden_action_in_a_rule_fails_even_without_a_signal(ops_db):
     """OPS-018: a rule listing a forbidden action only fails when it fires."""
     from src.ops.actions import ForbiddenAction

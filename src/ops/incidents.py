@@ -77,6 +77,11 @@ def scan(conn: sqlite3.Connection, as_of: date, ops_policy: dict[str, Any] | Non
     policy = ops_policy if ops_policy is not None else load_ops_policy()
     cfg = policy.get("incidents") or {}
     lookahead = int(cfg.get("lookahead_days", 3))
+    # Validate every configured action before reading any signal, so a rule
+    # that lists a forbidden action fails on every scan, not only when it fires.
+    for rule in cfg.get("rules") or []:
+        for a in rule.get("actions") or []:
+            check_action(a)
     by_market: dict[str, list[str]] = {}
     for pid in sorted(set(load_profiles()) & portfolio_property_ids()):
         by_market.setdefault(market_for(conn, pid), []).append(pid)
