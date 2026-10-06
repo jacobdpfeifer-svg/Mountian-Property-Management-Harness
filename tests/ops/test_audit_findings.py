@@ -364,3 +364,18 @@ def test_every_rule_pack_entry_names_its_source_and_review_state():
         pack = load_rule_pack(path.stem)
         assert pack["reviewed_by"] is None
         assert {r["review"] for r in pack["requirements"]} == {"unreviewed"}
+
+
+# ------------------------------------------------------------- adapters
+
+
+def test_vendor_money_and_utc_dates_normalize_locally():
+    """OPS-025: Breezeway rate_paid '250.00 USD' parsed to None, and a Guesty
+    task starting 2026-12-24T01:30Z (Dec 23, 18:30 MST) got service date Dec 24,
+    so it joined the wrong turn."""
+    from src.ops.sources.normalize import as_float, as_iso_date
+
+    assert as_float("250.00 USD") == 250.0
+    assert as_float("$1,250.50") == 1250.5
+    assert as_iso_date("2026-12-24T01:30:00.000Z") == "2026-12-23"
+    assert as_iso_date("2026-12-24") == "2026-12-24"
