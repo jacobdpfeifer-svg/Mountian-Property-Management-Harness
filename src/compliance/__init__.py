@@ -142,7 +142,8 @@ def add_credential(conn: sqlite3.Connection, c: Credential) -> bool:
 def _next_fixed_date(issued: date, month_day: str) -> date:
     month, day = (int(x) for x in month_day.split("-"))
     candidate = date(issued.year, month, day)
-    return candidate if candidate >= issued else date(issued.year + 1, month, day)
+    # Issued on the renewal day itself means renewed for the next cycle.
+    return candidate if candidate > issued else date(issued.year + 1, month, day)
 
 
 def deadline_for(cred: sqlite3.Row, renewal: dict[str, Any]) -> date | None:

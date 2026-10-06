@@ -253,7 +253,6 @@ def test_ops_inputs_ignore_everything_recorded_after_as_of(ops_db):
 # ------------------------------------------------------------- compliance
 
 
-@pytest.mark.xfail(strict=True, reason="OPS-021 open")
 def test_fixed_date_renewal_issued_on_the_renewal_day_lasts_a_year():
     """OPS-021: Winter Park renews on 09-30. A registration issued on 2026-09-30
     must run to 2027-09-30, not expire the day it was issued."""
