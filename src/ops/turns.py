@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from src.ops import OpsProfile
 from src.ops.profiles import minutes_of_day
@@ -50,6 +51,13 @@ class Turn:
     weather_buffer_minutes: float
     slack_minutes: float | None
     buffer_reasons: list[str] = field(default_factory=list)
+    # Other occupying reservations whose dates overlap the departing stay
+    # (a double booking or a stale duplicate). The slack is not trustworthy.
+    conflicts: list[str] = field(default_factory=list)
+
+    @property
+    def conflict(self) -> bool:
+        return bool(self.conflicts)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -67,6 +75,7 @@ class Turn:
             "weather_buffer_minutes": self.weather_buffer_minutes,
             "slack_minutes": None if self.slack_minutes is None else round(self.slack_minutes, 1),
             "buffer_reasons": list(self.buffer_reasons),
+            "conflicts": list(self.conflicts),
         }
 
 
@@ -79,6 +88,8 @@ def load_stays(
     property_id: str,
     start: date | None = None,
     end: date | None = None,
+    *,
+    as_of: date | None = None,
 ) -> list[Stay]:
     """Occupying reservations whose checkout falls in [start - 60d, end + 60d]."""
     clauses = ["property_id = ?", f"LOWER(status) IN ({','.join('?' * len(OCCUPYING_STATUSES))})"]
@@ -89,6 +100,14 @@ def load_stays(
     if end is not None:
         clauses.append("check_in <= ?")
         params.append((end + timedelta(days=60)).isoformat())
+    if as_of is not None:
+        # Same order as the first_seen_at backfill in src/db. A database that
+        # was never migrated (read-only reports) lacks first_seen_at.
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(reservations)").fetchall()}
+        known = [f"substr({c},1,10)" for c in
+                 ("confirmed_at", "first_seen_at", "created_at_pms", "synced_at") if c in cols]
+        clauses.append(f"COALESCE({', '.join(known)}) <= ?")
+        params.append(as_of.isoformat())
     rows = conn.execute(
         "SELECT reservation_id, property_id, check_in, check_out, source, fare_accommodation "
         f"FROM reservations WHERE {' AND '.join(clauses)} ORDER BY check_in, check_out",
@@ -178,16 +197,25 @@ def build_turn(
     buffer_minutes: float = 0.0,
     snow: bool = False,
     reasons: list[str] | None = None,
+    timezone_name: str = "America/Denver",
 ) -> Turn:
     worker = profile.worker_minutes(snow=snow)
     elapsed = profile.elapsed_minutes(snow=snow)
     slack: float | None = None
     if gap_nights is not None:
-        window = (
-            gap_nights * 1440
-            + minutes_of_day(profile.checkin_time)
-            - minutes_of_day(profile.checkout_time)
+        zone = ZoneInfo(timezone_name)
+        checkout = datetime.combine(service_date, datetime.min.time()).replace(
+            hour=minutes_of_day(profile.checkout_time) // 60,
+            minute=minutes_of_day(profile.checkout_time) % 60,
+            tzinfo=zone,
         )
+        checkin_date = service_date + timedelta(days=gap_nights)
+        checkin = datetime.combine(checkin_date, datetime.min.time()).replace(
+            hour=minutes_of_day(profile.checkin_time) // 60,
+            minute=minutes_of_day(profile.checkin_time) % 60,
+            tzinfo=zone,
+        )
+        window = (checkin.astimezone(timezone.utc) - checkout.astimezone(timezone.utc)).total_seconds() / 60
         slack = window - elapsed - profile.travel_minutes - buffer_minutes
     return Turn(
         turn_id=make_turn_id(profile.property_id, departing, arriving),
@@ -215,9 +243,13 @@ def derive_turns(
     *,
     as_of: date,
     ops_policy: dict[str, Any],
+    point_in_time_reservations: bool = True,
 ) -> list[Turn]:
     """Turns whose service date falls in [start, end]."""
-    stays = load_stays(conn, profile.property_id, start, end)
+    stays = load_stays(
+        conn, profile.property_id, start, end,
+        as_of=as_of if point_in_time_reservations else None,
+    )
     market = market_for(conn, profile.property_id)
     turns: list[Turn] = []
     for i, dep in enumerate(stays):
@@ -226,6 +258,8 @@ def derive_turns(
         nxt = next((s for s in stays[i + 1:] if s.check_in >= dep.check_out), None)
         gap = None if nxt is None else (nxt.check_in - dep.check_out).days
         buf, snow, reasons = weather_buffer(conn, market, dep.check_out, as_of, ops_policy)
+        overlapping = [s.reservation_id for s in stays if s is not dep
+                       and s.check_in < dep.check_out and s.check_out > dep.check_in]
         turns.append(build_turn(
             profile,
             service_date=dep.check_out,
@@ -236,4 +270,5 @@ def derive_turns(
             snow=snow,
             reasons=reasons,
         ))
+        turns[-1].conflicts = overlapping
     return turns

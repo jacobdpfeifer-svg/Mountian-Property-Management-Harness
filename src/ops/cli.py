@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from datetime import date, timedelta
 
-from src.db import connect
+from src.db import connect, connect_readonly
 from src.utils import parse_date
 
 
@@ -29,7 +30,7 @@ def _print_result(result) -> int:
 def cmd_ops_sources(args: argparse.Namespace) -> int:
     from src.ops.sources import status
 
-    with connect(args.db) as conn:
+    with connect_readonly(args.db) as conn:
         for s in status(conn):
             flag = "configured" if s.configured else "UNCONFIGURED"
             last = s.last_run or {}
@@ -88,11 +89,28 @@ def cmd_ops_import(args: argparse.Namespace) -> int:
 
 def cmd_ops_report(args: argparse.Namespace) -> int:
     from src.ops.shadow import build_report, render_text
+    from src.ops.profiles import portfolio_property_ids
 
     start, end = parse_date(args.start), parse_date(args.end)
-    props = [p.strip() for p in args.property.split(",")] if args.property else None
-    with connect(args.db) as conn:
-        report = build_report(conn, start, end, as_of=_as_of(args), property_ids=props)
+    props = ([p.strip() for p in args.property.split(",")] if args.property
+             else sorted(portfolio_property_ids()))
+    from src.ops.db import ops_tables_present, shadow_empty_ops_tables
+
+    try:
+        with connect_readonly(args.db) as conn:
+            no_ops_data = not ops_tables_present(conn)
+            if no_ops_data:
+                shadow_empty_ops_tables(conn)
+            report = build_report(conn, start, end, as_of=_as_of(args), property_ids=props)
+            if no_ops_data:
+                report.notes.insert(0, "This database has no operations tables: no task outcomes, "
+                                       "capacity, readiness, or profile history. Turns come from "
+                                       "reservations; every cost and probability is a profile "
+                                       "estimate or prior.")
+    except sqlite3.OperationalError as exc:
+        print(f"refused: operations schema is not initialized ({exc}); run wp-price init-db once",
+              file=sys.stderr)
+        return 1
     if args.json:
         print(json.dumps(report.as_dict(), indent=2, default=str))
     else:
@@ -102,10 +120,17 @@ def cmd_ops_report(args: argparse.Namespace) -> int:
 
 def cmd_ops_capacity(args: argparse.Namespace) -> int:
     from src.ops.shadow import build_report
+    from src.ops.profiles import portfolio_property_ids
 
     day = parse_date(args.date)
-    with connect(args.db) as conn:
-        report = build_report(conn, day, day, as_of=_as_of(args))
+    try:
+        with connect_readonly(args.db) as conn:
+            report = build_report(conn, day, day, as_of=_as_of(args),
+                                  property_ids=sorted(portfolio_property_ids()))
+    except sqlite3.OperationalError as exc:
+        print(f"refused: operations schema is not initialized ({exc}); run wp-price init-db once",
+              file=sys.stderr)
+        return 1
     if not report.capacity:
         print(f"No turns on {day}.")
         return 0
@@ -157,12 +182,12 @@ def cmd_ops_event_add(args: argparse.Namespace) -> int:
 
 
 def cmd_ops_readiness(args: argparse.Namespace) -> int:
-    from src.ops.profiles import load_ops_policy, load_profiles
+    from src.ops.profiles import load_ops_policy, load_profiles, portfolio_property_ids
     from src.ops.readiness import RESTRICTING, current_state, revenue_at_risk, scan_signal_risk
 
     as_of = _as_of(args)
     policy = load_ops_policy()
-    pids = list(load_profiles())
+    pids = sorted(set(load_profiles()) & portfolio_property_ids())
     with connect(args.db) as conn:
         if args.scan_signals:
             for c in scan_signal_risk(conn, as_of, policy, pids):
@@ -224,6 +249,9 @@ def cmd_ops_incidents(args: argparse.Namespace) -> int:
 
 
 def register(sub: argparse._SubParsersAction) -> None:
+    from src.compliance.cli import register as register_compliance
+
+    register_compliance(sub)
     ops = sub.add_parser("ops", help="Operations layer: turns, capacity, readiness, incidents")
     ops_sub = ops.add_subparsers(dest="ops_command", required=True)
 
@@ -277,7 +305,8 @@ def register(sub: argparse._SubParsersAction) -> None:
     s.add_argument("--verified-by")
     s.add_argument("--state", choices=["ready", "at_risk", "inspection_required", "out_of_service",
                                        "remediation_in_progress", "verified_ready"])
-    s.add_argument("--actor", default="operator")
+    s.add_argument("--actor", required=True,
+                   help="Named person or one of the bounded automatic actors")
     s.add_argument("--note")
     s.set_defaults(func=cmd_ops_event_add)
 

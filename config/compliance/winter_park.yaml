@@ -1,41 +1,116 @@
 # Town of Winter Park short-term rental rule pack.
 #
 # This pack tracks documents and deadlines. It does NOT interpret law and the
-# checker never declares a property "compliant". Items were transcribed from
-# the sources below on 2026-09-30 and have NOT been reviewed by a person with
-# authority; set reviewed_by / reviewed_at once someone has checked them
-# against the current municipal code.
+# checker never declares a property "compliant". Items were transcribed on
+# 2026-09-30 and checked against the official pages on 2026-10-06 by the
+# ops/compliance audit (docs/reports/ops_compliance_audit_2026-10-05/research/
+# 05b_rule_pack_source_check.md). Nothing here has been reviewed by a person
+# with authority: set reviewed_by / reviewed_at, and each entry's review, once
+# someone has checked them against the current municipal code. The town code
+# itself (amlegal) returned 403 to the audit; ordinances were read instead.
 jurisdiction: winter_park
 name: Town of Winter Park
-version: winter_park_2026_09_30
+version: winter_park_2026_10_06
 effective_from: "2025-08-01"
 source_urls:
   - https://wpgov.com/good-neighbor/
+  - https://wpgov.com/doing-business/rent-your-home/
+  - https://wpgov.com/our-government/departments/finance/
+  - https://wpgov.com/our-government/departments/finance/sales-tax/
+  - https://wpgov.com/wp-content/uploads/2021/06/O552.pdf
+  - https://wpgov.com/wp-content/uploads/2022/05/O574.pdf
+  - https://wpgov.com/wp-content/uploads/2025/01/O624.pdf
+  - https://wpgov.com/wp-content/uploads/2021/09/Short-Term-Rental-Information-Sheet.pdf
 reviewed_by: null
 reviewed_at: null
+notes: >-
+  Penalties (Ord. 574): warning, then $500, then $1,000 and/or revocation with
+  up to a 2-year ban; each day is a separate offense. Ord. 552 3-10-4(G) says a
+  registration term is 12 months while the town page says all registrations
+  expire September 30; the pack follows the page (operator / legal review).
+  Registration does not transfer on sale (3-10-4(B)). Guest rules (quiet hours
+  10 p.m. to 8 a.m., no overnight street parking Nov 1 to May 1, trash not left
+  out overnight) belong in the guest guide, not the register.
 requirements:
   - credential_type: str_registration
-    label: STR registration number (must appear in advertising)
+    label: STR registration number (must appear in advertising as "Winter Park Short-Term Rental Registration No. ...")
     renewal: {kind: fixed_date, month_day: "09-30"}
     warn_days: 45
     listing_match: true
     occupancy_check: true
+    source: good-neighbor page; Ord. 552 3-10-5(A)(1)
+    review: unreviewed
+  - credential_type: listing_parking_statement
+    label: Every ad states the number of on-site parking spaces (or that none is provided)
+    renewal: {kind: none}
+    source: Ord. 552 3-10-5(A)(2)
+    review: unreviewed
+  - credential_type: business_license
+    label: Town business license (also the town sales-tax license; a PM collective license is allowed)
+    renewal: {kind: annual_from_issue}
+    warn_days: 45
+    source: rent-your-home page; finance page; Ord. 552 3-10-4(F)
+    review: unreviewed
+  - credential_type: sales_tax_account
+    label: Town lodging and sales tax filed in MUNIrevs (not through Colorado SUTS)
+    renewal: {kind: none}
+    source: finance/sales-tax page (last updated 2024-07-01)
+    review: unreviewed
+  - credential_type: state_sales_tax_license
+    label: Colorado sales tax license (state 2.9% and county 1.3% remitted to CDOR)
+    renewal: {kind: none}
+    source: finance/sales-tax page; Grand County Sales & Lodging Tax page
+    review: unreviewed
+  - credential_type: health_safety_affidavit
+    label: Health and Safety Affidavit filed in MUNIrevs
+    renewal: {kind: none}
+    source: STR information sheet (2021-09-21)
+    review: unreviewed
   - credential_type: fire_life_safety_inspection
-    label: East Grand Fire & Life Safety inspection (required for registration/renewal)
+    label: East Grand Fire & Life Safety inspection completed within the 12 months before registration or renewal
+    # Ord. 624 is a freshness test at renewal, not an expiry on 09-30. Annual
+    # from the inspection date flags it when it would no longer be fresh.
+    renewal: {kind: annual_from_issue}
+    warn_days: 75
+    source: Ord. 624; good-neighbor page; eastgrandfire.com STR program
+    review: unreviewed
+  - credential_type: life_safety_devices
+    label: Smoke detectors, CO detectors, and fire extinguishers installed and operable
+    renewal: {kind: annual_from_issue}
+    warn_days: 30
+    source: Ord. 552 3-10-5(B)(4)
+    review: unreviewed
+  - credential_type: responsible_agent
+    label: Responsible agent reachable 24/7, responding within 60 minutes (town notified 7+ days before a change)
+    renewal: {kind: none}
+    source: Ord. 552 3-10-5(A)(8)
+    review: unreviewed
+  - credential_type: posted_registration_conditions
+    label: Copy of the registration and its conditions posted inside the unit
     renewal: {kind: fixed_date, month_day: "09-30"}
     warn_days: 45
-  - credential_type: responsible_agent
-    label: Responsible agent reachable 24/7 (60-minute response per memo; confirm)
+    source: Ord. 552 3-10-5(E)
+    review: unreviewed
+  - credential_type: posted_restrictions
+    label: Posted restrictions, incl. active drought / burning restrictions
     renewal: {kind: none}
+    source: Ord. 552 3-10-5(A)(7)
+    review: unreviewed
   - credential_type: fireplace_cleaning
     label: Annual fireplace / stove cleaning
     renewal: {kind: annual_from_issue}
     warn_days: 30
-    optional: true   # only where a fireplace or stove exists
-  - credential_type: posted_restrictions
-    label: Posted restrictions, incl. active drought / burning restrictions
+    optional: true   # only where a wood-burning fireplace or stove exists
+    source: Ord. 552 3-10-5(B)(5)
+    review: unreviewed
+  - credential_type: high_impact_special_use_permit
+    label: Special use permit before registering an STR for 20 or more occupants
     renewal: {kind: none}
+    optional: true   # only for 20+ occupants
+    source: Ord. 552 3-10-3(A), 3-10-4(C)
+    review: unreviewed
   - credential_type: liability_insurance
-    label: Liability insurance
+    label: Liability insurance (business item; no Winter Park source opened requires it)
     renewal: {kind: expires_at}
-    warn_days: 30
+    source: none found on Winter Park pages or ordinances opened 2026-10-06
+    review: unreviewed

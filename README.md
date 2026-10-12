@@ -82,6 +82,8 @@ src/compose/             E[RevPAN] optimizer
 src/guardrails/          Hard invariants + data-health autonomy gate
 src/explain/             Reason taxonomy ranked by dollar contribution
 src/eval/                Outcomes + RevPAN report
+src/ops/                 Operations layer: turns, crew capacity, readiness, incidents
+src/compliance/          Permit / inspection / contact register (tracking only)
 src/db/                  Schema + connection helpers
 data/sample/             Demo CSVs / iCal
 ```
@@ -114,6 +116,14 @@ comps, thin pacing history, or a low-confidence ceiling automatically demote `ha
 (writes rates) to `suggest` (writes nothing). Hard invariants — move caps, sanity floor,
 peak-night blackout, run-scope cap — cannot be overridden at any level. See
 `docs/rules/AUTONOMY.md`.
+
+## Operations layer
+
+Answers whether a stay a price creates can be serviced profitably and on time:
+turnover cost and readiness per stay transition, crew capacity, property
+readiness states, signal-driven incidents, a compliance register, and a monthly
+owner receipt. It is shadow / suggest-only by default and never writes
+availability. Doctrine and runbook: `docs/rules/OPERATIONS.md`.
 
 ## License
 

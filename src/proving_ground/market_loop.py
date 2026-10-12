@@ -418,7 +418,7 @@ def validation_report(result: MarketResult, cal: dict[str, Any] | None = None) -
         "occupancy_peak": scores["occupancy_peak"],
         "occupancy_early": scores["occupancy_early"],
     }
-    report = {}
+    report: dict[str, Any] = {}
     for name, observed in checks.items():
         rule = rules[name]
         lo, hi = float(rule["lo"]), float(rule["hi"])
@@ -453,7 +453,7 @@ def write_scoreboard(
 ) -> dict[str, str]:
     output_dir.mkdir(parents=True, exist_ok=True)
     rows = [_result_row(result) for result in results]
-    manifest = {
+    manifest: dict[str, Any] = {
         "rows": rows,
         "note": "Paired comparisons use a common shopper seed. Intervals are not family-wise adjusted.",
     }
@@ -888,14 +888,20 @@ def run_grid(
         for name in names
         for seed in range(1, seeds + 1)
     ]
+    retained_scenarios: Collection[str] | None
+    if retain_dbs is True:
+        retained_scenarios = names
+    elif isinstance(retain_dbs, Collection) and "all" in retain_dbs:
+        retained_scenarios = names
+    elif isinstance(retain_dbs, Collection):
+        retained_scenarios = retain_dbs
+    else:
+        retained_scenarios = None
     config = run_config(
         names=names, seeds=seeds, policies=policies, max_days=max_days,
         incremental=incremental, engine_policy_path=engine_policy_path,
         sensitivity_path=sensitivity_path,
-        retained_scenarios=(
-            names if retain_dbs is True else
-            (names if isinstance(retain_dbs, Collection) and "all" in retain_dbs else retain_dbs)
-        ),
+        retained_scenarios=retained_scenarios,
     )
     results = _run_jobs(
         jobs, workers=workers, output_dir=output_dir, config=config, resume=resume, argv=argv,

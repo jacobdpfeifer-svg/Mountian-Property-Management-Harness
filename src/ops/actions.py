@@ -1,8 +1,9 @@
 """Bounded incident actions. What software may suggest, and what it may never do.
 
 Allowed actions produce drafts, lists, and task suggestions for a person. The
-only external write is task creation in Guesty or Breezeway, and it needs
+only enabled external write is task creation in Guesty, and it needs
 `--confirm-live-write` plus a production database, the same gate as `push`.
+Breezeway creation remains disabled until its tenant-specific shape is verified.
 
 Forbidden actions raise. They are high-liability decisions that stay with a
 person: cancelling or moving reservations, refunds, access codes, sending
@@ -13,6 +14,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -68,8 +70,8 @@ def ops_output_dir() -> Path:
 
 
 def _write(incident_id: str, action: str, payload: dict[str, Any]) -> str:
-    stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-    path = ops_output_dir() / f"{incident_id}_{action}_{stamp}.json"
+    stamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
+    path = ops_output_dir() / f"{incident_id}_{action}_{stamp}_{uuid.uuid4().hex[:6]}.json"
     path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
     path.chmod(0o600)
     return str(path)
@@ -194,12 +196,21 @@ def execute(
 
     # Task actions.
     service, title = TASK_ACTIONS[action]
+    from zoneinfo import ZoneInfo
+
+    from src.config import load_portfolio_config
+
+    zone = ZoneInfo(str(load_portfolio_config().get("timezone") or "America/Denver"))
     bodies = [{
         "property_id": pid,
         "title": title.format(incident=incident["incident_type"]),
         "type": service,
-        "canStartAfter": f"{date.fromisoformat(incident['window_start']) - timedelta(days=1)}T08:00:00",
-        "mustFinishBefore": f"{incident['window_start']}T15:00:00",
+        "canStartAfter": datetime.combine(
+            date.fromisoformat(incident["window_start"]) - timedelta(days=1),
+            datetime.min.time().replace(hour=8), tzinfo=zone).isoformat(),
+        "mustFinishBefore": datetime.combine(
+            date.fromisoformat(incident["window_start"]),
+            datetime.min.time().replace(hour=15), tzinfo=zone).isoformat(),
         "description": f"Incident {iid}: {incident['signal_key']}={incident['signal_value']} ({window}).",
     } for pid in affected.get("properties", [])]
     if adapter == "dry_run" or not live:
@@ -225,14 +236,71 @@ def _create_live_tasks(conn: sqlite3.Connection, iid: str, action: str, adapter:
         post = client_poster()
         listing = {r["property_id"]: r["pms_listing_id"] for r in conn.execute(
             "SELECT property_id, pms_listing_id FROM properties").fetchall()}
+        missing = [b["property_id"] for b in bodies if not listing.get(b["property_id"])]
+        if missing:
+            raise IncidentError(f"no Guesty listing id for {', '.join(missing)}")
         for b in bodies:
-            if not listing.get(b["property_id"]):
-                raise IncidentError(f"no Guesty listing id for {b['property_id']}")
-            created.append(create_task(post, {
+            prior = conn.execute(
+                """SELECT status, external_task_id FROM incident_task_writes
+                   WHERE incident_id=? AND action_code=? AND property_id=? AND adapter=?""",
+                (iid, action, b["property_id"], adapter),
+            ).fetchone()
+            if prior is not None:
+                if prior["status"] == "created":
+                    created.append({"id": prior["external_task_id"], "reused": True})
+                    continue
+                raise IncidentError(
+                    f"task write for {b['property_id']} is {prior['status']}; reconcile in Guesty "
+                    "before retrying so a timeout cannot create a duplicate"
+                )
+            conn.execute(
+                """INSERT INTO incident_task_writes
+                   (incident_id, action_code, property_id, adapter, status)
+                   VALUES (?,?,?,?, 'pending')""",
+                (iid, action, b["property_id"], adapter),
+            )
+            conn.commit()
+            payload = {
                 "title": b["title"], "type": b["type"], "listingId": listing[b["property_id"]],
                 "canStartAfter": b["canStartAfter"], "mustFinishBefore": b["mustFinishBefore"],
-                "description": b["description"],
-            }))
+                "description": f"{b['description']} [wp-price:{iid}:{action}:{b['property_id']}]",
+            }
+            try:
+                response = create_task(post, payload)
+            except Exception as exc:
+                conn.execute(
+                    """UPDATE incident_task_writes SET status='uncertain', error=?,
+                           updated_at=datetime('now')
+                       WHERE incident_id=? AND action_code=? AND property_id=? AND adapter=?""",
+                    (f"{type(exc).__name__}: {exc}", iid, action, b["property_id"], adapter),
+                )
+                conn.commit()
+                raise
+            external_id = (
+                response.get("_id") or response.get("id")
+                if isinstance(response, dict) else None
+            )
+            if not external_id:
+                conn.execute(
+                    """UPDATE incident_task_writes SET status='uncertain', response_json=?,
+                           error='Guesty response did not contain a task id',
+                           updated_at=datetime('now')
+                       WHERE incident_id=? AND action_code=? AND property_id=? AND adapter=?""",
+                    (json.dumps(response, default=str), iid, action, b["property_id"], adapter),
+                )
+                conn.commit()
+                raise IncidentError(
+                    f"Guesty returned no task id for {b['property_id']}; reconcile before retrying"
+                )
+            conn.execute(
+                """UPDATE incident_task_writes SET status='created', external_task_id=?,
+                       response_json=?, updated_at=datetime('now')
+                   WHERE incident_id=? AND action_code=? AND property_id=? AND adapter=?""",
+                (str(external_id),
+                 json.dumps(response, default=str), iid, action, b["property_id"], adapter),
+            )
+            conn.commit()
+            created.append(response)
     elif adapter == "breezeway":
         raise IncidentError("Breezeway task creation is not enabled; its create shape is unverified. "
                             "Use --adapter dry_run and create the task in Breezeway.")

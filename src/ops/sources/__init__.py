@@ -51,6 +51,8 @@ class PropertyResolver:
                 rows = []
             for r in rows:
                 pid = str(r["property_id"])
+                if pid not in self._ids:
+                    continue
                 self._ids.add(pid)
                 self._lookup.setdefault(pid.lower(), pid)
                 if r["pms_listing_id"]:

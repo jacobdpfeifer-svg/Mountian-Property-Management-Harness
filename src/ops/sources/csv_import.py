@@ -97,7 +97,9 @@ OUTCOME_PRESETS: dict[str, dict[str, list[str]]] = {
         "service_date": ["start date", "due date", "date", "scheduled for"],
         "service_type": ["task type", "type", "title"],
         "scheduled_start": ["start time", "start date"],
-        "started_at": ["started at"],
+        # Guesty tasks have no separate start stamp; duration runs from the
+        # task start, as in the API normalizer (src/ops/sources/guesty_tasks.py).
+        "started_at": ["started at", "start time", "start date"],
         "completed_at": ["completion date", "completed at", "done at"],
         "actual_minutes": ["duration", "actual duration"],
         "cost": ["cost", "price", "task cost"],
@@ -262,18 +264,37 @@ def _import_asset_events(conn, headers, rows, resolver, result):
 
 
 def _import_ledger(conn, rows, resolver, source, result):
-    from src.db import PROPERTY_OWNER_IDS
+    from src.config import load_portfolio_config
 
+    portfolio = load_portfolio_config()
+    owner_of = {pid: str((cfg or {}).get("owner_id") or "")
+                for pid, cfg in (portfolio.get("properties") or {}).items()}
+    known_owners = set((portfolio.get("owners") or {}).keys())
     for i, row in enumerate(rows, start=2):
         result.rows_in += 1
+        named = str(row.get("property_id") or row.get("property") or "").strip()
         pid = resolver.resolve(row.get("property_id"), row.get("property"))
-        owner = (row.get("owner_id") or "").strip() or (PROPERTY_OWNER_IDS.get(pid or "") or "")
+        given = (row.get("owner_id") or "").strip()
+        owner = given or owner_of.get(pid or "", "")
         amount = as_float(row.get("amount"))
         entry_date = as_iso_date(row.get("entry_date") or row.get("date"))
         category = str(row.get("category") or "").strip().lower()
         if not owner or amount is None or entry_date is None or not category:
             result.rejected += 1
             result.errors.append(f"line {i}: needs owner/property, entry_date, category, amount")
+            continue
+        # A named property that does not resolve must not become an
+        # owner-level charge, and a row must never cross owners.
+        problem = None
+        if named and pid is None:
+            problem = f"unknown property {named!r}"
+        elif owner not in known_owners:
+            problem = f"unknown owner {owner!r}"
+        elif pid is not None and owner_of.get(pid) != owner:
+            problem = f"{pid} belongs to {owner_of.get(pid)!r}, not {owner!r}"
+        if problem:
+            result.rejected += 1
+            result.errors.append(f"line {i}: {problem}")
             continue
         try:
             cur = conn.execute(
@@ -300,15 +321,18 @@ def _import_credentials(conn, rows, resolver, result):
     for i, row in enumerate(rows, start=2):
         result.rows_in += 1
         pid = resolver.resolve(row.get("property_id"), row.get("property"))
-        if pid is None or blank(row.get("credential_type")) or blank(row.get("jurisdiction")):
+        if (pid is None or blank(row.get("credential_type")) or blank(row.get("jurisdiction"))
+                or blank(row.get("identifier"))):
             result.rejected += 1
-            result.errors.append(f"line {i}: needs known property, jurisdiction, credential_type")
+            result.errors.append(
+                f"line {i}: needs known property, jurisdiction, credential_type, identifier"
+            )
             continue
         created = add_credential(conn, Credential(
             property_id=pid,
             jurisdiction=str(row["jurisdiction"]).strip(),
             credential_type=str(row["credential_type"]).strip(),
-            identifier=None if blank(row.get("identifier")) else str(row["identifier"]).strip(),
+            identifier=str(row["identifier"]).strip(),
             issued_at=as_iso_date(row.get("issued_at")),
             expires_at=as_iso_date(row.get("expires_at")),
             evidence_ref=None if blank(row.get("evidence_ref")) else str(row["evidence_ref"]).strip(),

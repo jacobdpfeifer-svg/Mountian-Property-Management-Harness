@@ -57,10 +57,13 @@ class CheckResult:
     detail: str
     deadline: str | None = None
     optional: bool = False
+    source: str | None = None
+    review: str = "unreviewed"
 
     def as_dict(self) -> dict[str, Any]:
         return {k: getattr(self, k) for k in ("property_id", "jurisdiction", "credential_type", "label",
-                                              "status", "detail", "deadline", "optional")}
+                                              "status", "detail", "deadline", "optional", "source",
+                                              "review")}
 
 
 @dataclass
@@ -82,7 +85,31 @@ def load_rule_pack(jurisdiction: str, directory: Path | None = None) -> dict[str
     for key in ("jurisdiction", "version", "source_urls", "requirements"):
         if key not in pack:
             raise ValueError(f"rule pack {path.name} missing {key!r}")
+    for req in pack["requirements"]:
+        # Every entry must say where it came from and whether a person has
+        # reviewed it, so nothing unreviewed can read as settled law.
+        for key in ("credential_type", "source", "review"):
+            if not req.get(key):
+                raise ValueError(f"rule pack {path.name}: {req.get('credential_type')!r} missing {key!r}")
     return pack
+
+
+def occupancy_cap(pack: dict[str, Any], bedrooms: int | None) -> tuple[int | None, str | None]:
+    """Lowest occupancy limit the pack implies for a home: flat cap or bedroom formula."""
+    caps: list[tuple[int, str]] = []
+    if pack.get("max_occupancy") is not None:
+        caps.append((int(pack["max_occupancy"]), f"pack maximum {int(pack['max_occupancy'])}"))
+    formula = pack.get("occupancy_formula") or {}
+    if formula and bedrooms is not None:
+        if int(bedrooms) == 0 and formula.get("studio") is not None:
+            caps.append((int(formula["studio"]), f"studio limit {int(formula['studio'])}"))
+        else:
+            n = int(formula.get("per_bedroom", 2)) * int(bedrooms) + int(formula.get("plus", 0))
+            caps.append((n, f"{formula.get('per_bedroom', 2)} per bedroom x {bedrooms} + "
+                            f"{formula.get('plus', 0)} = {n} ({formula.get('basis', 'formula')})"))
+    if not caps:
+        return None, None
+    return min(caps)
 
 
 def evidence_hash(ref: str | None) -> str | None:
@@ -101,10 +128,15 @@ def add_credential(conn: sqlite3.Connection, c: Credential) -> bool:
     ensure_ops_tables(conn)
     if c.verification_status not in ("unverified", "verified", "rejected"):
         raise ValueError(f"bad verification_status {c.verification_status!r}")
+    if not c.identifier or not c.identifier.strip():
+        raise ValueError("a credential needs a stable identifier")
     if c.verification_status == "verified" and not c.verified_by:
         raise ValueError("a verified credential needs verified_by")
+    digest = evidence_hash(c.evidence_ref)
+    if c.verification_status == "verified" and digest is None:
+        raise ValueError("a verified credential needs a readable evidence file")
     existed = conn.execute(
-        """SELECT 1 FROM property_credentials WHERE property_id=? AND credential_type=?
+        """SELECT credential_id FROM property_credentials WHERE property_id=? AND credential_type=?
            AND identifier IS ?""",
         (c.property_id, c.credential_type, c.identifier),
     ).fetchone()
@@ -114,15 +146,21 @@ def add_credential(conn: sqlite3.Connection, c: Credential) -> bool:
                verification_status, verified_at, verified_by, rule_pack_version, notes)
            VALUES (?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='verified' THEN datetime('now') END,?,?,?)
            ON CONFLICT(property_id, credential_type, identifier) DO UPDATE SET
-               jurisdiction=excluded.jurisdiction, permitted_occupancy=excluded.permitted_occupancy,
-               issued_at=excluded.issued_at, expires_at=excluded.expires_at,
-               evidence_ref=excluded.evidence_ref, evidence_hash=excluded.evidence_hash,
-               verification_status=excluded.verification_status, verified_at=excluded.verified_at,
-               verified_by=excluded.verified_by, rule_pack_version=excluded.rule_pack_version,
+               jurisdiction=excluded.jurisdiction,
+               permitted_occupancy=excluded.permitted_occupancy,
+               issued_at=excluded.issued_at,
+               expires_at=excluded.expires_at,
+               evidence_ref=excluded.evidence_ref,
+               evidence_hash=excluded.evidence_hash,
+               verification_status=excluded.verification_status,
+               verified_at=excluded.verified_at,
+               verified_by=excluded.verified_by,
+               rule_pack_version=excluded.rule_pack_version,
                notes=excluded.notes""",
-        (c.property_id, c.jurisdiction, c.credential_type, c.identifier, c.permitted_occupancy,
-         c.issued_at, c.expires_at, c.evidence_ref, evidence_hash(c.evidence_ref),
-         c.verification_status, c.verification_status, c.verified_by, c.rule_pack_version, c.notes),
+        (c.property_id, c.jurisdiction, c.credential_type, c.identifier,
+         c.permitted_occupancy, c.issued_at, c.expires_at, c.evidence_ref, digest,
+         c.verification_status, c.verification_status, c.verified_by,
+         c.rule_pack_version, c.notes),
     )
     conn.commit()
     return existed is None
@@ -131,7 +169,8 @@ def add_credential(conn: sqlite3.Connection, c: Credential) -> bool:
 def _next_fixed_date(issued: date, month_day: str) -> date:
     month, day = (int(x) for x in month_day.split("-"))
     candidate = date(issued.year, month, day)
-    return candidate if candidate >= issued else date(issued.year + 1, month, day)
+    # Issued on the renewal day itself means renewed for the next cycle.
+    return candidate if candidate > issued else date(issued.year + 1, month, day)
 
 
 def deadline_for(cred: sqlite3.Row, renewal: dict[str, Any]) -> date | None:
@@ -146,7 +185,9 @@ def deadline_for(cred: sqlite3.Row, renewal: dict[str, Any]) -> date | None:
         try:
             return issued.replace(year=issued.year + 1)
         except ValueError:  # Feb 29
-            return issued + timedelta(days=365)
+            # A Feb-29 credential renews on the last day of February in the
+            # following year; adding 365 days would incorrectly yield Mar 1.
+            return date(issued.year + 1, 2, 28)
     return None
 
 
@@ -177,7 +218,8 @@ def _check_requirement(
 
     def result(status: str, detail: str, deadline: date | None = None) -> CheckResult:
         return CheckResult(property_id, jurisdiction, ctype, label, status, detail,
-                           deadline.isoformat() if deadline else None, optional)
+                           deadline.isoformat() if deadline else None, optional,
+                           str(req.get("source") or ""), str(req.get("review") or "unreviewed"))
 
     if len(live) < need:
         have = f"{len(live)} of {need} on file" if need > 1 else "nothing on file"
@@ -189,6 +231,11 @@ def _check_requirement(
     for r in live:
         deadline = deadline_for(r, req.get("renewal") or {})
         status = "evidence_on_file" if r["verification_status"] == "verified" else "unverified"
+        if status == "evidence_on_file":
+            current_hash = evidence_hash(r["evidence_ref"])
+            if current_hash is None or current_hash != r["evidence_hash"]:
+                status = "unverified"
+                details.append(f"{r['identifier'] or ctype}: evidence file missing or changed")
         if deadline is not None:
             earliest = deadline if earliest is None or deadline < earliest else earliest
             if deadline < as_of:
@@ -212,7 +259,8 @@ def _check_requirement(
                 details.append(f"number {r['identifier']} not found in listing text")
         if req.get("occupancy_check"):
             permitted = r["permitted_occupancy"]
-            cap = permitted if permitted is not None else pack_max_occupancy
+            known = [c for c in (permitted, pack_max_occupancy) if c is not None]
+            cap = min(int(c) for c in known) if known else None
             if cap is not None and max_occupancy is not None and max_occupancy > int(cap):
                 status = max(status, "unverified", key=_SEVERITY.__getitem__)
                 details.append(f"listing sleeps {max_occupancy} but permit allows {cap}")
@@ -228,16 +276,15 @@ def check(
     listing_texts: dict[str, str] | None = None,
     rule_dir: Path | None = None,
 ) -> ComplianceReport:
-    from src.ops.db import ensure_ops_tables
-
-    ensure_ops_tables(conn)
     as_of = as_of or date.today()
     report = ComplianceReport(as_of=as_of)
     props = load_portfolio_config().get("properties") or {}
-    occupancy = {}
+    occupancy: dict[str, Any] = {}
+    bedrooms: dict[str, Any] = {}
     try:
-        occupancy = {r["property_id"]: r["max_occupancy"] for r in conn.execute(
-            "SELECT property_id, max_occupancy FROM properties").fetchall()}
+        for r in conn.execute("SELECT property_id, max_occupancy, bedrooms FROM properties"):
+            occupancy[r["property_id"]] = r["max_occupancy"]
+            bedrooms[r["property_id"]] = r["bedrooms"]
     except sqlite3.OperationalError:
         pass
     seen_packs: set[str] = set()
@@ -248,7 +295,9 @@ def check(
         if not jurisdiction:
             report.results.append(CheckResult(pid, None, "jurisdiction", "STR jurisdiction",
                                               "missing", "jurisdiction not recorded in "
-                                              "config/portfolio/mont_luxe.yaml"))
+                                              "config/portfolio/mont_luxe.yaml; no rule pack "
+                                              "applies until it is",
+                                              review="operator_confirm"))
             continue
         pack = load_rule_pack(str(jurisdiction), rule_dir)
         if jurisdiction not in seen_packs:
@@ -264,14 +313,64 @@ def check(
         by_type: dict[str, list[sqlite3.Row]] = {}
         for r in rows:
             by_type.setdefault(r["credential_type"], []).append(r)
+        cap, cap_basis = occupancy_cap(pack, bedrooms.get(pid))
         for req in pack["requirements"]:
             report.results.append(_check_requirement(
                 by_type.get(req["credential_type"], []), req, property_id=pid,
                 jurisdiction=str(jurisdiction), as_of=as_of,
                 listing_text=(listing_texts or {}).get(pid),
-                max_occupancy=occupancy.get(pid), pack_max_occupancy=pack.get("max_occupancy"),
+                max_occupancy=occupancy.get(pid), pack_max_occupancy=cap,
             ))
+        report.results.append(_booked_occupancy(conn, pid, str(jurisdiction), as_of, rows, cap,
+                                                cap_basis, report))
     return report
+
+
+def _booked_occupancy(conn: sqlite3.Connection, pid: str, jurisdiction: str, as_of: date,
+                      creds: list[sqlite3.Row], pack_cap: int | None, cap_basis: str | None,
+                      report: ComplianceReport) -> CheckResult:
+    """Cross-check booked guest counts (last 12 months and next 12) against the cap."""
+    caps = [(int(r["permitted_occupancy"]),
+             f"{r['verification_status']} permit allows {int(r['permitted_occupancy'])}")
+            for r in creds
+            if r["permitted_occupancy"] is not None and r["verification_status"] != "rejected"]
+    if pack_cap is not None:
+        caps.append((pack_cap, cap_basis or f"limit {pack_cap}"))
+    label = "Booked guest counts within the occupancy limit"
+    source = "reservations.guest_count vs permit / rule pack occupancy"
+    if not caps:
+        return CheckResult(pid, jurisdiction, "booked_occupancy", label, "unverified",
+                           "no occupancy limit on file to compare bookings against",
+                           source=source, review="derived")
+    cap, basis = min(caps)
+    try:
+        rows = conn.execute(
+            """SELECT reservation_id, check_in, guest_count FROM reservations
+               WHERE property_id=? AND LOWER(status) IN ('confirmed','checked_in','checked_out')
+                 AND check_out>=? AND check_in<=? ORDER BY check_in""",
+            (pid, (as_of - timedelta(days=365)).isoformat(),
+             (as_of + timedelta(days=365)).isoformat()),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        rows = []
+    unknown = [r for r in rows if r["guest_count"] is None]
+    over = [r for r in rows if r["guest_count"] is not None and int(r["guest_count"]) > cap]
+    if over:
+        listed = ", ".join(f"{str(r['check_in'])[:10]} ({r['guest_count']} guests)" for r in over[:5])
+        report.warnings.append(f"{pid}: {len(over)} booking(s) exceed the occupancy limit of {cap} "
+                               f"({basis}): {listed}")
+        return CheckResult(pid, jurisdiction, "booked_occupancy", label, "unverified",
+                           f"{len(over)} of {len(rows)} booking(s) exceed {cap} ({basis}): {listed}",
+                           source=source, review="derived")
+    detail = f"{len(rows)} booking(s) checked against {cap} ({basis})"
+    if unknown:
+        detail += f"; {len(unknown)} with no guest count"
+    # Within the limit is only evidence when the limit is a verified permit;
+    # a limit from an unreviewed rule pack is itself unverified.
+    verified_cap = basis.startswith("verified permit")
+    status = "evidence_on_file" if rows and not unknown and verified_cap else "unverified"
+    return CheckResult(pid, jurisdiction, "booked_occupancy", label, status, detail,
+                       source=source, review="derived")
 
 
 def render_text(report: ComplianceReport) -> str:
@@ -288,5 +387,6 @@ def render_text(report: ComplianceReport) -> str:
             lines.append(f"{r.property_id} [{r.jurisdiction or 'jurisdiction unknown'}]")
         opt = " (optional)" if r.optional else ""
         due = f" due {r.deadline}" if r.deadline else ""
-        lines.append(f"  {r.status:<17} {r.label}{opt}{due} - {r.detail}")
+        review = "" if r.review == "reviewed" else f" [{r.review}]"
+        lines.append(f"  {r.status:<17} {r.label}{opt}{due}{review} - {r.detail}")
     return "\n".join(lines)

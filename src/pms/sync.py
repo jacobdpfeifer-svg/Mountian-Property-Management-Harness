@@ -18,7 +18,7 @@ import json
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from src.pms.guesty import (
@@ -59,9 +59,21 @@ def is_market_booking(status: object, source: object) -> bool:
 def _money_or_none(value: object) -> float | None:
     """Guesty money fields; cleaning fee and host payout feed the owner receipt only."""
     try:
-        return float(value) if value is not None else None
+        return float(str(value)) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _channel_commission(money: dict[str, Any]) -> float | None:
+    """Return Guesty's itemized channel commission, never infer it from payout."""
+    inclusive = _money_or_none(money.get("hostServiceFeeIncTax"))
+    if inclusive is not None:
+        return abs(inclusive)
+    fee = _money_or_none(money.get("hostServiceFee"))
+    if fee is not None:
+        tax = _money_or_none(money.get("hostServiceFeeTax")) or 0.0
+        return abs(fee) + abs(tax)
+    return None
 
 
 @dataclass
@@ -270,8 +282,8 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
                 status, source, confirmed_at, created_at_pms, guest_count,
                 guest_city, guest_state, guest_country, adults, children, infants, pets,
                 fare_accommodation, nightly_rate, fare_cleaning, host_payout,
-                raw_json, synced_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                channel_commission, raw_json, first_seen_at, synced_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                       datetime('now'))
             ON CONFLICT(reservation_id) DO UPDATE SET
                 property_id=excluded.property_id,
@@ -294,6 +306,8 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
                 nightly_rate=COALESCE(excluded.nightly_rate, reservations.nightly_rate),
                 fare_cleaning=COALESCE(excluded.fare_cleaning, reservations.fare_cleaning),
                 host_payout=COALESCE(excluded.host_payout, reservations.host_payout),
+                channel_commission=COALESCE(excluded.channel_commission,
+                                            reservations.channel_commission),
                 synced_at=datetime('now')
             """,
             (
@@ -304,11 +318,13 @@ def sync_reservations(conn: sqlite3.Connection, client: GuestyClient,
                 float(fare) if fare is not None else None, nightly,
                 _money_or_none(money.get("fareCleaning")),
                 _money_or_none(money.get("hostPayout")),
+                _channel_commission(money),
                 json.dumps({
                     "status": res.get("status"), "source": res.get("source"),
                     "confirmedAt": res.get("confirmedAt"), "createdAt": res.get("createdAt"),
                     "guestsCount": guests,
                 }),
+                confirmed or created or datetime.now(timezone.utc).isoformat(),
             ),
         )
         if owner_stay:
