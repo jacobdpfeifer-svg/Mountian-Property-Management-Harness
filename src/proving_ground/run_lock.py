@@ -128,7 +128,7 @@ def market_run_lock(
 ) -> Iterator[dict[str, Any]]:
     """Hold the global market-sim lock for this process. Reclaim it if the owner is dead."""
     path = path or LOCK_PATH
-    payload = {
+    payload: dict[str, Any] = {
         "pid": os.getpid(),
         "process_start": _process_start(os.getpid()),
         "output_dir": str(output_dir),
@@ -166,7 +166,7 @@ def market_run_lock(
             payload["reclaimed_stale_lock"] = existing
     previous = signal.getsignal(signal.SIGTERM)
 
-    def _on_term(signum: int, frame: Any) -> None:
+    def _on_term(signum: int, _frame: Any) -> None:
         raise SystemExit(128 + signum)
 
     signal.signal(signal.SIGTERM, _on_term)

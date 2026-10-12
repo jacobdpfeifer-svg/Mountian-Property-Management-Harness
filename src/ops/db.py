@@ -19,6 +19,31 @@ def ensure_ops_tables(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
+def ops_tables_present(conn: sqlite3.Connection) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='turnover_outcomes'"
+    ).fetchone() is not None
+
+
+def shadow_empty_ops_tables(conn: sqlite3.Connection) -> None:
+    """Give a read-only connection empty TEMP copies of the ops tables.
+
+    A database that has never recorded operations data can still be reported
+    on (turns come from reservations). TEMP tables live outside the database
+    file, so the file stays untouched; query_only is lifted only for them.
+    """
+    import re
+
+    tables = re.findall(r"CREATE TABLE IF NOT EXISTS .*?\n\);", SCHEMA_PATH.read_text(encoding="utf-8"),
+                        flags=re.S)
+    conn.execute("PRAGMA query_only = OFF")
+    try:
+        for ddl in tables:
+            conn.execute(ddl.replace("CREATE TABLE IF NOT EXISTS", "CREATE TEMP TABLE IF NOT EXISTS", 1))
+    finally:
+        conn.execute("PRAGMA query_only = ON")
+
+
 @dataclass
 class ImportResult:
     run_id: str
@@ -173,7 +198,12 @@ def asset_event_id(e: AssetEvent) -> str:
 
 def record_asset_event(conn: sqlite3.Connection, e: AssetEvent) -> tuple[str, bool]:
     """Insert one asset-health event. Returns (event_id, created)."""
+    from dataclasses import replace
+
+    from src.ops.sources.normalize import as_local_iso
+
     ensure_ops_tables(conn)
+    e = replace(e, observed_at=as_local_iso(e.observed_at) or e.observed_at)
     event_id = e.event_id or asset_event_id(e)
     cur = conn.execute(
         """

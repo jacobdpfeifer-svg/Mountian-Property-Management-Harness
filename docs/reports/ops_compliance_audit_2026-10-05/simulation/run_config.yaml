@@ -1,0 +1,33 @@
+status: not_run
+label: simulated_only
+seed_count: 30
+worlds:
+  - normal
+  - held_out_1
+  - held_out_2
+scenarios:
+  - saturday_cleaner_noshow
+  - hot_tub_failure
+  - storm_road_closure
+  - sensor_false_positive
+  - stale_task_feed
+  - crew_double_booked
+  - permit_expires_midseason
+  - owner_stay_turn
+  - back_to_back_holiday
+comparisons:
+  - ops_on
+  - ops_off
+  - ops_aware_stay_policy_copy
+  - flat_rate_baseline
+measures:
+  - restricted_night_rate_or_inventory_changes
+  - negative_slack_turns_after_booking
+  - false_restrictions_and_revenue_cost
+  - escalations_vs_human_needed
+  - revenue_vs_ops_off
+  - revenue_vs_flat_baseline
+constraints:
+  - no_guesty_writes
+  - no_changes_to_existing_market_scoring
+  - sqlite_copies_outside_icloud

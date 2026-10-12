@@ -117,7 +117,11 @@ def _ranges_overlap(a_from: str | None, a_to: str | None, b_from: str | None, b_
 
 def _values_incompatible(kind: str, left: dict[str, Any], right: dict[str, Any]) -> bool:
     if kind == "minimum_rate":
-        return float(left.get("minimum")) != float(right.get("minimum"))
+        left_min = left.get("minimum")
+        right_min = right.get("minimum")
+        if left_min is None or right_min is None:
+            return left_min != right_min
+        return float(left_min) != float(right_min)
     return False
 
 
@@ -133,6 +137,7 @@ def validate_claim(fields: dict[str, Any]) -> dict[str, Any]:
     review_after = str(fields.get("review_after") or "").strip() or None
     price = kind in PRICE_KINDS
 
+    value: dict[str, Any]
     if price:
         if scope != "property":
             raise ClaimError("price_scope")
@@ -156,7 +161,7 @@ def validate_claim(fields: dict[str, Any]) -> dict[str, Any]:
         effect = "price_bearing"
         if kind == "minimum_rate":
             try:
-                minimum = float(fields.get("minimum"))
+                minimum = float(str(fields.get("minimum")))
             except (TypeError, ValueError):
                 raise ClaimError("minimum") from None
             if not math.isfinite(minimum) or minimum <= 0:

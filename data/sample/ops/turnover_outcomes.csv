@@ -1,0 +1,6 @@
+property_id,source_task_id,service_date,service_type,turn_id,scheduled_start,started_at,completed_at,required_minutes,actual_minutes,cost,qa_pass,rework_minutes,late_ready_minutes,assignee_ref,status
+summit_haus,sample-001,2026-01-04,turnover,,2026-01-04T10:30:00,2026-01-04T10:40:00,2026-01-04T14:10:00,585,630,745.00,yes,0,-50,crew-a,completed
+summit_haus,sample-002,2026-01-11,turnover,,2026-01-11T10:30:00,2026-01-11T10:35:00,2026-01-11T16:20:00,585,690,812.50,no,45,20,crew-a,completed
+overlook_ridge,sample-003,2026-01-11,turnover,,2026-01-11T10:30:00,2026-01-11T11:00:00,2026-01-11T15:05:00,585,600,720.00,yes,0,-55,crew-b,completed
+cloud_9,sample-004,2026-01-18,spa,,2026-01-18T11:00:00,,,60,55,50.00,,,,spa-vendor,completed
+cloud_9,sample-005,2026-01-18,turnover,,2026-01-18T10:30:00,2026-01-18T10:30:00,2026-01-18T13:50:00,525,560,690.00,yes,0,-70,crew-b,completed

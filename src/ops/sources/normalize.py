@@ -5,10 +5,14 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 CANCELLED = frozenset({"cancelled", "canceled", "deleted", "declined", "void"})
 TRUE_WORDS = frozenset({"1", "true", "yes", "y", "pass", "passed", "ok", "approved"})
 FALSE_WORDS = frozenset({"0", "false", "no", "n", "fail", "failed", "rejected"})
+# Stored ops timestamps are naive wall-clock time here, so that comparing the
+# ISO text (as every SQL filter does) is the same as comparing instants.
+LOCAL_TZ = ZoneInfo("America/Denver")
 
 
 def blank(value: Any) -> bool:
@@ -20,7 +24,8 @@ def as_float(value: Any) -> float | None:
         return None
     if isinstance(value, (int, float)):
         return float(value)
-    cleaned = re.sub(r"[,$\s]", "", str(value))
+    # Vendors send money as text, e.g. Breezeway rate_paid "250.00 USD".
+    cleaned = re.sub(r"[,$\s]|(?i:usd)$", "", str(value).strip())
     if not cleaned:
         return None
     try:
@@ -80,8 +85,23 @@ def as_datetime(value: Any) -> datetime | None:
 
 
 def as_iso_date(value: Any) -> str | None:
+    """Local (America/Denver) calendar date. A UTC 01:30 task start is the
+    previous evening here, and service dates join turns by local date."""
     dt = as_datetime(value)
-    return None if dt is None else dt.date().isoformat()
+    return None if dt is None else as_local(dt).date().isoformat()
+
+
+def as_local(dt: datetime) -> datetime:
+    """Aware -> naive local wall clock; naive values are already local."""
+    return dt if dt.tzinfo is None else dt.astimezone(LOCAL_TZ).replace(tzinfo=None)
+
+
+def as_local_iso(value: Any) -> str | None:
+    """Canonical stored form: naive America/Denver ISO text. A bare date stays a date."""
+    if isinstance(value, str) and len(value.strip()) == 10:
+        return value.strip()
+    dt = as_datetime(value)
+    return None if dt is None else as_local(dt).replace(microsecond=0).isoformat()
 
 
 def as_iso_datetime(value: Any) -> str | None:
@@ -93,8 +113,7 @@ def minutes_between(start: Any, end: Any) -> float | None:
     a, b = as_datetime(start), as_datetime(end)
     if a is None or b is None:
         return None
-    if (a.tzinfo is None) != (b.tzinfo is None):
-        a, b = a.replace(tzinfo=None), b.replace(tzinfo=None)
+    a, b = as_local(a), as_local(b)
     delta = (b - a).total_seconds() / 60.0
     return delta if delta >= 0 else None
 

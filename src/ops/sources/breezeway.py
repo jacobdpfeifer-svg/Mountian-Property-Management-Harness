@@ -146,8 +146,11 @@ def _cost(task: dict[str, Any]) -> float | None:
         return total
     costs = task.get("costs")
     if isinstance(costs, list) and costs:
-        vals = [as_float(first(c, "cost", "amount", "total")) for c in costs if isinstance(c, dict)]
-        vals = [v for v in vals if v is not None]
+        vals: list[float] = []
+        for item in costs:
+            value = as_float(first(item, "cost", "amount", "total")) if isinstance(item, dict) else None
+            if value is not None:
+                vals.append(value)
         if vals:
             return float(sum(vals))
     return as_float(task.get("rate_paid"))

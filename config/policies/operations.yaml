@@ -87,6 +87,13 @@ readiness:
       system_type: snow_access
       note: Berthoud Pass closed - access to Grand County disrupted
 
+# Severity for sensor telemetry without an explicit severity
+# (src/ops/sources/telemetry.py). A critical reading sets at_risk automatically.
+telemetry:
+  heat: {critical_below_f: 45, warn_below_f: 55}
+  spa: {warn_below_f: 95}
+  lock: {warn_battery_below_pct: 20}
+
 incidents:
   lookahead_days: 3
   rules:

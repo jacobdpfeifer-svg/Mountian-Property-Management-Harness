@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import date, timedelta
+from typing import Any
 
 from proving_ground_exam.market.shoppers import Shopper
 
@@ -118,7 +119,7 @@ def loss_reason(
         return "unavailable"
     if alt.nightly is None or alt.nightly > shopper.wtp_multiplier * median:
         return "above_wtp"
-    kwargs = dict(
+    kwargs: dict[str, Any] = dict(
         free=free,
         median=median,
         fit_penalty=fit_penalty,
