@@ -34,7 +34,7 @@ from src.features import NightFeatures, build_features
 from src.guardrails import DataHealth, apply_guardrails, assess_data_health, record_health
 from src.leakage import apply_leakage_price, scan_leakage
 from src.min_stay import decide_min_stay
-from src.runcache import engine_run_cache
+from src.runcache import engine_run_cache, memo
 from src.utils import clamp_price, round_price_conservative
 
 
@@ -78,14 +78,17 @@ class Recommendation:
 
 
 def _property_occupancy(conn: sqlite3.Connection, property_id: str) -> int | None:
-    row = conn.execute(
-        "SELECT max_occupancy FROM properties WHERE property_id = ?",
-        (property_id,),
-    ).fetchone()
-    if row is None or row["max_occupancy"] is None:
-        return None
-    occ = int(row["max_occupancy"])
-    return occ if occ > 0 else None
+    def _read() -> int | None:
+        row = conn.execute(
+            "SELECT max_occupancy FROM properties WHERE property_id = ?",
+            (property_id,),
+        ).fetchone()
+        if row is None or row["max_occupancy"] is None:
+            return None
+        occ = int(row["max_occupancy"])
+        return occ if occ > 0 else None
+
+    return memo(("property_occupancy", id(conn), property_id), _read)
 
 
 def _per_person_nightly(price: float, occupancy: int | None, policy: dict[str, Any]) -> float | None:
@@ -243,7 +246,8 @@ def _price_band(
     )
 
 
-def _model_reason(code: str, message: str, contribution: float) -> Reason:
+def _model_reason(code: str, message: str, contribution: float,
+                  facts: dict[str, Any] | None = None) -> Reason:
     """Literal constructors so each model code has an owner template."""
     if code == "learned_elasticity":
         return Reason("learned_elasticity", message, contribution=contribution)
@@ -255,6 +259,9 @@ def _model_reason(code: str, message: str, contribution: float) -> Reason:
         return Reason("stay_value", message, contribution=contribution)
     if code == "portfolio_cannibalization":
         return Reason("portfolio_cannibalization", message, contribution=contribution)
+    if code == "turnover_cost":
+        return Reason("turnover_cost", message, contribution=contribution,
+                      always_show=True, facts=dict(facts or {}))
     raise ValueError(f"unknown model reason {code}")
 
 
@@ -341,11 +348,20 @@ def recommend_night(
     leaked_price = applied.leaked_price
     min_stay = applied.min_stay
     if adjustment.min_stay_nights is not None:
-        min_stay = replace(
-            min_stay,
-            recommended_min_stay=adjustment.min_stay_nights,
-            detail=f"Stay model chose {adjustment.min_stay_nights} nights",
-        )
+        if adjustment.min_stay_source == "ops":
+            min_stay = replace(
+                min_stay,
+                recommended_min_stay=adjustment.min_stay_nights,
+                source="ops",
+                detail=(f"Operations suggests {adjustment.min_stay_nights} nights "
+                        "(turnover cost / readiness; suggestion only, never pushed)"),
+            )
+        else:
+            min_stay = replace(
+                min_stay,
+                recommended_min_stay=adjustment.min_stay_nights,
+                detail=f"Stay model chose {adjustment.min_stay_nights} nights",
+            )
     ctx = applied.ctx
     softened = applied.softened
     deferred = applied.deferred
@@ -397,7 +413,34 @@ def recommend_night(
             or (resort_cfg.get("demote_when_resort_closed", True) and is_closed)
         ):
             level = "suggest"
-    if verdict.blocked or mem.floor_above_ceiling:
+    # Property readiness (src/ops/readiness.py). Only restricts: a night in an
+    # at_risk / inspection window is suggest-only, inspection also blocks upward
+    # moves, and out_of_service blocks the night and recommends a closure that a
+    # human performs in Guesty. No recorded events means no effect.
+    readiness_state = None
+    readiness_blocked = False
+    readiness_shift = 0.0
+    if (policy.get("operations") or {}).get("readiness_gate", True):
+        from src.ops.readiness import (
+            AT_RISK,
+            INSPECTION_REQUIRED,
+            OUT_OF_SERVICE,
+            REMEDIATION,
+            state_for_night,
+        )
+
+        readiness_state = state_for_night(conn, feat.property_id, feat.stay_date, decision_date)
+        if readiness_state.state in (AT_RISK, INSPECTION_REQUIRED) and level == "handle":
+            level = "suggest"
+        if (readiness_state.state == INSPECTION_REQUIRED and feat.listed_price
+                and recommended > float(feat.listed_price)):
+            readiness_shift = float(feat.listed_price) - recommended
+            recommended = float(feat.listed_price)
+        if readiness_state.state in (OUT_OF_SERVICE, REMEDIATION):
+            readiness_blocked = True
+        if readiness_state.state not in (AT_RISK, INSPECTION_REQUIRED, OUT_OF_SERVICE, REMEDIATION):
+            readiness_state = None
+    if verdict.blocked or mem.floor_above_ceiling or readiness_blocked:
         level = "escalate"
     elif mem.active_claim_refs and level == "handle":
         # v1 never auto-pushes a run touched by a price-bearing memory claim.
@@ -463,6 +506,12 @@ def recommend_night(
             "ceiling": ceiling.ceiling_price,
             "season": feat.season,
             "thin": ceiling.is_thin,
+            "booked_n": ceiling.booked_sample_size,
+            "listed_n": ceiling.listed_sample_size,
+            "holiday_n": ceiling.holiday_sample_size,
+            "band_low": ceiling.band_low,
+            "band_high": ceiling.band_high,
+            "thin_anchor": ceiling.thin_anchor,
         },
     ))
     if ceiling.is_thin:
@@ -593,7 +642,19 @@ def recommend_night(
         ))
 
     for code, message, contribution in adjustment.reasons:
-        reasons.append(_model_reason(code, message, contribution))
+        reasons.append(_model_reason(code, message, contribution, facts=adjustment.ops_facts
+                                     if code == "turnover_cost" else None))
+    if readiness_state is not None:
+        from src.ops.readiness import readiness_reason_facts
+
+        facts = readiness_reason_facts(conn, readiness_state, decision_date)
+        reasons.append(Reason(
+            "readiness",
+            facts["message"],
+            contribution=readiness_shift,
+            always_show=True,
+            facts=facts,
+        ))
 
     top = select_top_reasons(reasons, max_n=max_reasons)
     occupancy = _property_occupancy(conn, feat.property_id)
@@ -643,7 +704,8 @@ def recommend_night(
         model_version=str(policy.get("model_version", "rules_v2")),
         inputs_hash=_inputs_hash(payload),
         run_id=run_id,
-        status="blocked" if (verdict.blocked or mem.floor_above_ceiling) else "suggested",
+        status="blocked" if (verdict.blocked or mem.floor_above_ceiling or readiness_blocked)
+        else "suggested",
         recommended_min_stay=min_stay.recommended_min_stay,
         min_stay_source=min_stay.source,
         per_person_nightly=per_person,

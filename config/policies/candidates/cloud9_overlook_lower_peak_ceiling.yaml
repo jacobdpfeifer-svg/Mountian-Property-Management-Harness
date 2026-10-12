@@ -1,0 +1,10 @@
+extends: default
+note: >
+  Historical trial overlay; the caps below are now in default.yaml (2026-10-09).
+  Keep this file for diff-style reruns against pre-promote baselines.
+ceiling:
+  property_season_ceiling:
+    cloud_9:
+      peak_ski: 1035
+    overlook_ridge:
+      peak_ski: 916

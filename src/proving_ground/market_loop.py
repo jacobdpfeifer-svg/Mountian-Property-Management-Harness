@@ -18,16 +18,28 @@ from proving_ground_exam.market.parameters import (
     list_scenarios,
     load_calibration,
     load_scenario,
+    season_of,
     value_of,
 )
 from proving_ground_exam.market.scoring import hindsight_revenue, realized
 from proving_ground_exam.market.world import MarketWorld, seed_market_db
 from src.compose import Recommendation, generate_recommendations
-from src.config import load_policy
+from src.config import load_policy, load_policy_overlay
 from src.db import DB_KIND_DEMO, connect, init_db, mark_db_identity
 from src.pacing import take_snapshot
 
-POLICIES = ("engine", "flat", "comp_median", "tool")
+CORE_POLICIES = ("engine", "flat", "comp_median", "tool")
+# Benchmarks that separate "the engine is worse than one flat rate" from
+# "the engine's property premia are worse". hindsight_oracle is not a policy:
+# it is the non-deployable bound already stored on every result.
+DIAGNOSTIC_POLICIES = ("property_flat", "comp_property", "premium_cap")
+POLICIES = CORE_POLICIES + DIAGNOSTIC_POLICIES
+_RESUME_IGNORE = frozenset({
+    "git_dirty",
+    "git_dirty_tracked",
+    "git_status",
+    "git_untracked",
+})
 _LEAD_EDGES = (8, 15, 22, 61, 121)
 
 
@@ -151,6 +163,73 @@ def _apply_comp_median(world: MarketWorld, conn: sqlite3.Connection, day: date, 
     world.set_own_prices(prices)
 
 
+def _property_season_rate(world: MarketWorld, prop: str, night: date) -> float:
+    """This home's base, scaled by the same seasonal shape as the flat benchmark.
+
+    Peak uses the property base itself (Cloud 9 1035, Overlook 916, Summit 793),
+    not the single $900 peak flat rate.
+    """
+    base = float(world.cal["properties"][prop]["base"])
+    peak = value_of(world.cal["flat_price"]["peak_ski"])
+    return base * value_of(world.cal["flat_price"][season_of(night)]) / peak
+
+
+def _comp_medians(conn: sqlite3.Connection, day: date) -> dict[date, float]:
+    return {
+        date.fromisoformat(row["stay_date"]): float(row["px"])
+        for row in conn.execute(
+            """
+            SELECT stay_date, AVG(listed_price) AS px
+            FROM comp_snapshots
+            WHERE as_of = ? AND scrape_status = 'ok' AND listed_price IS NOT NULL
+            GROUP BY stay_date
+            """,
+            (day.isoformat(),),
+        )
+        if row["px"] is not None
+    }
+
+
+def _apply_property_flat(world: MarketWorld, nights: list[date]) -> None:
+    prices = {}
+    for prop in world.properties:
+        for night in nights:
+            prices[(prop, night)] = _property_season_rate(world, prop, night)
+    world.set_own_prices(prices)
+
+
+def _apply_comp_property(world: MarketWorld, conn: sqlite3.Connection, day: date, nights: list[date]) -> None:
+    """Follow the comp median, scaled by this home's base relative to the portfolio median base."""
+    medians = _comp_medians(conn, day)
+    bases = sorted(float(meta["base"]) for meta in world.cal["properties"].values())
+    portfolio = bases[len(bases) // 2]
+    prices = {}
+    for prop in world.properties:
+        scale = float(world.cal["properties"][prop]["base"]) / portfolio
+        for night in nights:
+            fallback = _property_season_rate(world, prop, night)
+            prices[(prop, night)] = medians.get(night, fallback / scale) * scale
+    world.set_own_prices(prices)
+
+
+def _apply_premium_cap(world: MarketWorld, conn: sqlite3.Connection, day: date, nights: list[date]) -> None:
+    """Property flat, capped at the comp median when assumed quality is below 1.
+
+    Quality of 1.0 may sit 10% above the comp median. This is a diagnostic
+    benchmark, not a deployable engine policy.
+    """
+    medians = _comp_medians(conn, day)
+    prices = {}
+    for prop in world.properties:
+        quality = value_of(world.cal["properties"][prop]["quality"])
+        allowance = 1.10 if quality >= 1.0 else 1.0
+        for night in nights:
+            flat_price = _property_season_rate(world, prop, night)
+            comp = medians.get(night)
+            prices[(prop, night)] = flat_price if comp is None else min(flat_price, comp * allowance)
+    world.set_own_prices(prices)
+
+
 def _apply_tool(world: MarketWorld, conn: sqlite3.Connection, day: date, nights: list[date]) -> None:
     prices = {}
     price_war = bool(world.scenario.get("price_war"))
@@ -195,6 +274,7 @@ def _apply_engine(
     incremental: bool,
     cache: dict[tuple[str, date], tuple],
     engine_policy: dict | None = None,
+    persist_recommendations: bool = True,
 ) -> list[Recommendation]:
     start, end = nights[0], nights[-1]
     props = list(world.properties)
@@ -213,7 +293,7 @@ def _apply_engine(
         end,
         property_ids=props,
         policy=engine_policy or load_policy(),
-        persist=True,
+        persist=persist_recommendations,
         allow_past=True,
         as_of=day,
         stay_dates=stay_dates,
@@ -255,6 +335,8 @@ def run_market_job(
     calibration: dict | None = None,
     scenario_doc: dict | None = None,
     engine_policy: dict | None = None,
+    persist_recommendations: bool = True,
+    trace_choices: bool = True,
 ) -> MarketResult:
     if policy not in POLICIES:
         raise ValueError(f"policy must be one of {POLICIES}")
@@ -269,7 +351,10 @@ def run_market_job(
     conn = _open_db(db_path)
     try:
         seed_market_db(conn, cal, start, end)
-        world = MarketWorld(cal, scenario, seed, conn, season_start=start, season_end=end)
+        world = MarketWorld(
+            cal, scenario, seed, conn, season_start=start, season_end=end,
+            trace_choices=trace_choices,
+        )
         cache: dict[tuple[str, date], tuple] = {}
         for index, day in enumerate(nights):
             if decision_limit is not None and index >= decision_limit:
@@ -282,10 +367,17 @@ def run_market_job(
                 _apply_comp_median(world, conn, day, nights)
             elif policy == "tool":
                 _apply_tool(world, conn, day, nights)
+            elif policy == "property_flat":
+                _apply_property_flat(world, nights)
+            elif policy == "comp_property":
+                _apply_comp_property(world, conn, day, nights)
+            elif policy == "premium_cap":
+                _apply_premium_cap(world, conn, day, nights)
             else:
                 _apply_engine(
                     world, conn, day, nights,
                     incremental=incremental, cache=cache, engine_policy=engine_policy,
+                    persist_recommendations=persist_recommendations,
                 )
             world.end_day(day)
         scores = realized(conn, list(world.properties))
@@ -386,9 +478,39 @@ def write_scoreboard(
             f"| {row['scenario']} | {row['seed']} | {row['policy']} | {row['revenue']:.2f} | "
             f"{row['revpan']:.2f} | {row['occupancy']:.3f} | {row['held_out']} |"
         )
+    lines.append("")
+    lines.append(
+        "hindsight_revenue on each row is a non-deployable oracle: it charges willingness "
+        "to pay and ignores competitors. It is not a policy that can be shipped."
+    )
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    oracle_path = output_dir / "hindsight_oracle.csv"
+    seen: dict[tuple[str, int], MarketResult] = {}
+    for result in results:
+        seen.setdefault((result.scenario, result.seed), result)
+    with oracle_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["scenario", "seed", "hindsight_revenue", "hindsight_gap", "deployable", "label"],
+        )
+        writer.writeheader()
+        for result in seen.values():
+            writer.writerow({
+                "scenario": result.scenario,
+                "seed": result.seed,
+                "hindsight_revenue": result.hindsight_revenue,
+                "hindsight_gap": result.hindsight_gap,
+                "deployable": False,
+                "label": "non-deployable hindsight upper bound",
+            })
     digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-    return {"manifest": str(manifest_path), "csv": str(csv_path), "report": str(md_path), "hash": digest}
+    return {
+        "manifest": str(manifest_path),
+        "csv": str(csv_path),
+        "report": str(md_path),
+        "oracle": str(oracle_path),
+        "hash": digest,
+    }
 
 
 def scenario_names(requested: str) -> list[str]:
@@ -407,8 +529,9 @@ def _discard_db(path: Path) -> None:
         Path(f"{path}{suffix}").unlink(missing_ok=True)
 
 
-# (scenario, seed, policy, output_dir, max_days, incremental, retain_db, engine_policy_path)
-Job = tuple[str, int, str, str, int | None, bool, bool, str | None]
+# (scenario, seed, policy, output_dir, max_days, incremental, retain_db,
+#  engine_policy_path, sensitivity_path)
+Job = tuple[str, int, str, str, int | None, bool, bool, str | None, str | None]
 
 CHECKPOINT = "results.jsonl"
 RUN_CONFIG = "run_config.json"
@@ -421,13 +544,20 @@ _DISK_HEADROOM = 10_000_000_000
 
 
 def _pool_job(job: Job) -> MarketResult:
-    name, seed, policy, output_dir, max_days, incremental, retain_db, engine_policy_path = job
+    from src.proving_ground.sensitivity import apply_sensitivity, load_sensitivity
+
+    name, seed, policy, output_dir, max_days, incremental, retain_db, engine_policy_path, sensitivity_path = job
     db_path = Path(output_dir) / "dbs" / f"{name}_{policy}_{seed}.db"
-    engine_policy = load_policy(Path(engine_policy_path)) if engine_policy_path else None
+    engine_policy = load_policy_overlay(Path(engine_policy_path)) if engine_policy_path else None
+    calibration = None
+    if sensitivity_path:
+        calibration = apply_sensitivity(load_calibration(), load_sensitivity(Path(sensitivity_path)))
     try:
         return run_market_job(
             name, seed, policy, db_path=db_path, max_days=max_days, incremental=incremental,
-            engine_policy=engine_policy,
+            engine_policy=engine_policy, calibration=calibration,
+            persist_recommendations=retain_db,
+            trace_choices=retain_db,
         )
     finally:
         if not retain_db:
@@ -451,6 +581,39 @@ def _git(*args: str) -> str | None:
     return out.stdout.strip()
 
 
+def path_is_icloud(path: Path) -> bool:
+    try:
+        text = str(path.expanduser().resolve())
+    except OSError:
+        text = str(path.expanduser())
+    return any(marker in text for marker in ("Mobile Documents", "com~apple~CloudDocs", "iCloud Drive", "iCloudDrive"))
+
+
+def assert_outside_icloud(path: Path) -> None:
+    if path_is_icloud(path):
+        raise RuntimeError(
+            f"{path} is inside iCloud. Databases and logs for a market simulation must live "
+            "outside it, for example ~/wp-price-runs/market_sim/."
+        )
+
+
+def _git_provenance() -> dict[str, Any]:
+    tracked = _git("status", "--porcelain", "--untracked-files=no")
+    full = _git("status", "--porcelain")
+    untracked = _git("ls-files", "--others", "--exclude-standard")
+    diff = _git("diff", "HEAD")
+    return {
+        "git_commit": _git("rev-parse", "HEAD"),
+        "git_dirty": bool(full) if full is not None else None,
+        "git_dirty_tracked": bool(tracked) if tracked is not None else None,
+        "git_status": full,
+        "git_untracked": [] if not untracked else untracked.splitlines(),
+        "git_diff_sha256": (
+            hashlib.sha256(diff.encode()).hexdigest() if diff is not None else None
+        ),
+    }
+
+
 def run_config(
     *,
     names: list[str],
@@ -459,30 +622,51 @@ def run_config(
     max_days: int | None,
     incremental: bool,
     engine_policy_path: Path | None,
+    sensitivity_path: Path | None = None,
+    retained_scenarios: Collection[str] | None = None,
 ) -> dict[str, Any]:
     """Everything that must match for two runs' rows to be comparable."""
     from proving_ground_exam.market.parameters import CALIBRATION_PATH, SCENARIO_DIR
     from src.config import DEFAULT_POLICY_PATH
+    from src.proving_ground.sensitivity import apply_sensitivity, canonical_sha256, load_sensitivity
 
     policy_path = engine_policy_path or DEFAULT_POLICY_PATH
-    policy = load_policy(policy_path)
+    policy = load_policy_overlay(policy_path)
     scenario_hash = hashlib.sha256()
     for name in names:
         scenario_hash.update(name.encode())
         scenario_hash.update((SCENARIO_DIR / f"{name}.yaml").read_bytes())
-    status = _git("status", "--porcelain", "--untracked-files=no")
+    file_sha = _sha256_file(CALIBRATION_PATH)
+    sensitivity_label = None
+    sensitivity_sha = None
+    calibration_sha = file_sha
+    if sensitivity_path is not None:
+        spec = load_sensitivity(sensitivity_path)
+        sensitivity_label = str(spec["label"])
+        sensitivity_sha = _sha256_file(sensitivity_path)
+        calibration_sha = canonical_sha256(apply_sensitivity(load_calibration(), spec))
+    effective = hashlib.sha256(
+        json.dumps(policy, sort_keys=True, default=str).encode()
+    ).hexdigest()
     return {
         "scenarios": names,
         "seeds": seeds,
         "policies": list(policies),
         "max_days": max_days,
         "incremental": incremental,
-        "git_commit": _git("rev-parse", "HEAD"),
-        "git_dirty": bool(status) if status is not None else None,
-        "calibration_sha256": _sha256_file(CALIBRATION_PATH),
+        # Retention changes whether recommendation histories and choice traces
+        # exist for diagnosis. It must be part of resume identity even though
+        # it does not change the score.
+        "retained_scenarios": sorted(retained_scenarios or []),
+        **_git_provenance(),
+        "calibration_sha256": calibration_sha,
+        "calibration_file_sha256": file_sha,
+        "sensitivity_label": sensitivity_label,
+        "sensitivity_sha256": sensitivity_sha,
         "scenarios_sha256": scenario_hash.hexdigest(),
         "engine_policy_path": str(policy_path),
         "engine_policy_sha256": _sha256_file(policy_path),
+        "engine_policy_effective_sha256": effective,
         "models_enabled": sorted(
             name for name, spec in (policy.get("models") or {}).items()
             if isinstance(spec, dict) and spec.get("enabled")
@@ -528,6 +712,30 @@ def _run_jobs(
     resume: bool,
     argv: list[str] | None,
 ) -> list[MarketResult]:
+    """One market simulation may run. Databases and logs stay outside iCloud."""
+    assert_outside_icloud(output_dir)
+    if config.get("models_enabled"):
+        raise RuntimeError(
+            "market sim refuses a policy with learning models enabled: "
+            + ", ".join(config["models_enabled"])
+        )
+    from src.proving_ground.run_lock import market_run_lock
+
+    with market_run_lock(output_dir, argv):
+        return _execute_jobs(
+            jobs, workers=workers, output_dir=output_dir, config=config, resume=resume, argv=argv,
+        )
+
+
+def _execute_jobs(
+    jobs: list[Job],
+    *,
+    workers: int,
+    output_dir: Path,
+    config: dict[str, Any],
+    resume: bool,
+    argv: list[str] | None,
+) -> list[MarketResult]:
     """Run jobs, appending each result to a checkpoint so a crash loses one job, not the board.
 
     The first failed job stops the run: queued jobs are cancelled, the failure
@@ -550,7 +758,10 @@ def _run_jobs(
         )
     if resume and config_path.exists():
         previous = json.loads(config_path.read_text(encoding="utf-8"))["config"]
-        drift = sorted(key for key in config if previous.get(key) != config[key])
+        drift = sorted(
+            key for key in config
+            if key not in _RESUME_IGNORE and previous.get(key) != config[key]
+        )
         if drift:
             raise ValueError(f"cannot resume: run config changed since the checkpoint: {drift}")
     started = datetime.now(timezone.utc)
@@ -662,15 +873,17 @@ def run_grid(
     incremental: bool = False,
     retain_dbs: bool | Collection[str] = False,
     engine_policy_path: Path | None = None,
+    sensitivity_path: Path | None = None,
     resume: bool = False,
     argv: list[str] | None = None,
 ) -> dict[str, str]:
     """One scoreboard covering every listed policy. Jobs share a process pool."""
     names = scenario_names(scenario_name)
     policy_arg = str(engine_policy_path) if engine_policy_path else None
+    sensitivity_arg = str(sensitivity_path) if sensitivity_path else None
     jobs: list[Job] = [
         (name, seed, policy, str(output_dir), max_days, incremental,
-         _retains(retain_dbs, name), policy_arg)
+         _retains(retain_dbs, name), policy_arg, sensitivity_arg)
         for policy in policies
         for name in names
         for seed in range(1, seeds + 1)
@@ -678,6 +891,11 @@ def run_grid(
     config = run_config(
         names=names, seeds=seeds, policies=policies, max_days=max_days,
         incremental=incremental, engine_policy_path=engine_policy_path,
+        sensitivity_path=sensitivity_path,
+        retained_scenarios=(
+            names if retain_dbs is True else
+            (names if isinstance(retain_dbs, Collection) and "all" in retain_dbs else retain_dbs)
+        ),
     )
     results = _run_jobs(
         jobs, workers=workers, output_dir=output_dir, config=config, resume=resume, argv=argv,
@@ -697,12 +915,14 @@ def run_pool(
     incremental: bool = False,
     retain_dbs: bool | Collection[str] = False,
     engine_policy_path: Path | None = None,
+    sensitivity_path: Path | None = None,
     resume: bool = False,
     argv: list[str] | None = None,
 ) -> dict[str, str]:
     paths = run_grid(
         scenario_name, seeds, (policy,), workers=workers, output_dir=output_dir,
         max_days=max_days, incremental=incremental, retain_dbs=retain_dbs,
-        engine_policy_path=engine_policy_path, resume=resume, argv=argv,
+        engine_policy_path=engine_policy_path, sensitivity_path=sensitivity_path,
+        resume=resume, argv=argv,
     )
     return paths

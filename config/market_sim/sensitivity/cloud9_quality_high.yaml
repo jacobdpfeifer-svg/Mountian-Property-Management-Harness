@@ -1,0 +1,4 @@
+label: cloud9_quality_high
+note: Sensitivity only. The official Cloud 9 quality stays 0.95 in calibration.yaml.
+set:
+  properties.cloud_9.quality.value: 1.10

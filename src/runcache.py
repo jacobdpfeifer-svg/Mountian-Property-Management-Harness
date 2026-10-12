@@ -34,6 +34,11 @@ def engine_run_cache() -> Iterator[None]:
         _ACTIVE.reset(token)
 
 
+def run_cache_active() -> bool:
+    """True while inside ``engine_run_cache()`` (read-only memoization enabled)."""
+    return _ACTIVE.get() is not None
+
+
 def memo(key: Hashable, compute: Callable[[], T]) -> T:
     """Return the cached value for ``key`` inside a run, else compute it."""
     cache = _ACTIVE.get()

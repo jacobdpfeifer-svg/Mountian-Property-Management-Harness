@@ -6,6 +6,8 @@ data/logs/
 .venv/
 __pycache__/
 *.pyc
+# iCloud Drive conflict copies
+* 2.*
 .coverage*
 .testrun_runs/
 **/.venv/

@@ -7,7 +7,16 @@ from datetime import date, timedelta
 from typing import Any
 
 from src.config import load_resort_config
+from src.runcache import memo
 from src.signals.store import SignalStore
+
+
+def _run_resort_config() -> dict[str, Any]:
+    from src.config import RESORT_PATH
+
+    # The active run is read-only; avoid filesystem metadata work on every
+    # recommendation while preserving normal load behavior outside a run.
+    return memo(("resort_config", str(RESORT_PATH)), load_resort_config)
 
 
 @dataclass
@@ -74,7 +83,7 @@ def compute_resort_ops(
     *,
     resort_cfg: dict[str, Any] | None = None,
 ) -> ResortOpsResult:
-    cfg = resort_cfg or load_resort_config()
+    cfg = resort_cfg or _run_resort_config()
     resort_id = cfg.get("resort_id", "winter_park")
     details: dict[str, Any] = {}
 

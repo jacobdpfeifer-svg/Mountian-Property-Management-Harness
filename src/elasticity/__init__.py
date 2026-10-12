@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.features import NightFeatures
+from src.runcache import memo
 
 
 @dataclass
@@ -44,25 +45,28 @@ def _guesty_inquiry_conversion(conn: sqlite3.Connection, property_id: str) -> fl
 
 
 def inquiry_conversion(conn: sqlite3.Connection, property_id: str) -> float | None:
-    guesty = _guesty_inquiry_conversion(conn, property_id)
-    if guesty is not None:
-        return guesty
-    row = conn.execute(
-        """
-        SELECT
-            COALESCE(SUM(inquiry_count), 0) AS inquiries,
-            -- v1 summed inquiry_count on converted rows, so one booking recorded
-            -- against a 5-inquiry row counted as 5 conversions and inflated the rate.
-            COALESCE(SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END), 0) AS conversions
-        FROM booking_inquiries
-        WHERE property_id = ?
-        """,
-        (property_id,),
-    ).fetchone()
-    inquiries = int(row["inquiries"] or 0)
-    if inquiries < 5:
-        return None
-    return float(row["conversions"]) / float(inquiries)
+    def _read() -> float | None:
+        guesty = _guesty_inquiry_conversion(conn, property_id)
+        if guesty is not None:
+            return guesty
+        row = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(inquiry_count), 0) AS inquiries,
+                -- v1 summed inquiry_count on converted rows, so one booking recorded
+                -- against a 5-inquiry row counted as 5 conversions and inflated the rate.
+                COALESCE(SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END), 0) AS conversions
+            FROM booking_inquiries
+            WHERE property_id = ?
+            """,
+            (property_id,),
+        ).fetchone()
+        inquiries = int(row["inquiries"] or 0)
+        if inquiries < 5:
+            return None
+        return float(row["conversions"]) / float(inquiries)
+
+    return memo(("inquiry_conversion", id(conn), property_id), _read)
 
 
 # NOTE on `luxury_prior`: in v1 this value was read, stored on the context, rendered

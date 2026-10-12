@@ -1,0 +1,19 @@
+extends: default
+note: >
+  Candidate only. Quality figures are the simulator's assumed qualities,
+  written here as an explicit hypothesis. They do not change calibration.yaml.
+  Cloud 9 at 0.95 may not price above the comp median. Summit and Overlook
+  at 1.0 may sit 8% above it.
+ceiling:
+  property_premium:
+    enabled: true
+    max_ratio_over_comp: 1.08
+    min_quality_for_premium: 1.0
+    ratio_if_quality_short: 1.0
+    by_property:
+      cloud_9:
+        quality: 0.95
+      overlook_ridge:
+        quality: 1.0
+      summit_haus:
+        quality: 1.0

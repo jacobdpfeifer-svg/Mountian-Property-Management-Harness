@@ -70,6 +70,15 @@ class CeilingResult:
     sqi_confidence: float | None = None
     substitution_index: float | None = None
     substitution_reduction_pct: float = 0.0
+    # Booked sales and past listed prices are counted separately. sample_size
+    # remains the booked pool that set the percentile, when one did.
+    booked_sample_size: int = 0
+    listed_sample_size: int = 0
+    anchor_booked_sample_size: int = 0
+    holiday_sample_size: int = 0
+    band_low: float | None = None
+    band_high: float | None = None
+    thin_anchor: bool = False
 
     @property
     def is_thin(self) -> bool:
@@ -111,15 +120,131 @@ def _conditions():
 
 
 def _sqi_for(conn: sqlite3.Connection, stay: date, as_of: date, market_id: str = "grand_home"):
+    from src.runcache import memo
     from src.signals.features.sqi import compute_sqi, load_conditions, price_multiplier
     from src.signals.store import SignalStore
 
-    store = SignalStore(conn)
-    conditions = load_conditions()
-    result = compute_sqi(store, market_id, stay, as_of, conditions)
-    mult = price_multiplier(result.sqi, conditions)
-    curve_conf = float(conditions.get("curve_confidence", 0.35))
-    return result, mult, min(result.confidence, curve_conf)
+    def _compute():
+        store = SignalStore(conn)
+        conditions = load_conditions()
+        result = compute_sqi(store, market_id, stay, as_of, conditions)
+        mult = price_multiplier(result.sqi, conditions)
+        curve_conf = float(conditions.get("curve_confidence", 0.35))
+        return result, mult, min(result.confidence, curve_conf)
+
+    return memo(("ceiling_sqi", id(conn), market_id, stay.isoformat(), as_of.isoformat()), _compute)
+
+
+def _month_day_in_window(stay: date, start: str, end: str) -> bool:
+    """Month-day window. A start after the end wraps the new year (12-19 through 01-03)."""
+    sm, sd = (int(part) for part in start.split("-"))
+    em, ed = (int(part) for part in end.split("-"))
+    md = (stay.month, stay.day)
+    if (sm, sd) <= (em, ed):
+        return (sm, sd) <= md <= (em, ed)
+    return md >= (sm, sd) or md <= (em, ed)
+
+
+def holiday_windows(policy: dict[str, Any]) -> list[dict[str, str]]:
+    cfg = (policy.get("ceiling") or {}).get("holiday_pool") or {}
+    windows = cfg.get("windows")
+    if windows:
+        return list(windows)
+    return [{"name": "christmas_new_year", "start": "12-19", "end": "01-03"}]
+
+
+def is_holiday_stay(stay: date, policy: dict[str, Any]) -> bool:
+    return any(
+        _month_day_in_window(stay, str(window["start"]), str(window["end"]))
+        for window in holiday_windows(policy)
+    )
+
+
+def history_band(point: float, booked_n: int) -> tuple[float, float]:
+    """Reporting band around a historical price. Wider when booked history is thin.
+
+    This does not change the price. A thin Christmas sample should not be read
+    as a precise anchor.
+    """
+    if booked_n < 5:
+        span = 0.35
+    elif booked_n < 8:
+        span = 0.25
+    elif booked_n < 20:
+        span = 0.12
+    else:
+        span = 0.06
+    return point * (1.0 - span), point * (1.0 + span)
+
+
+def _anchor_parts(
+    feat: NightFeatures,
+    policy: dict[str, Any],
+    conn: sqlite3.Connection,
+    *,
+    as_of: date | None,
+) -> tuple[float, int, int]:
+    """Return (anchor price, booked nights in the season pool, listed nights).
+
+    Nights before the decision only. A known sale uses booked_price. An unsold
+    past night uses its listed price. Future listed prices, including rates
+    this engine pushed, are not history.
+    """
+    cfg = policy.get("ceiling", {})
+    pct = float(cfg.get("anchor_listed_percentile", 0.75))
+    min_n = int(cfg.get("anchor_min_listed_nights", 20))
+    tier_min_n = int(cfg.get("anchor_min_tier_nights", 8))
+    seasons = policy.get("seasons", {})
+    demand = demand_index(conn)
+    decision = as_of or feat.stay_date
+    window_start = lookback_start(decision, float(cfg.get("history_lookback_years", 5)))
+    target_tier = demand_tier(feat.demand_strength, policy)
+
+    def _compute() -> tuple[float, int, int]:
+        rows = conn.execute(
+            """
+            SELECT stay_date, listed_price, booked_price, status, booked_at
+            FROM nightly_inventory
+            WHERE property_id = ? AND stay_date >= ? AND stay_date < ?
+              AND listed_price IS NOT NULL AND listed_price > 0
+            """,
+            (feat.property_id, window_start.isoformat(), decision.isoformat()),
+        ).fetchall()
+        same: list[float] = []
+        same_tier: list[float] = []
+        booked_n = 0
+        listed_n = 0
+        for r in rows:
+            stay = parse_date(r["stay_date"])
+            if season_for(stay, seasons)[0] != feat.season:
+                continue
+            sale_known = (
+                r["status"] == "booked"
+                and r["booked_price"] is not None
+                and float(r["booked_price"]) > 0
+                and (as_of is None or (r["booked_at"] and parse_date(r["booked_at"]) <= decision))
+            )
+            if sale_known:
+                booked_n += 1
+                price = float(r["booked_price"])
+            else:
+                listed_n += 1
+                price = float(r["listed_price"])
+            same.append(price)
+            if demand_tier(demand.get(stay, 0.2), policy) == target_tier:
+                same_tier.append(price)
+        floor = feat.min_floor_rate
+        pool = same_tier if len(same_tier) >= tier_min_n else same
+        if len(pool) >= min(min_n, tier_min_n) and pool is same_tier:
+            return max(float(np.percentile(np.array(pool, dtype=float), pct * 100.0)), floor), booked_n, listed_n
+        if len(same) >= min_n:
+            return max(float(np.percentile(np.array(same, dtype=float), pct * 100.0)), floor), booked_n, listed_n
+        return max(feat.base_ceiling_rate * feat.season_multiplier, floor), booked_n, listed_n
+
+    return memo(
+        ("seasonal_anchor_parts", id(conn), feat.property_id, feat.season, target_tier, decision.isoformat()),
+        _compute,
+    )
 
 
 def seasonal_anchor(
@@ -130,68 +255,82 @@ def seasonal_anchor(
     as_of: date | None = None,
 ) -> float:
     """Ceiling of last resort for a night with too little realised history."""
-    if conn is not None:
-        cfg = policy.get("ceiling", {})
-        pct = float(cfg.get("anchor_listed_percentile", 0.75))
-        min_n = int(cfg.get("anchor_min_listed_nights", 20))
-        tier_min_n = int(cfg.get("anchor_min_tier_nights", 8))
-        seasons = policy.get("seasons", {})
-        demand = demand_index(conn)
-        decision = as_of or feat.stay_date
-        window_start = lookback_start(
-            decision, float(cfg.get("history_lookback_years", 5))
-        )
-        target_tier = demand_tier(feat.demand_strength, policy)
+    if conn is None:
+        return max(feat.base_ceiling_rate * feat.season_multiplier, feat.min_floor_rate)
+    return _anchor_parts(feat, policy, conn, as_of=as_of)[0]
 
-        def _anchor() -> float:
-            # Nights before the decision only. A known sale uses booked_price.
-            # An unsold past night uses its listed price. Future listed prices,
-            # including rates this engine pushed, are not history. booked_at is
-            # interpreted in America/Denver by parse_date.
-            rows = conn.execute(
-                """
-                SELECT stay_date, listed_price, booked_price, status, booked_at
-                FROM nightly_inventory
-                WHERE property_id = ? AND stay_date >= ? AND stay_date < ?
-                  AND listed_price IS NOT NULL AND listed_price > 0
-                """,
-                (feat.property_id, window_start.isoformat(), decision.isoformat()),
-            ).fetchall()
 
-            same: list[float] = []
-            same_tier: list[float] = []
-            for r in rows:
-                stay = parse_date(r["stay_date"])
-                if season_for(stay, seasons)[0] != feat.season:
-                    continue
-                # A sale not yet known on the decision date does not enter the anchor.
-                sale_known = (
-                    r["status"] == "booked"
-                    and r["booked_price"] is not None
-                    and float(r["booked_price"]) > 0
-                    and (as_of is None or (r["booked_at"] and parse_date(r["booked_at"]) <= decision))
-                )
-                price = float(r["booked_price"] if sale_known else r["listed_price"])
-                same.append(price)
-                if demand_tier(demand.get(stay, 0.2), policy) == target_tier:
-                    same_tier.append(price)
+def _apply_thin_anchor_guard(
+    blended: float,
+    method: str,
+    *,
+    booked_n: int,
+    confidence: float,
+    comp_price: float | None,
+    feat: NightFeatures,
+    policy: dict[str, Any],
+) -> tuple[float, str]:
+    """Keep a thin anchor from a large premium or discount unless comps support it.
 
-            pool = same_tier if len(same_tier) >= tier_min_n else same
-            if len(pool) >= min(min_n, tier_min_n) and pool is same_tier:
-                return max(float(np.percentile(np.array(pool, dtype=float), pct * 100.0)),
-                           feat.min_floor_rate)
-            if len(same) >= min_n:
-                return max(float(np.percentile(np.array(same, dtype=float), pct * 100.0)),
-                           feat.min_floor_rate)
-            return max(feat.base_ceiling_rate * feat.season_multiplier, feat.min_floor_rate)
+    Off unless ``ceiling.thin_anchor_guard.enabled`` is true, so the official
+    policy price is unchanged.
+    """
+    guard = (policy.get("ceiling") or {}).get("thin_anchor_guard") or {}
+    if not guard.get("enabled"):
+        return blended, method
+    min_booked = int(guard.get("min_booked", 8))
+    thin = booked_n < min_booked or confidence < 1.0 or method.startswith("seasonal_anchor")
+    if not thin:
+        return blended, method
+    if comp_price is not None and comp_price > 0:
+        hi = float(guard.get("max_ratio_vs_comp", 1.10))
+        lo = float(guard.get("min_ratio_vs_comp", 0.90))
+        capped = min(max(blended, comp_price * lo), comp_price * hi)
+        if abs(capped - blended) > 0.01:
+            return capped, f"{method}+thin_comp"
+        return blended, method
+    base = max(feat.base_ceiling_rate * feat.season_multiplier, feat.min_floor_rate)
+    span = float(guard.get("max_ratio_vs_base_without_comp", 1.10))
+    capped = min(max(blended, base / span), base * span)
+    if abs(capped - blended) > 0.01:
+        return capped, f"{method}+thin_base"
+    return blended, method
 
-        from src.runcache import memo
 
-        return memo(
-            ("seasonal_anchor", id(conn), feat.property_id, feat.season, target_tier, decision.isoformat()),
-            _anchor,
-        )
-    return max(feat.base_ceiling_rate * feat.season_multiplier, feat.min_floor_rate)
+def _apply_property_premium(
+    price: float,
+    feat: NightFeatures,
+    policy: dict[str, Any],
+    comp_price: float | None,
+) -> float:
+    """Cap how far a property's ceiling may sit above the comp price.
+
+    Off unless ``ceiling.property_premium.enabled`` is true.
+    ``by_property.<id>.quality`` is an explicit candidate judgment. A quality
+    below ``min_quality_for_premium`` may not take the wider premium.
+    """
+    premium = (policy.get("ceiling") or {}).get("property_premium") or {}
+    if not premium.get("enabled") or comp_price is None or comp_price <= 0:
+        return price
+    by = (premium.get("by_property") or {}).get(feat.property_id) or {}
+    ratio = float(by.get("max_ratio_over_comp", premium.get("max_ratio_over_comp", 1.0)))
+    quality = by.get("quality")
+    minimum = float(premium.get("min_quality_for_premium", 1.0))
+    if quality is not None and float(quality) < minimum:
+        ratio = min(ratio, float(premium.get("ratio_if_quality_short", 1.0)))
+    return min(price, float(comp_price) * ratio)
+
+
+def _apply_property_season_ceiling(
+    price: float,
+    feat: NightFeatures,
+    policy: dict[str, Any],
+) -> float:
+    caps = (policy.get("ceiling") or {}).get("property_season_ceiling") or {}
+    raw = (caps.get(feat.property_id) or {}).get(feat.season)
+    if raw is None:
+        return price
+    return min(price, float(raw))
 
 
 def compute_ceiling(
@@ -237,6 +376,7 @@ def compute_ceiling(
     same_season: list[tuple[date, float]] = []
     same_season_dow: list[tuple[date, float]] = []
     same_season_dow_yoy: list[tuple[date, float]] = []
+    holiday_pairs: list[tuple[date, float]] = []
     for row in rows:
         stay = parse_date(row["stay_date"])
         booked_at = row["booked_at"] if "booked_at" in row.keys() else None
@@ -247,6 +387,8 @@ def compute_ceiling(
             continue
         price = float(row["booked_price"])
         same_season.append((stay, price))
+        if is_holiday_stay(stay, policy):
+            holiday_pairs.append((stay, price))
         dow = int(row["day_of_week"] if row["day_of_week"] is not None else stay.weekday())
         if dow == feat.day_of_week:
             same_season_dow.append((stay, price))
@@ -265,7 +407,9 @@ def compute_ceiling(
                 norms.append(price)  # degrade to raw if SQI unavailable for that night
         return norms
 
-    anchor = seasonal_anchor(feat, policy, conn, as_of=decision_date)
+    anchor, anchor_booked_n, anchor_listed_n = _anchor_parts(
+        feat, policy, conn, as_of=decision_date
+    )
     sqi_target = None
     sqi_conf = None
     target_mult = 1.0
@@ -291,8 +435,21 @@ def compute_ceiling(
     pool_yoy = _pool_prices(same_season_dow_yoy)
     pool_dow = _pool_prices(same_season_dow)
     pool_season = _pool_prices(same_season)
+    holiday_cfg = cfg.get("holiday_pool") or {}
+    # Future unsold listed prices stay out of this pool. Only booked sales
+    # already known on the decision date, inside the holiday window, qualify.
+    use_holiday = bool(holiday_cfg.get("enabled")) and is_holiday_stay(feat.stay_date, policy)
+    holiday_min = int(holiday_cfg.get("min_nights", min_n))
+    pool_holiday = _pool_prices(holiday_pairs) if use_holiday else []
 
-    if len(pool_yoy) >= min_n:
+    if use_holiday and len(pool_holiday) >= holiday_min:
+        raw_norm = _percentile(pool_holiday, pct)
+        n = len(pool_holiday)
+        method = f"p{int(pct * 100)}_holiday"
+        confidence = float(conf_cfg.get("holiday", conf_cfg.get("season", 0.8)))
+        if n < int(holiday_cfg.get("thin_below", 8)):
+            confidence = min(confidence, float(holiday_cfg.get("thin_confidence", 0.55)))
+    elif len(pool_yoy) >= min_n:
         raw_norm = _percentile(pool_yoy, pct)
         n = len(pool_yoy)
         yoy_years = {season_year(stay) for stay, _ in same_season_dow_yoy}
@@ -389,7 +546,23 @@ def compute_ceiling(
                     blended = capped
                     method = f"{method}+substitution"
 
+    blended, method = _apply_thin_anchor_guard(
+        blended,
+        method,
+        booked_n=n,
+        confidence=confidence,
+        comp_price=comp_price,
+        feat=feat,
+        policy=policy,
+    )
+    blended = _apply_property_premium(blended, feat, policy, comp_price)
+    blended = _apply_property_season_ceiling(blended, feat, policy)
+
     ceiling = min(max(blended, feat.min_floor_rate), feat.max_ceiling_rate)
+    band_low, band_high = history_band(raw, n)
+    thin_anchor = n < int((cfg.get("thin_anchor_guard") or {}).get("min_booked", 8)) or method.startswith(
+        "seasonal_anchor"
+    )
     return CeilingResult(
         ceiling_price=ceiling,
         floor_price=feat.min_floor_rate,
@@ -404,4 +577,11 @@ def compute_ceiling(
         sqi_confidence=sqi_conf,
         substitution_index=sub_index_val,
         substitution_reduction_pct=sub_reduction,
+        booked_sample_size=n,
+        listed_sample_size=anchor_listed_n,
+        anchor_booked_sample_size=anchor_booked_n,
+        holiday_sample_size=len(holiday_pairs),
+        band_low=band_low,
+        band_high=band_high,
+        thin_anchor=thin_anchor,
     )

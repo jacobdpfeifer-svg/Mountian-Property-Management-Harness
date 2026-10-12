@@ -1,0 +1,4 @@
+label: arrival_high
+note: Sensitivity only. Official arrival_mean stays 3.2.
+set:
+  arrival_mean.value: 5.0

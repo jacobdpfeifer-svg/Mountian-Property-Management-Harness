@@ -1,0 +1,9 @@
+extends: default
+note: >
+  Candidate only. On the corrected baseline the Overlook peak ceiling already
+  sits near base 916 times 1.15 (about $1,048). This cap uses the property
+  base itself, still above the $900 flat benchmark.
+ceiling:
+  property_season_ceiling:
+    overlook_ridge:
+      peak_ski: 916

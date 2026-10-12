@@ -122,6 +122,8 @@ CREATE TABLE IF NOT EXISTS reservations (
     pets            INTEGER,
     fare_accommodation REAL,
     nightly_rate    REAL,
+    fare_cleaning   REAL,
+    host_payout     REAL,
     raw_json        TEXT,
     synced_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );

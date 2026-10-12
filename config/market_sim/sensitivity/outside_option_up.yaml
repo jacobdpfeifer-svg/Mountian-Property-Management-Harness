@@ -1,0 +1,4 @@
+label: outside_option_up
+note: Sensitivity only. Official outside utility stays 0. Makes walking away more attractive.
+set:
+  outside_utility.value: 0.40

@@ -21,7 +21,11 @@ CONDITIONS_PATH = ROOT / "config" / "policies" / "conditions.yaml"
 
 
 def load_conditions(path: Path | None = None) -> dict[str, Any]:
-    return load_yaml(path or CONDITIONS_PATH)
+    resolved = path or CONDITIONS_PATH
+    # The cache is only active inside engine_run_cache(), whose scope is one
+    # immutable pricing run.  Avoid stat()/resolve() on every night; outside a
+    # run memo() computes normally and load_yaml retains its edit-aware cache.
+    return memo(("conditions_config", str(resolved)), lambda: load_yaml(resolved))
 
 
 @dataclass

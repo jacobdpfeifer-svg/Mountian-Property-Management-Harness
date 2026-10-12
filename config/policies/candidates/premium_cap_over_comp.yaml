@@ -1,0 +1,8 @@
+extends: default
+note: >
+  Candidate only. Caps every property ceiling at 10% above that night's
+  comp price. Comp support is required for a larger premium.
+ceiling:
+  property_premium:
+    enabled: true
+    max_ratio_over_comp: 1.10
