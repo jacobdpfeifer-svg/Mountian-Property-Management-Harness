@@ -1,0 +1,9 @@
+extends: default
+note: >
+  Candidate only. shoulder_off_floor (confirmed against the pre-promote
+  engine, seeds 6-30) restated on top of the promoted default.
+booking_probability:
+  elasticity_by_season:
+    early_winter:    -1.10
+    shoulder_spring: -1.10
+    shoulder_fall:   -1.10
