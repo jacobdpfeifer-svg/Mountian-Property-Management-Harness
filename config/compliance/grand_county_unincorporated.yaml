@@ -1,0 +1,45 @@
+# Unincorporated Grand County short-term rental rule pack.
+# Tracks documents and deadlines only; never declares compliance.
+# Transcribed 2026-09-30, NOT reviewed.
+jurisdiction: grand_county_unincorporated
+name: Grand County (unincorporated)
+version: grand_county_2026_09_30
+effective_from: "2024-01-01"
+source_urls:
+  - https://www.co.grand.co.us/943/Short-Term-Rentals
+reviewed_by: null
+reviewed_at: null
+notes: >-
+  Permit fee is $100 per maximum advertised occupant; maximum occupancy for a
+  permitted home is 16. Permits expire one year from approval.
+max_occupancy: 16
+requirements:
+  - credential_type: str_permit
+    label: STR permit (annual, one year from approval)
+    renewal: {kind: annual_from_issue}
+    warn_days: 45
+    listing_match: true
+    occupancy_check: true
+  - credential_type: emergency_contact
+    label: Local emergency contact (full-time Grand County resident)
+    renewal: {kind: none}
+    count: 2
+  - credential_type: safety_checklist
+    label: STR safety checklist
+    renewal: {kind: annual_from_issue}
+    warn_days: 30
+  - credential_type: fire_inspection
+    label: Annual fire inspection report (if applicable)
+    renewal: {kind: annual_from_issue}
+    warn_days: 30
+    optional: true
+  - credential_type: bear_proof_trash
+    label: Proof of bear-proof trash disposal
+    renewal: {kind: none}
+  - credential_type: parking_plan
+    label: Parking plan
+    renewal: {kind: none}
+  - credential_type: liability_insurance
+    label: Liability insurance
+    renewal: {kind: expires_at}
+    warn_days: 30

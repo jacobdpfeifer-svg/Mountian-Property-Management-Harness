@@ -1,0 +1,41 @@
+# Town of Winter Park short-term rental rule pack.
+#
+# This pack tracks documents and deadlines. It does NOT interpret law and the
+# checker never declares a property "compliant". Items were transcribed from
+# the sources below on 2026-09-30 and have NOT been reviewed by a person with
+# authority; set reviewed_by / reviewed_at once someone has checked them
+# against the current municipal code.
+jurisdiction: winter_park
+name: Town of Winter Park
+version: winter_park_2026_09_30
+effective_from: "2025-08-01"
+source_urls:
+  - https://wpgov.com/good-neighbor/
+reviewed_by: null
+reviewed_at: null
+requirements:
+  - credential_type: str_registration
+    label: STR registration number (must appear in advertising)
+    renewal: {kind: fixed_date, month_day: "09-30"}
+    warn_days: 45
+    listing_match: true
+    occupancy_check: true
+  - credential_type: fire_life_safety_inspection
+    label: East Grand Fire & Life Safety inspection (required for registration/renewal)
+    renewal: {kind: fixed_date, month_day: "09-30"}
+    warn_days: 45
+  - credential_type: responsible_agent
+    label: Responsible agent reachable 24/7 (60-minute response per memo; confirm)
+    renewal: {kind: none}
+  - credential_type: fireplace_cleaning
+    label: Annual fireplace / stove cleaning
+    renewal: {kind: annual_from_issue}
+    warn_days: 30
+    optional: true   # only where a fireplace or stove exists
+  - credential_type: posted_restrictions
+    label: Posted restrictions, incl. active drought / burning restrictions
+    renewal: {kind: none}
+  - credential_type: liability_insurance
+    label: Liability insurance
+    renewal: {kind: expires_at}
+    warn_days: 30
