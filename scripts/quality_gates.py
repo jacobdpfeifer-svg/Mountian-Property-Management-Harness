@@ -32,7 +32,14 @@ def main() -> int:
         return 1
     print("compileall OK")
 
-    pytest = [sys.executable, "-m", "pytest", "--cov=src", "--cov-report=term-missing"]
+    pytest = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "--ignore-glob=* 2.py",
+        "--cov=src",
+        "--cov-report=term-missing",
+    ]
     if _run(pytest) != 0:
         return 1
 

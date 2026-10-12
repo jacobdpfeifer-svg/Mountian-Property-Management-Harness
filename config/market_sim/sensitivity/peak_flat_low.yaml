@@ -1,0 +1,4 @@
+label: peak_flat_low
+note: Sensitivity only. Official peak flat stays 900. This is a benchmark assumption, not an engine change.
+set:
+  flat_price.peak_ski.value: 750

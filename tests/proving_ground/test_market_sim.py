@@ -332,3 +332,26 @@ def test_audit_can_score_only_unscreened_seeds():
     result = audit_mod.audit(rows, expect_seeds=3, seeds_from=2)
     assert result["gates"]["complete"]
     assert result["engine_minus_flat"]["normal"]["n"] == 2
+
+
+def test_audit_engine_only_compares_candidate_to_reference_engine():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("audit_market_sim", ROOT / "scripts" / "audit_market_sim.py")
+    audit_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit_mod)
+    rows = [
+        {
+            "scenario": "normal",
+            "seed": str(seed),
+            "policy": policy,
+            "revenue": str(seed * (110 if policy == "engine" else 100)),
+            "held_out": "False",
+        }
+        for seed in (6, 7, 8)
+        for policy in ("engine", "baseline_engine")
+    ]
+    result = audit_mod.audit(rows, expect_seeds=8, seeds_from=6, engine_only=True)
+    assert result["gates"]["complete"]
+    assert result["engine_minus_baseline_engine"]["normal"]["n"] == 3
+    assert result["engine_minus_baseline_engine"]["normal"]["mean"] == 70

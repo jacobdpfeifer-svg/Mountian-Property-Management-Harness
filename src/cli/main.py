@@ -192,9 +192,28 @@ def cmd_proving_ground_run(args: argparse.Namespace) -> int:
 
 
 def cmd_proving_ground_market(args: argparse.Namespace) -> int:
-    from src.proving_ground.market_loop import POLICIES, run_grid, scenario_names
+    from src.proving_ground.market_loop import (
+        CORE_POLICIES,
+        DIAGNOSTIC_POLICIES,
+        run_grid,
+        scenario_names,
+    )
+    from src.proving_ground.run_lock import stop_market_run
 
-    policies = POLICIES if args.grid else (args.policy,)
+    if args.stop:
+        try:
+            print(stop_market_run())
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        return 0
+    if not args.scenario:
+        print("--scenario is required", file=sys.stderr)
+        return 2
+
+    policies = CORE_POLICIES if args.grid else (args.policy,)
+    if args.diagnostics:
+        policies = tuple(dict.fromkeys([*policies, *DIAGNOSTIC_POLICIES]))
     retain: bool | set[str] = False
     if args.retain_dbs == "all":
         retain = True
@@ -205,29 +224,29 @@ def cmd_proving_ground_market(args: argparse.Namespace) -> int:
             print(f"--retain-dbs names scenarios outside this run: {sorted(unknown)}", file=sys.stderr)
             return 2
     output_dir = Path(args.output_dir).expanduser()
-    if "Mobile Documents" in str(output_dir.resolve()):
-        print(
-            "warning: output dir is inside iCloud Drive; job databases will sync. "
-            "Prefer a path outside iCloud, e.g. ~/wp-price-runs/...",
-            file=sys.stderr,
+    try:
+        paths = run_grid(
+            args.scenario,
+            args.seeds,
+            policies,
+            workers=args.workers,
+            output_dir=output_dir,
+            max_days=args.max_days or None,
+            incremental=args.incremental,
+            retain_dbs=retain,
+            engine_policy_path=Path(args.engine_policy).expanduser() if args.engine_policy else None,
+            sensitivity_path=Path(args.sensitivity).expanduser() if args.sensitivity else None,
+            resume=args.resume,
+            argv=sys.argv,
         )
-    paths = run_grid(
-        args.scenario,
-        args.seeds,
-        policies,
-        workers=args.workers,
-        output_dir=output_dir,
-        max_days=args.max_days or None,
-        incremental=args.incremental,
-        retain_dbs=retain,
-        engine_policy_path=Path(args.engine_policy).expanduser() if args.engine_policy else None,
-        resume=args.resume,
-        argv=sys.argv,
-    )
+    except (RuntimeError, FileExistsError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     print(f"Market sim {args.scenario} policy={','.join(policies)} seeds={args.seeds}")
     print(f"  manifest: {paths['manifest']}")
     print(f"  scoreboard: {paths['csv']}")
     print(f"  report: {paths['report']}")
+    print(f"  oracle: {paths['oracle']}")
     print(f"  hash: {paths['hash']}")
     return 0
 
@@ -830,16 +849,28 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_proving_ground_run)
 
     s = pg_sub.add_parser("market", help="Run the shopper-market simulator")
-    s.add_argument("--scenario", required=True, help="Scenario name, or all")
+    s.add_argument("--scenario", help="Scenario name, or all. Required unless --stop.")
     s.add_argument("--seeds", type=int, default=30)
     s.add_argument("--workers", type=int, default=1)
-    s.add_argument("--policy", default="engine", choices=["engine", "flat", "comp_median", "tool"])
+    s.add_argument("--policy", default="engine", choices=[
+        "engine", "flat", "comp_median", "tool", "property_flat", "comp_property", "premium_cap",
+    ])
     s.add_argument(
         "--grid",
         action="store_true",
-        help="Run all four policies into one paired scoreboard (ignores --policy)",
+        help="Run engine, flat, comp_median, and tool into one paired scoreboard (ignores --policy)",
     )
-    s.add_argument("--output-dir", default=".testrun_runs/market_sim/runs")
+    s.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Also run property_flat, comp_property, and premium_cap. "
+        "hindsight_oracle.csv is always written and is not a deployable policy.",
+    )
+    s.add_argument(
+        "--output-dir",
+        default=str(Path.home() / "wp-price-runs" / "market_sim" / "runs"),
+        help="Outside iCloud. The default is ~/wp-price-runs/market_sim/runs.",
+    )
     s.add_argument("--max-days", type=int, default=0, help="Truncate the season (0 = full 180 days)")
     s.add_argument(
         "--retain-dbs",
@@ -854,12 +885,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--engine-policy",
         default=None,
         help="Policy YAML for the engine (default config/policies/default.yaml). "
-        "Use a copy to trial a candidate; never edit the default for a trial.",
+        "A file with 'extends: default' is merged onto the default. Never edit the default for a trial.",
+    )
+    s.add_argument(
+        "--sensitivity",
+        default=None,
+        help="YAML overlay on the simulator calibration. Does not edit calibration.yaml. "
+        "The resulting scoreboard is not the official engine score.",
     )
     s.add_argument(
         "--resume",
         action="store_true",
-        help="Continue a run from results.jsonl in --output-dir; refuses if the run config changed",
+        help="Continue a run from results.jsonl in --output-dir after an interruption. "
+        "Refuses if the comparable run config changed. Do not start a fresh output directory.",
+    )
+    s.add_argument(
+        "--stop",
+        action="store_true",
+        help="Signal the market-sim lock owner's PID and its Python children, then exit. "
+        "Does not search for a command-line pattern.",
     )
     s.add_argument(
         "--incremental",
@@ -1077,6 +1121,10 @@ def build_parser() -> argparse.ArgumentParser:
     s = mem_sub.add_parser("backup", help="SQLite online backup of the sidecar")
     s.add_argument("--dest", required=True)
     s.set_defaults(func=cmd_memory_backup)
+
+    from src.ops.cli import register as register_ops
+
+    register_ops(sub)
 
     s = sub.add_parser("report", help="Offline RevPAN report + outcomes join")
     s.add_argument("--from", dest="start", required=True)

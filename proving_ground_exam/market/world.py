@@ -11,7 +11,7 @@ import sqlite3
 from datetime import date, timedelta
 from typing import Any
 
-from proving_ground_exam.market.choice import Alternative, choose, stay_nights
+from proving_ground_exam.market.choice import Alternative, choose, loss_reason, stay_nights
 from proving_ground_exam.market.competitors import occupancy, static_price, tool_min_stay, tool_price
 from proving_ground_exam.market.funnel import cancel_hazard, converts
 from proving_ground_exam.market.parameters import daterange, season_of, value_of
@@ -46,6 +46,7 @@ class MarketWorld:
         *,
         season_start: date | None = None,
         season_end: date | None = None,
+        trace_choices: bool = True,
     ):
         self.cal = cal
         self.scenario = scenario
@@ -53,6 +54,9 @@ class MarketWorld:
         self.conn = conn
         self.season_start = season_start or _parse(cal["season_start"])
         self.season_end = season_end or _parse(cal["season_end"])
+        # Choice tracing is valuable for retained diagnostic DBs, but copying
+        # every availability set for every shopper is a material hot-path cost.
+        self.trace_choices = trace_choices
         self.nights = list(daterange(self.season_start, self.season_end))
         self.scenario_name = str(scenario.get("name", "normal"))
         self.median = value_of(cal["median_nightly"])
@@ -188,18 +192,25 @@ class MarketWorld:
             else:
                 nightly = 10**9
             alts.append(Alternative(cid, "comp", int(meta.get("sleeps", 12)), quality, nightly))
-        alts.append(Alternative("outside", "outside", 0, 0.0, None))
+        outside_utility = value_of(self.cal.get("outside_utility", 0.0))
+        fit_penalty = value_of(self.cal["fit_penalty"])
+        fit_ratio = value_of(self.cal["fit_ratio"])
         picked = choose(
             shopper,
             alts,
             free=self.free,
             median=self.median,
-            fit_penalty=value_of(self.cal["fit_penalty"]),
-            fit_ratio=value_of(self.cal["fit_ratio"]),
+            fit_penalty=fit_penalty,
+            fit_ratio=fit_ratio,
             season_end=self.season_end,
+            outside_utility=outside_utility,
         )
         kind = "outside"
         revenue = 0.0
+        free_at_choice = (
+            {key: set(value) for key, value in self.free.items()}
+            if self.trace_choices else None
+        )
         if picked in self.properties:
             if converts(shopper, self.cal):
                 kind = "book"
@@ -225,6 +236,71 @@ class MarketWorld:
                 "revenue": revenue,
             }
         )
+        chosen = next((alt for alt in alts if alt.alt_id == picked), None)
+        if self.trace_choices:
+            self._trace_losses(
+                day, shopper, alts, chosen, kind,
+                fit_penalty=fit_penalty, fit_ratio=fit_ratio, outside_utility=outside_utility,
+                free=free_at_choice,
+            )
+
+    def _trace_losses(
+        self,
+        day: date,
+        shopper: Shopper,
+        alts: list[Alternative],
+        chosen: Alternative | None,
+        kind: str,
+        *,
+        fit_penalty: float,
+        fit_ratio: float,
+        outside_utility: float,
+        free: dict[str, set[date]] | None = None,
+    ) -> None:
+        """Record why each own home lost. The choice itself is already made."""
+        available = free if free is not None else self.free
+        rows = []
+        for alt in alts:
+            if alt.kind != "own":
+                continue
+            reason = loss_reason(
+                shopper,
+                alt,
+                chosen,
+                free=available,
+                median=self.median,
+                fit_penalty=fit_penalty,
+                fit_ratio=fit_ratio,
+                season_end=self.season_end,
+                outside_utility=outside_utility,
+            )
+            if reason == "chosen":
+                reason = {"book": "booked", "inquiry": "inquiry"}.get(kind, "chosen")
+            rows.append(
+                (
+                    day.isoformat(),
+                    shopper.shopper_id,
+                    alt.alt_id,
+                    shopper.segment,
+                    shopper.check_in.isoformat(),
+                    shopper.los,
+                    shopper.party,
+                    shopper.wtp_multiplier,
+                    alt.quality,
+                    None if alt.nightly is None or alt.nightly >= 1e8 else alt.nightly,
+                    reason,
+                )
+            )
+        if rows:
+            self.conn.executemany(
+                """
+                INSERT INTO sim_choice_trace (
+                    day, shopper_id, property_id, segment, check_in, los, party,
+                    wtp, quality, nightly, reason
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                rows,
+            )
 
     def _book(self, day: date, shopper: Shopper, prop: str, nights: list[date]) -> float:
         revenue = 0.0
@@ -462,6 +538,23 @@ def seed_market_db(conn: sqlite3.Connection, cal: dict[str, Any], start: date, e
             """,
             (key, description),
         )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sim_choice_trace (
+            day TEXT NOT NULL,
+            shopper_id TEXT NOT NULL,
+            property_id TEXT NOT NULL,
+            segment TEXT,
+            check_in TEXT,
+            los INTEGER,
+            party INTEGER,
+            wtp REAL,
+            quality REAL,
+            nightly REAL,
+            reason TEXT NOT NULL
+        )
+        """
+    )
     for prop, meta in cal["properties"].items():
         conn.execute(
             """

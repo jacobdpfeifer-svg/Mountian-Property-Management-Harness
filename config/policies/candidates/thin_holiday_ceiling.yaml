@@ -1,0 +1,18 @@
+extends: default
+note: >
+  Candidate only. Keeps the point-in-time booked-price ceiling. A holiday
+  window is used only when that booked sample is large enough. A thin anchor
+  cannot move far from comps, or from the property base when comps are missing.
+  Future unsold listed prices stay out of the pool.
+ceiling:
+  holiday_pool:
+    enabled: true
+    min_nights: 5
+    thin_below: 8
+    thin_confidence: 0.55
+  thin_anchor_guard:
+    enabled: true
+    min_booked: 8
+    max_ratio_vs_comp: 1.10
+    min_ratio_vs_comp: 0.90
+    max_ratio_vs_base_without_comp: 1.10

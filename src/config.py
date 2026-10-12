@@ -21,6 +21,8 @@ _YAML_CACHE: dict[tuple[str, int, int], dict[str, Any]] = {}
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
+    from src.runcache import memo, run_cache_active
+
     st = path.stat()
     key = (str(path.resolve()), st.st_mtime_ns, st.st_size)
     cached = _YAML_CACHE.get(key)
@@ -30,11 +32,41 @@ def load_yaml(path: Path) -> dict[str, Any]:
         if not isinstance(data, dict):
             raise ValueError(f"Expected mapping in {path}")
         _YAML_CACHE[key] = cached = data
+    if run_cache_active():
+        # One deepcopy per file per pricing run instead of once per night/module.
+        return memo(("yaml", key), lambda: copy.deepcopy(cached))
     return copy.deepcopy(cached)
 
 
 def load_policy(path: Path | None = None) -> dict[str, Any]:
     return load_yaml(path or DEFAULT_POLICY_PATH)
+
+
+def deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """Nested dicts merge. Every other value replaces the base."""
+    merged = copy.deepcopy(base)
+    for key, value in overlay.items():
+        current = merged.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            merged[key] = deep_merge(current, value)
+        else:
+            merged[key] = copy.deepcopy(value)
+    return merged
+
+
+def load_policy_overlay(path: Path | None = None) -> dict[str, Any]:
+    """Load a policy. A file with ``extends: default`` is merged onto default.yaml.
+
+    The official default file is never written. Candidate trials use this so a
+    short YAML diff is a full policy the engine can run.
+    """
+    if path is None:
+        return load_policy()
+    raw = load_yaml(path)
+    if raw.get("extends") != "default":
+        return raw
+    overlay = {key: value for key, value in raw.items() if key != "extends"}
+    return deep_merge(load_policy(), overlay)
 
 
 def load_events(path: Path | None = None) -> list[dict[str, Any]]:

@@ -245,7 +245,7 @@ class GuestyClient:
         fields = (
             "_id listingId checkIn checkOut nightsCount status source "
             "confirmedAt createdAt guestsCount "
-            "money.fareAccommodation money.hostPayout"
+            "money.fareAccommodation money.fareCleaning money.hostPayout"
         )
         filt: list[dict[str, str]] = [
             {"field": "checkIn", "operator": "$gte", "value": check_in_from},

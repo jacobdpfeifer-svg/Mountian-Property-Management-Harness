@@ -47,7 +47,7 @@ def _age_hours(as_of: str | None, now: datetime | None = None) -> float | None:
     return None
 
 
-def comp_evidence(
+def _comp_evidence_uncached(
     conn: sqlite3.Connection,
     feat: NightFeatures,
     policy: dict[str, Any],
@@ -200,6 +200,48 @@ def comp_evidence(
     return CompEvidence(price, coverage, len(members), len(prices), newest, True,
                         f"p{int(pct*100)} of {len(prices)}/{len(members)} comps{window}",
                         exact_date)
+
+
+def comp_evidence(
+    conn: sqlite3.Connection,
+    feat: NightFeatures,
+    policy: dict[str, Any],
+    *,
+    as_of: datetime | date | None = None,
+    allow_stale: bool = False,
+) -> CompEvidence | None:
+    from datetime import date as date_cls
+
+    from src.runcache import memo
+
+    if isinstance(as_of, date_cls) and not isinstance(as_of, datetime):
+        as_of_key: str | None = as_of.isoformat()
+    elif isinstance(as_of, datetime):
+        as_of_key = as_of.isoformat(sep=" ", timespec="seconds")
+    else:
+        as_of_key = None
+    health = policy.get("data_health", {})
+    ceiling = policy.get("ceiling", {})
+    cache_key = (
+        "comp_evidence",
+        id(conn),
+        feat.property_id,
+        feat.stay_date.isoformat(),
+        as_of_key,
+        allow_stale,
+        float(health.get("comp_max_staleness_hours", 48)),
+        float(health.get("comp_min_coverage", 0.60)),
+        int(health.get("comp_min_members", 3)),
+        float(ceiling.get("comp_percentile", 0.75)),
+        str((policy.get("scrape") or {}).get("group_size")),
+        str((policy.get("scrape") or {}).get("match")),
+    )
+    return memo(
+        cache_key,
+        lambda: _comp_evidence_uncached(
+            conn, feat, policy, as_of=as_of, allow_stale=allow_stale
+        ),
+    )
 
 
 def market_percentile(

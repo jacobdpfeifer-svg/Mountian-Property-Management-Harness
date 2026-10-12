@@ -233,6 +233,10 @@ def push_recommendations(
                 min_stay = None
             elif source == "policy" and not policy_min_enabled:
                 min_stay = None
+            elif source not in ("policy", "gap_override", "inventory", None):
+                # Operations-sourced (and any unknown) min-stays are suggestions
+                # only. They never reach the PMS.
+                min_stay = None
 
         # Final write-boundary validation. Recommendations normally arrive from
         # compose(), but adapters must never become an escape hatch around the

@@ -1,0 +1,10 @@
+extends: default
+note: >
+  Candidate only. Do not copy into default.yaml unless it passes promotion.
+  On the corrected baseline the Cloud 9 peak ceiling already sits near
+  base 1035 times the 1.15 peak multiplier (about $1,173). This cap uses the
+  property base itself, which is still above the $900 flat benchmark.
+ceiling:
+  property_season_ceiling:
+    cloud_9:
+      peak_ski: 1035

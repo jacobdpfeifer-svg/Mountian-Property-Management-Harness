@@ -1,0 +1,640 @@
+{
+  "completeness": {
+    "complete": true,
+    "duplicates": [],
+    "expected_rows": 1800,
+    "missing": [],
+    "missing_count": 0,
+    "scenario_count_ok": true
+  },
+  "engine_minus_comp_median": {
+    "den_capacity_cut": {
+      "bootstrap_95": {
+        "hi": -84693.34,
+        "lo": -95685.64
+      },
+      "max": -54495.02,
+      "mean": -90061.79,
+      "median": -91144.9,
+      "min": -125573.21,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "drought": {
+      "bootstrap_95": {
+        "hi": -85047.18,
+        "lo": -95316.73
+      },
+      "max": -46341.05,
+      "mean": -90336.15,
+      "median": -90607.61,
+      "min": -115500.68,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "early_closure": {
+      "bootstrap_95": {
+        "hi": -78189.9,
+        "lo": -90913.72
+      },
+      "max": -42887.76,
+      "mean": -84627.23,
+      "median": -85949.89,
+      "min": -115722.5,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "holiday_shift": {
+      "bootstrap_95": {
+        "hi": -80825.47,
+        "lo": -92279.53
+      },
+      "max": -54465.46,
+      "mean": -86651.85,
+      "median": -91526.97,
+      "min": -117900.53,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "i70_closure": {
+      "bootstrap_95": {
+        "hi": -78093.8,
+        "lo": -89500.78
+      },
+      "max": -34176.28,
+      "mean": -84004.69,
+      "median": -87473.85,
+      "min": -104922.36,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "late_opening": {
+      "bootstrap_95": {
+        "hi": -83366.31,
+        "lo": -94571.93
+      },
+      "max": -55550.69,
+      "mean": -89007.0,
+      "median": -90141.92,
+      "min": -119978.11,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "normal": {
+      "bootstrap_95": {
+        "hi": -83931.58,
+        "lo": -94646.0
+      },
+      "max": -59698.97,
+      "mean": -89252.88,
+      "median": -88055.71,
+      "min": -116137.57,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "pandemic_collapse": {
+      "bootstrap_95": {
+        "hi": -34867.31,
+        "lo": -44938.07
+      },
+      "max": -20912.86,
+      "mean": -39873.47,
+      "median": -40063.62,
+      "min": -64120.86,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "price_war": {
+      "bootstrap_95": {
+        "hi": -69487.32,
+        "lo": -78621.1
+      },
+      "max": -52518.3,
+      "mean": -73922.08,
+      "median": -71859.07,
+      "min": -110285.66,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "recession": {
+      "bootstrap_95": {
+        "hi": -79793.0,
+        "lo": -91624.61
+      },
+      "max": -45418.8,
+      "mean": -85529.49,
+      "median": -85757.6,
+      "min": -114861.8,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "record_snow": {
+      "bootstrap_95": {
+        "hi": -74454.46,
+        "lo": -85520.87
+      },
+      "max": -42344.01,
+      "mean": -79773.61,
+      "median": -78636.2,
+      "min": -120759.55,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "regime_change": {
+      "bootstrap_95": {
+        "hi": -80468.07,
+        "lo": -91838.09
+      },
+      "max": -56238.42,
+      "mean": -86242.85,
+      "median": -85413.18,
+      "min": -123289.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "scrape_outage": {
+      "bootstrap_95": {
+        "hi": -85503.22,
+        "lo": -97370.94
+      },
+      "max": -64775.0,
+      "mean": -91442.97,
+      "median": -89590.0,
+      "min": -125845.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "stale_pms": {
+      "bootstrap_95": {
+        "hi": -81451.06,
+        "lo": -92735.32
+      },
+      "max": -59461.34,
+      "mean": -86945.82,
+      "median": -82711.46,
+      "min": -120793.04,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "supply_surge": {
+      "bootstrap_95": {
+        "hi": -78293.76,
+        "lo": -88872.99
+      },
+      "max": -46062.76,
+      "mean": -83641.23,
+      "median": -85201.65,
+      "min": -120899.22,
+      "n": 30,
+      "nonnegative": 0
+    }
+  },
+  "engine_minus_flat": {
+    "den_capacity_cut": {
+      "bootstrap_95": {
+        "hi": -87259.29,
+        "lo": -98707.08
+      },
+      "max": -54940.0,
+      "mean": -92828.75,
+      "median": -93190.0,
+      "min": -128342.45,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "drought": {
+      "bootstrap_95": {
+        "hi": -86370.07,
+        "lo": -96983.27
+      },
+      "max": -54685.0,
+      "mean": -91508.01,
+      "median": -92810.0,
+      "min": -131835.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "early_closure": {
+      "bootstrap_95": {
+        "hi": -83639.26,
+        "lo": -95621.7
+      },
+      "max": -49090.0,
+      "mean": -89379.07,
+      "median": -88845.0,
+      "min": -130030.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "holiday_shift": {
+      "bootstrap_95": {
+        "hi": -88106.4,
+        "lo": -101657.7
+      },
+      "max": -50480.0,
+      "mean": -94860.77,
+      "median": -93990.0,
+      "min": -134330.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "i70_closure": {
+      "bootstrap_95": {
+        "hi": -83489.19,
+        "lo": -95052.05
+      },
+      "max": -38806.0,
+      "mean": -89236.03,
+      "median": -91185.0,
+      "min": -125750.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "late_opening": {
+      "bootstrap_95": {
+        "hi": -88062.56,
+        "lo": -96257.88
+      },
+      "max": -64370.0,
+      "mean": -92282.17,
+      "median": -95730.0,
+      "min": -112445.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "normal": {
+      "bootstrap_95": {
+        "hi": -87708.25,
+        "lo": -98760.14
+      },
+      "max": -70790.0,
+      "mean": -93011.62,
+      "median": -90212.5,
+      "min": -130665.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "pandemic_collapse": {
+      "bootstrap_95": {
+        "hi": -12216.98,
+        "lo": -18011.58
+      },
+      "max": 550.0,
+      "mean": -15114.5,
+      "median": -14377.5,
+      "min": -36115.0,
+      "n": 30,
+      "nonnegative": 1
+    },
+    "price_war": {
+      "bootstrap_95": {
+        "hi": -84933.16,
+        "lo": -97078.82
+      },
+      "max": -55285.0,
+      "mean": -91144.0,
+      "median": -87462.5,
+      "min": -121510.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "recession": {
+      "bootstrap_95": {
+        "hi": -79220.24,
+        "lo": -91087.09
+      },
+      "max": -50785.0,
+      "mean": -85065.22,
+      "median": -85235.0,
+      "min": -126400.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "record_snow": {
+      "bootstrap_95": {
+        "hi": -82117.3,
+        "lo": -93598.28
+      },
+      "max": -54335.0,
+      "mean": -88024.33,
+      "median": -91180.0,
+      "min": -121635.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "regime_change": {
+      "bootstrap_95": {
+        "hi": -83911.12,
+        "lo": -93927.6
+      },
+      "max": -40578.38,
+      "mean": -89211.28,
+      "median": -88672.5,
+      "min": -114560.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "scrape_outage": {
+      "bootstrap_95": {
+        "hi": -85503.22,
+        "lo": -97370.94
+      },
+      "max": -64775.0,
+      "mean": -91442.97,
+      "median": -89590.0,
+      "min": -125845.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "stale_pms": {
+      "bootstrap_95": {
+        "hi": -87211.36,
+        "lo": -96090.16
+      },
+      "max": -65525.88,
+      "mean": -91658.15,
+      "median": -91460.0,
+      "min": -113640.0,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "supply_surge": {
+      "bootstrap_95": {
+        "hi": -84852.84,
+        "lo": -94854.33
+      },
+      "max": -64655.0,
+      "mean": -89748.93,
+      "median": -86445.0,
+      "min": -131965.0,
+      "n": 30,
+      "nonnegative": 0
+    }
+  },
+  "engine_minus_tool": {
+    "den_capacity_cut": {
+      "bootstrap_95": {
+        "hi": -33555.25,
+        "lo": -43783.0
+      },
+      "max": 3767.24,
+      "mean": -38759.63,
+      "median": -41117.15,
+      "min": -60676.05,
+      "n": 30,
+      "nonnegative": 1
+    },
+    "drought": {
+      "bootstrap_95": {
+        "hi": -33712.24,
+        "lo": -41515.59
+      },
+      "max": -18608.86,
+      "mean": -37855.29,
+      "median": -39325.98,
+      "min": -59768.89,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "early_closure": {
+      "bootstrap_95": {
+        "hi": -29666.28,
+        "lo": -38066.0
+      },
+      "max": -13133.49,
+      "mean": -33895.76,
+      "median": -38860.13,
+      "min": -52165.26,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "holiday_shift": {
+      "bootstrap_95": {
+        "hi": -29270.31,
+        "lo": -42676.6
+      },
+      "max": 7309.72,
+      "mean": -35906.77,
+      "median": -34654.51,
+      "min": -76859.0,
+      "n": 30,
+      "nonnegative": 1
+    },
+    "i70_closure": {
+      "bootstrap_95": {
+        "hi": -30832.83,
+        "lo": -39225.28
+      },
+      "max": -7432.21,
+      "mean": -35047.6,
+      "median": -37698.93,
+      "min": -55902.2,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "late_opening": {
+      "bootstrap_95": {
+        "hi": -33777.9,
+        "lo": -44337.27
+      },
+      "max": 1857.94,
+      "mean": -39126.98,
+      "median": -36171.81,
+      "min": -73936.73,
+      "n": 30,
+      "nonnegative": 1
+    },
+    "normal": {
+      "bootstrap_95": {
+        "hi": -33514.21,
+        "lo": -44387.51
+      },
+      "max": 40.28,
+      "mean": -39021.2,
+      "median": -40462.98,
+      "min": -71728.22,
+      "n": 30,
+      "nonnegative": 1
+    },
+    "pandemic_collapse": {
+      "bootstrap_95": {
+        "hi": -4860.56,
+        "lo": -11963.44
+      },
+      "max": 10562.62,
+      "mean": -8357.03,
+      "median": -7286.94,
+      "min": -31646.72,
+      "n": 30,
+      "nonnegative": 6
+    },
+    "price_war": {
+      "bootstrap_95": {
+        "hi": -72614.32,
+        "lo": -82562.38
+      },
+      "max": -52311.81,
+      "mean": -77471.14,
+      "median": -76953.32,
+      "min": -112870.28,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "recession": {
+      "bootstrap_95": {
+        "hi": -28474.09,
+        "lo": -36408.92
+      },
+      "max": -8962.21,
+      "mean": -32417.75,
+      "median": -33595.89,
+      "min": -65654.11,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "record_snow": {
+      "bootstrap_95": {
+        "hi": -30960.99,
+        "lo": -42919.46
+      },
+      "max": -8419.61,
+      "mean": -37175.1,
+      "median": -37183.72,
+      "min": -62950.94,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "regime_change": {
+      "bootstrap_95": {
+        "hi": -31845.37,
+        "lo": -42049.29
+      },
+      "max": -6469.14,
+      "mean": -36834.72,
+      "median": -38873.14,
+      "min": -64674.78,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "scrape_outage": {
+      "bootstrap_95": {
+        "hi": -28695.05,
+        "lo": -39795.77
+      },
+      "max": -7805.68,
+      "mean": -34227.6,
+      "median": -34632.3,
+      "min": -64669.16,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "stale_pms": {
+      "bootstrap_95": {
+        "hi": -35949.42,
+        "lo": -46637.47
+      },
+      "max": -15903.11,
+      "mean": -41303.45,
+      "median": -38014.45,
+      "min": -69086.41,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "supply_surge": {
+      "bootstrap_95": {
+        "hi": -32688.9,
+        "lo": -43098.57
+      },
+      "max": -13539.71,
+      "mean": -37830.41,
+      "median": -35573.74,
+      "min": -67721.56,
+      "n": 30,
+      "nonnegative": 0
+    }
+  },
+  "gates": {
+    "complete": true,
+    "held_out_scenarios_present": true,
+    "normal_beats_flat": false,
+    "normal_ci_excludes_loss": false,
+    "scenarios_beating_flat": 0
+  },
+  "held_out_scenarios": [
+    "den_capacity_cut",
+    "holiday_shift",
+    "pandemic_collapse",
+    "regime_change"
+  ],
+  "policies": [
+    "comp_median",
+    "engine",
+    "flat",
+    "tool"
+  ],
+  "provenance": {
+    "argv": [
+      "/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Harness for my wonderful Mother/src/cli/main.py",
+      "proving-ground",
+      "market",
+      "--scenario",
+      "all",
+      "--seeds",
+      "30",
+      "--workers",
+      "7",
+      "--grid",
+      "--retain-dbs",
+      "normal,price_war,holiday_shift",
+      "--output-dir",
+      "/Users/jacobpfeifer/wp-price-runs/market_sim/baseline_79dae5d"
+    ],
+    "completed_jobs": 1800,
+    "config": {
+      "calibration_sha256": "ea4add7941aa991d6fc4513dcab9d3c9e91b4e38978e4fe7fa01bbe6cb1287ea",
+      "engine_policy_path": "/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Harness for my wonderful Mother/config/policies/default.yaml",
+      "engine_policy_sha256": "2d3bbc93c2345c1723f21996522bce60c34456453b24ae28713d0f91f32200eb",
+      "git_commit": "79dae5d063077b2002a927095a50e0753c8ef3ec",
+      "git_dirty": false,
+      "incremental": false,
+      "max_days": null,
+      "models_enabled": [],
+      "policies": [
+        "engine",
+        "flat",
+        "comp_median",
+        "tool"
+      ],
+      "scenarios": [
+        "den_capacity_cut",
+        "drought",
+        "early_closure",
+        "holiday_shift",
+        "i70_closure",
+        "late_opening",
+        "normal",
+        "pandemic_collapse",
+        "price_war",
+        "recession",
+        "record_snow",
+        "regime_change",
+        "scrape_outage",
+        "stale_pms",
+        "supply_surge"
+      ],
+      "scenarios_sha256": "e889494c88d91ebd936f3aa293b573ea45d01c888fb33d1e80e2c37c3f978b1f",
+      "seeds": 30
+    },
+    "elapsed_seconds_this_invocation": 11306.8,
+    "expected_jobs": 1800,
+    "finished_at": "2026-10-01T01:38:36.076716+00:00",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.14 (main, Aug 12 2026, 13:57:54) [Clang 21.0.0 (clang-2100.1.1.101)]",
+    "resumed_jobs": 0,
+    "started_at": "2026-09-30T22:30:09.068095+00:00",
+    "workers": 7
+  },
+  "row_count": 1800,
+  "scenario_count": 15,
+  "seeds_from": 1
+}

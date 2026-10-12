@@ -1,0 +1,62 @@
+{
+  "argv": [
+    "/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Harness for my wonderful Mother/src/cli/main.py",
+    "proving-ground",
+    "market",
+    "--scenario",
+    "all",
+    "--seeds",
+    "30",
+    "--workers",
+    "7",
+    "--grid",
+    "--retain-dbs",
+    "normal,price_war,holiday_shift",
+    "--output-dir",
+    "/Users/jacobpfeifer/wp-price-runs/market_sim/baseline_79dae5d"
+  ],
+  "completed_jobs": 1800,
+  "config": {
+    "calibration_sha256": "ea4add7941aa991d6fc4513dcab9d3c9e91b4e38978e4fe7fa01bbe6cb1287ea",
+    "engine_policy_path": "/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Harness for my wonderful Mother/config/policies/default.yaml",
+    "engine_policy_sha256": "2d3bbc93c2345c1723f21996522bce60c34456453b24ae28713d0f91f32200eb",
+    "git_commit": "79dae5d063077b2002a927095a50e0753c8ef3ec",
+    "git_dirty": false,
+    "incremental": false,
+    "max_days": null,
+    "models_enabled": [],
+    "policies": [
+      "engine",
+      "flat",
+      "comp_median",
+      "tool"
+    ],
+    "scenarios": [
+      "den_capacity_cut",
+      "drought",
+      "early_closure",
+      "holiday_shift",
+      "i70_closure",
+      "late_opening",
+      "normal",
+      "pandemic_collapse",
+      "price_war",
+      "recession",
+      "record_snow",
+      "regime_change",
+      "scrape_outage",
+      "stale_pms",
+      "supply_surge"
+    ],
+    "scenarios_sha256": "e889494c88d91ebd936f3aa293b573ea45d01c888fb33d1e80e2c37c3f978b1f",
+    "seeds": 30
+  },
+  "elapsed_seconds_this_invocation": 11306.8,
+  "expected_jobs": 1800,
+  "finished_at": "2026-10-01T01:38:36.076716+00:00",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.12.14 (main, Aug 12 2026, 13:57:54) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "resumed_jobs": 0,
+  "started_at": "2026-09-30T22:30:09.068095+00:00",
+  "workers": 7
+}

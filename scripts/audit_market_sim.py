@@ -147,9 +147,32 @@ def audit(
     expect_seeds: int | None = None,
     expect_scenarios: int | None = None,
     seeds_from: int = 1,
+    engine_only: bool = False,
 ) -> dict[str, Any]:
     rows = [row for row in rows if int(row["seed"]) >= seeds_from]
     policies = {row["policy"] for row in rows}
+    if engine_only:
+        required = {"engine", "baseline_engine"}
+        missing = required - policies
+        if missing:
+            raise ValueError(f"engine-only scoreboard missing policies: {sorted(missing)}")
+        deltas = paired(rows, "engine", "baseline_engine")
+        expected_n = expect_seeds - seeds_from + 1 if expect_seeds is not None else None
+        complete = all(expected_n is None or len(values) == expected_n for values in deltas.values())
+        return {
+            "row_count": len(rows),
+            "policies": sorted(policies),
+            "scenario_count": len(deltas),
+            "seeds_from": seeds_from,
+            "completeness": {
+                "expected_pairs_per_scenario": expected_n,
+                "complete": complete,
+            },
+            "engine_minus_baseline_engine": {
+                name: _summary(values, name) for name, values in sorted(deltas.items())
+            },
+            "gates": {"complete": complete},
+        }
     missing = REQUIRED_POLICIES - policies
     if missing:
         raise ValueError(f"scoreboard missing policies: {sorted(missing)}")
@@ -219,6 +242,12 @@ def main() -> int:
         help="Baseline scoreboard.csv supplying flat/comp_median/tool (and baseline_engine) "
         "rows for a candidate run that only ran the engine",
     )
+    parser.add_argument(
+        "--engine-only",
+        action="store_true",
+        help="Audit a candidate engine scoreboard against a reference engine only; "
+        "skip flat/comp/tool completeness requirements.",
+    )
     args = parser.parse_args()
     rows = load_rows(args.scoreboard)
     provenance = _provenance(args.scoreboard)
@@ -234,6 +263,7 @@ def main() -> int:
         expect_seeds=args.expect_seeds,
         expect_scenarios=args.expect_scenarios,
         seeds_from=args.seeds_from,
+        engine_only=args.engine_only,
     )
     result["provenance"] = provenance
     if args.reference:

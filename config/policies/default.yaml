@@ -116,6 +116,12 @@ ceiling:
   # Applied only when comp coverage passes data_health thresholds.
   comp_blend_weight: 0.30
   comp_percentile: 0.75
+  # Property peak caps (confirmed combined candidate, 2026-10-08 market sim).
+  property_season_ceiling:
+    cloud_9:
+      peak_ski: 1035
+    overlook_ridge:
+      peak_ski: 916
 
 # --------------------------------------------------------------- booking model
 # Pooled, transparent booking-probability model. The implementation uses a
@@ -330,3 +336,13 @@ models:
     enabled: false
   portfolio_pricing:
     enabled: false
+  # Operations-aware stay length (src/ops/pricing_hook.py). Charges each
+  # candidate stay one turnover plus a readiness-risk premium and may suggest a
+  # LONGER minimum stay. Never moves price; its min-stay is never pushed.
+  ops_aware_stay:
+    enabled: false
+
+# Operations layer (docs/rules/OPERATIONS.md). The readiness gate only
+# restricts: with no recorded asset events it has no effect.
+operations:
+  readiness_gate: true
