@@ -257,7 +257,7 @@ def estimate(
     min_n = int(cfg.get("min_bucket_nights", 8))
     seasons = policy.get("seasons", {})
 
-    from src.ceiling import demand_index, demand_tier
+    from src.ceiling import demand_index, demand_tier, seasonal_base_floor
     from src.signals.features.sqi import load_conditions, sqi_enabled
 
     dowc = _dow_class(feat.day_of_week)
@@ -360,6 +360,10 @@ def estimate(
         if prices
         else max(feat.listed_price or feat.base_ceiling_rate, 1.0)
     )
+    ref_floor = seasonal_base_floor(feat, policy, "price_ref_min_ratio")
+    if price_ref < ref_floor:
+        price_ref = ref_floor
+        bucket += "(base_ref)"
 
     # Lead conditioning. The pooled rate above is "did this kind of night ever
     # sell"; a night still open N days out is a different question. Replay showed

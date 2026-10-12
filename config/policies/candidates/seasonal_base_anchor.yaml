@@ -1,0 +1,10 @@
+extends: default
+note: >
+  Candidate only. Stops the in-season self-reference spiral: the demand
+  reference price may not fall below 0.90 x base x season multiplier, and the
+  ceiling may not fall below base x season multiplier. Property peak caps
+  still apply after this floor.
+seasonal_base_anchor:
+  enabled: true
+  price_ref_min_ratio: 0.90
+  ceiling_min_ratio: 1.00

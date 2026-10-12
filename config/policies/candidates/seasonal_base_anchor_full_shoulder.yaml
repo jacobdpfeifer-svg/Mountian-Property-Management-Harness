@@ -1,0 +1,13 @@
+extends: default
+note: >
+  Candidate only. seasonal_base_anchor (reference at 1.00 x base) plus the shoulder_off_floor
+  elasticities.
+seasonal_base_anchor:
+  enabled: true
+  price_ref_min_ratio: 1.00
+  ceiling_min_ratio: 1.00
+booking_probability:
+  elasticity_by_season:
+    early_winter:    -1.10
+    shoulder_spring: -1.10
+    shoulder_fall:   -1.10

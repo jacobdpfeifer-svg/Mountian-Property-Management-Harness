@@ -297,6 +297,23 @@ def _apply_thin_anchor_guard(
     return blended, method
 
 
+def seasonal_base_floor(feat: NightFeatures, policy: dict[str, Any], key: str) -> float:
+    """Lowest value an in-season reference may take, from the configured base rate.
+
+    The ceiling (p90 of booked prices) and the demand reference (mean of past
+    prices) are both read from this season's own nights. In an elastic season
+    the RevPAN optimum sits below the reference, so each sale lowers the next
+    reference and the price walks down to the floor. ``base_ceiling_rate ×
+    season multiplier`` does not depend on the engine's own prices. Returns 0
+    unless ``seasonal_base_anchor.enabled`` is true.
+    """
+    cfg = policy.get("seasonal_base_anchor") or {}
+    if not cfg.get("enabled"):
+        return 0.0
+    ratio = float(cfg.get(key, 0.0))
+    return ratio * feat.base_ceiling_rate * feat.season_multiplier
+
+
 def _apply_property_premium(
     price: float,
     feat: NightFeatures,
@@ -555,6 +572,10 @@ def compute_ceiling(
         feat=feat,
         policy=policy,
     )
+    base_floor = seasonal_base_floor(feat, policy, "ceiling_min_ratio")
+    if blended < base_floor:
+        blended = base_floor
+        method = f"{method}+base_floor"
     blended = _apply_property_premium(blended, feat, policy, comp_price)
     blended = _apply_property_season_ceiling(blended, feat, policy)
 
