@@ -6,6 +6,7 @@ import csv
 import hashlib
 import json
 import sqlite3
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -356,6 +357,7 @@ def run_market_job(
             trace_choices=trace_choices,
         )
         cache: dict[tuple[str, date], tuple] = {}
+        guardrails: Counter[str] = Counter()
         for index, day in enumerate(nights):
             if decision_limit is not None and index >= decision_limit:
                 break
@@ -374,13 +376,20 @@ def run_market_job(
             elif policy == "premium_cap":
                 _apply_premium_cap(world, conn, day, nights)
             else:
-                _apply_engine(
+                recs = _apply_engine(
                     world, conn, day, nights,
                     incremental=incremental, cache=cache, engine_policy=engine_policy,
                     persist_recommendations=persist_recommendations,
                 )
+                guardrails.update(rec.guardrail_action or "" for rec in recs)
             world.end_day(day)
         scores = realized(conn, list(world.properties))
+        if policy == "engine":
+            # The examiner counts guardrails from persisted recommendations, which a
+            # score-only job does not write. Count the same rows here so a score-only
+            # job and a retained one report the same counts and content hash.
+            scores["guardrail_by_action"] = dict(sorted(guardrails.items()))
+            scores["guardrail_triggers"] = sum(n for action, n in guardrails.items() if action)
         hind, gap = hindsight_revenue(
             world.shoppers, cal["properties"], start, end, value_of(cal["median_nightly"])
         )
