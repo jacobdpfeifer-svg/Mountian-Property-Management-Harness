@@ -1,0 +1,327 @@
+{
+  "run_dir": "/Users/jacobpfeifer/wp-price-runs/full_sim_20261012_82f3f0a_2/market_screen_benchmarks",
+  "scenario": "normal",
+  "left": "engine",
+  "right": "flat",
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "totals": {
+    "engine": {
+      "revenue": 220500.21,
+      "booked_nights": 311.6,
+      "occupancy": 0.577,
+      "adr": 707.64
+    },
+    "flat": {
+      "revenue": 267180.0,
+      "booked_nights": 325.4,
+      "occupancy": 0.6026,
+      "adr": 821.08
+    },
+    "revenue_delta": -46679.79
+  },
+  "night_split": {
+    "both_sold": {
+      "nights": 262.8,
+      "revenue_engine": 188121.01,
+      "revenue_flat": 213420.0,
+      "revenue_delta": -25298.99
+    },
+    "neither_sold": {
+      "nights": 165.8,
+      "revenue_engine": 0.0,
+      "revenue_flat": 0.0,
+      "revenue_delta": 0.0
+    },
+    "only_engine_sold": {
+      "nights": 48.8,
+      "revenue_engine": 32379.2,
+      "revenue_flat": 0.0,
+      "revenue_delta": 32379.2
+    },
+    "only_flat_sold": {
+      "nights": 62.6,
+      "revenue_engine": 0.0,
+      "revenue_flat": 53760.0,
+      "revenue_delta": -53760.0
+    }
+  },
+  "night_split_delta_by_season": {
+    "early_winter": {
+      "both_sold": -14430.0,
+      "neither_sold": 0.0,
+      "only_engine_sold": 9049.0,
+      "only_flat_sold": -6150.0
+    },
+    "peak_ski": {
+      "both_sold": 5436.01,
+      "neither_sold": 0.0,
+      "only_engine_sold": 20454.2,
+      "only_flat_sold": -44100.0
+    },
+    "shoulder_spring": {
+      "both_sold": -16305.0,
+      "neither_sold": 0.0,
+      "only_engine_sold": 2876.0,
+      "only_flat_sold": -3510.0
+    }
+  },
+  "by": {
+    "season": {
+      "early_winter": {
+        "engine": {
+          "revenue": 35869.0,
+          "booked_nights": 75.0,
+          "occupancy": 0.5682,
+          "adr": 478.25
+        },
+        "flat": {
+          "revenue": 47400.0,
+          "booked_nights": 63.2,
+          "occupancy": 0.4788,
+          "adr": 750.0
+        },
+        "revenue_delta": -11531.0
+      },
+      "peak_ski": {
+        "engine": {
+          "revenue": 159450.21,
+          "booked_nights": 169.6,
+          "occupancy": 0.5283,
+          "adr": 940.15
+        },
+        "flat": {
+          "revenue": 177660.0,
+          "booked_nights": 197.4,
+          "occupancy": 0.615,
+          "adr": 900.0
+        },
+        "revenue_delta": -18209.79
+      },
+      "shoulder_spring": {
+        "engine": {
+          "revenue": 25181.0,
+          "booked_nights": 67.0,
+          "occupancy": 0.7701,
+          "adr": 375.84
+        },
+        "flat": {
+          "revenue": 42120.0,
+          "booked_nights": 64.8,
+          "occupancy": 0.7448,
+          "adr": 650.0
+        },
+        "revenue_delta": -16939.0
+      }
+    },
+    "property": {
+      "cloud_9": {
+        "engine": {
+          "revenue": 68746.0,
+          "booked_nights": 93.0,
+          "occupancy": 0.5167,
+          "adr": 739.2
+        },
+        "flat": {
+          "revenue": 91310.0,
+          "booked_nights": 110.6,
+          "occupancy": 0.6144,
+          "adr": 825.59
+        },
+        "revenue_delta": -22564.0
+      },
+      "overlook_ridge": {
+        "engine": {
+          "revenue": 77364.21,
+          "booked_nights": 111.2,
+          "occupancy": 0.6178,
+          "adr": 695.72
+        },
+        "flat": {
+          "revenue": 87920.0,
+          "booked_nights": 107.4,
+          "occupancy": 0.5967,
+          "adr": 818.62
+        },
+        "revenue_delta": -10555.79
+      },
+      "summit_haus": {
+        "engine": {
+          "revenue": 74390.0,
+          "booked_nights": 107.4,
+          "occupancy": 0.5967,
+          "adr": 692.64
+        },
+        "flat": {
+          "revenue": 87950.0,
+          "booked_nights": 107.4,
+          "occupancy": 0.5967,
+          "adr": 818.9
+        },
+        "revenue_delta": -13560.0
+      }
+    },
+    "lead_bucket": {
+      "0-7": {
+        "engine": {
+          "revenue": 20195.0,
+          "booked_nights": 31.2,
+          "occupancy": 1.0,
+          "adr": 647.28
+        },
+        "flat": {
+          "revenue": 17980.0,
+          "booked_nights": 22.8,
+          "occupancy": 1.0,
+          "adr": 788.6
+        },
+        "revenue_delta": 2215.0
+      },
+      "121+": {
+        "engine": {
+          "revenue": 2599.0,
+          "booked_nights": 3.8,
+          "occupancy": 1.0,
+          "adr": 683.95
+        },
+        "flat": {
+          "revenue": 2970.0,
+          "booked_nights": 3.8,
+          "occupancy": 1.0,
+          "adr": 781.58
+        },
+        "revenue_delta": -371.0
+      },
+      "22-60": {
+        "engine": {
+          "revenue": 105119.2,
+          "booked_nights": 128.8,
+          "occupancy": 1.0,
+          "adr": 816.14
+        },
+        "flat": {
+          "revenue": 126010.0,
+          "booked_nights": 147.0,
+          "occupancy": 1.0,
+          "adr": 857.21
+        },
+        "revenue_delta": -20890.8
+      },
+      "61-120": {
+        "engine": {
+          "revenue": 49056.61,
+          "booked_nights": 80.8,
+          "occupancy": 1.0,
+          "adr": 607.14
+        },
+        "flat": {
+          "revenue": 60840.0,
+          "booked_nights": 78.6,
+          "occupancy": 1.0,
+          "adr": 774.05
+        },
+        "revenue_delta": -11783.39
+      },
+      "8-21": {
+        "engine": {
+          "revenue": 43530.4,
+          "booked_nights": 67.0,
+          "occupancy": 1.0,
+          "adr": 649.71
+        },
+        "flat": {
+          "revenue": 59380.0,
+          "booked_nights": 73.2,
+          "occupancy": 1.0,
+          "adr": 811.2
+        },
+        "revenue_delta": -15849.6
+      },
+      "unsold": {
+        "engine": {
+          "revenue": 0.0,
+          "booked_nights": 0.0,
+          "occupancy": 0.0,
+          "adr": 0.0
+        },
+        "flat": {
+          "revenue": 0.0,
+          "booked_nights": 0.0,
+          "occupancy": 0.0,
+          "adr": 0.0
+        },
+        "revenue_delta": 0.0
+      }
+    }
+  },
+  "engine_recommendations_by_season": {
+    "early_winter": {
+      "recs": 8966,
+      "share_at_ceiling": 0.0,
+      "share_at_floor": 0.2011,
+      "guardrail": {
+        "clamped_decrease": 18,
+        "clamped_increase": 16,
+        "none": 8087,
+        "sanity_floor": 845
+      }
+    },
+    "peak_ski": {
+      "recs": 119702,
+      "share_at_ceiling": 0.3275,
+      "share_at_floor": 0.0,
+      "guardrail": {
+        "clamped_increase": 89,
+        "none": 109386,
+        "peak_blackout": 10227
+      }
+    },
+    "shoulder_spring": {
+      "recs": 44220,
+      "share_at_ceiling": 0.0,
+      "share_at_floor": 0.2324,
+      "guardrail": {
+        "none": 44220
+      }
+    }
+  },
+  "engine_guardrail_on_booking_day": {
+    "clamped_decrease": {
+      "nights": 0.2,
+      "revenue": 74.0,
+      "share_at_ceiling": 0.0
+    },
+    "none": {
+      "nights": 280.6,
+      "revenue": 195260.21,
+      "share_at_ceiling": 0.2644
+    },
+    "peak_blackout": {
+      "nights": 24.4,
+      "revenue": 22798.0,
+      "share_at_ceiling": 0.0902
+    },
+    "sanity_floor": {
+      "nights": 6.4,
+      "revenue": 2368.0,
+      "share_at_ceiling": 0.0
+    }
+  },
+  "scoreboard_check": {
+    "engine": {
+      "scoreboard_mean": 220500.21,
+      "database_mean": 220500.21,
+      "difference": 0.0
+    },
+    "flat": {
+      "scoreboard_mean": 267180.0,
+      "database_mean": 267180.0,
+      "difference": 0.0
+    }
+  }
+}

@@ -1,0 +1,6 @@
+--- full season normal seed 1 engine ---
+full_seconds=117.07
+incremental_seconds=105.99
+speedup=1.10x
+revenue_match=True
+hash_match=False
