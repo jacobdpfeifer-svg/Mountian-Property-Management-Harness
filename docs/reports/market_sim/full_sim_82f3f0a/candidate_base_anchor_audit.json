@@ -1,0 +1,148 @@
+{
+  "completeness": {
+    "complete": true,
+    "duplicates": [],
+    "expected_rows": 20,
+    "missing": [],
+    "missing_count": 0,
+    "scenario_count_ok": true
+  },
+  "engine_minus_baseline_engine": {
+    "normal": {
+      "bootstrap_95": {
+        "hi": 33472.35,
+        "lo": 20762.11
+      },
+      "max": 39603.27,
+      "mean": 26343.36,
+      "median": 24816.57,
+      "min": 18745.0,
+      "n": 5,
+      "nonnegative": 5
+    }
+  },
+  "engine_minus_comp_median": {
+    "normal": {
+      "bootstrap_95": {
+        "hi": 2932.37,
+        "lo": -27974.07
+      },
+      "max": 13497.45,
+      "mean": -12520.85,
+      "median": -8853.49,
+      "min": -33764.83,
+      "n": 5,
+      "nonnegative": 1
+    }
+  },
+  "engine_minus_flat": {
+    "normal": {
+      "bootstrap_95": {
+        "hi": -4043.86,
+        "lo": -36745.0
+      },
+      "max": 5588.27,
+      "mean": -20336.43,
+      "median": -18835.0,
+      "min": -48685.0,
+      "n": 5,
+      "nonnegative": 1
+    }
+  },
+  "engine_minus_tool": {
+    "normal": {
+      "bootstrap_95": {
+        "hi": 49997.84,
+        "lo": 19687.89
+      },
+      "max": 65536.54,
+      "mean": 32726.6,
+      "median": 23016.68,
+      "min": 16011.17,
+      "n": 5,
+      "nonnegative": 5
+    }
+  },
+  "gates": {
+    "complete": true,
+    "held_out_scenarios_present": false,
+    "normal_beats_flat": false,
+    "normal_ci_excludes_loss": false,
+    "scenarios_beating_baseline_engine": 1,
+    "scenarios_beating_flat": 0
+  },
+  "held_out_scenarios": [],
+  "policies": [
+    "baseline_engine",
+    "comp_median",
+    "comp_property",
+    "engine",
+    "flat",
+    "premium_cap",
+    "property_flat",
+    "tool"
+  ],
+  "provenance": {
+    "argv": [
+      "/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Harness for my wonderful Mother/src/cli/main.py",
+      "proving-ground",
+      "market",
+      "--scenario",
+      "normal",
+      "--seeds",
+      "5",
+      "--workers",
+      "7",
+      "--policy",
+      "engine",
+      "--engine-policy",
+      "config/policies/candidates/seasonal_base_anchor_full_shoulder.yaml",
+      "--retain-dbs",
+      "normal",
+      "--output-dir",
+      "/Users/jacobpfeifer/wp-price-runs/full_sim_20261012_82f3f0a/screen_seasonal_base_anchor_full_shoulder"
+    ],
+    "completed_jobs": 5,
+    "config": {
+      "calibration_file_sha256": "ea4add7941aa991d6fc4513dcab9d3c9e91b4e38978e4fe7fa01bbe6cb1287ea",
+      "calibration_sha256": "ea4add7941aa991d6fc4513dcab9d3c9e91b4e38978e4fe7fa01bbe6cb1287ea",
+      "engine_policy_effective_sha256": "3d1c0f3b8352159eeac44df2f7e5354aafde8b6ea89df34018619cac8526c8dd",
+      "engine_policy_path": "config/policies/candidates/seasonal_base_anchor_full_shoulder.yaml",
+      "engine_policy_sha256": "d442c5e08fe6689ef0b3354c718a22b309d459d80034c7003363c4230f2486c1",
+      "git_commit": "82f3f0adfa3a86c4e92876a2fd0bc055cee3d684",
+      "git_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_dirty": false,
+      "git_dirty_tracked": false,
+      "git_status": "",
+      "git_untracked": [],
+      "incremental": false,
+      "max_days": null,
+      "models_enabled": [],
+      "policies": [
+        "engine"
+      ],
+      "retained_scenarios": [
+        "normal"
+      ],
+      "scenarios": [
+        "normal"
+      ],
+      "scenarios_sha256": "b127185ff8031b7f57c8d1a7ca37485af71b175618bc117332d639fad2adadaa",
+      "seeds": 5,
+      "sensitivity_label": null,
+      "sensitivity_sha256": null
+    },
+    "elapsed_seconds_this_invocation": 119.3,
+    "expected_jobs": 5,
+    "finished_at": "2026-10-12T22:58:12.045237+00:00",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.14 (main, Aug 12 2026, 13:57:54) [Clang 21.0.0 (clang-2100.1.1.101)]",
+    "resumed_jobs": 0,
+    "started_at": "2026-10-12T22:56:12.680978+00:00",
+    "workers": 7
+  },
+  "reference": "/Users/jacobpfeifer/wp-price-runs/full_sim_20261012_82f3f0a/market_screen_benchmarks/scoreboard.csv",
+  "row_count": 40,
+  "scenario_count": 1,
+  "seeds_from": 1
+}

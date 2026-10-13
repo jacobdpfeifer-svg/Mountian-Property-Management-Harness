@@ -42,7 +42,7 @@ Orchestration script: `~/wp-price-runs/market_sim/combined_confirmation_79dae5d/
 | pandemic_collapse | yes | +$8,331 | +$5,484 to +$11,581 | 21/25 |
 | price_war | | +$46,779 | +$42,351 to +$52,011 | 25/25 |
 
-Portfolio-level paired deltas (same seeds): **RevPAN** +$89.7, **occupancy** +0.103, **occupancy_peak** +0.174 on `normal`; guardrail trigger count unchanged vs default.
+Portfolio-level paired deltas (same seeds): **RevPAN** +$89.7, **occupancy** +0.103, **occupancy_peak** +0.174 on `normal`; guardrail trigger count unchanged vs default. *Correction (2026-10-12): that delta is not evidence. Score-only jobs did not persist recommendations, so both arms reported zero guardrails. The retained `normal` diagnostics (seeds 1–6) show a mean of 2,596 (default) vs 2,243 (combined) per season. See [`FULL_SIMULATION_2026-10-12.md`](../FULL_SIMULATION_2026-10-12.md#code-fixes).*
 
 Full paired JSON: `~/wp-price-runs/market_sim/combined_confirmation_79dae5d/combined_*_paired_seeds_6_30.json`.
 

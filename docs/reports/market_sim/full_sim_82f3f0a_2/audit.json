@@ -1,0 +1,143 @@
+{
+  "completeness": {
+    "complete": true,
+    "duplicates": [],
+    "expected_rows": 20,
+    "missing": [],
+    "missing_count": 0,
+    "scenario_count_ok": true
+  },
+  "engine_minus_comp_median": {
+    "normal": {
+      "bootstrap_95": {
+        "hi": -28395.55,
+        "lo": -49332.86
+      },
+      "max": -26105.82,
+      "mean": -38864.21,
+      "median": -36653.45,
+      "min": -54516.83,
+      "n": 5,
+      "nonnegative": 0
+    }
+  },
+  "engine_minus_flat": {
+    "normal": {
+      "bootstrap_95": {
+        "hi": -35371.79,
+        "lo": -58105.4
+      },
+      "max": -31097.0,
+      "mean": -46679.79,
+      "median": -46634.96,
+      "min": -67430.0,
+      "n": 5,
+      "nonnegative": 0
+    }
+  },
+  "engine_minus_tool": {
+    "normal": {
+      "bootstrap_95": {
+        "hi": 18924.67,
+        "lo": -4424.43
+      },
+      "max": 25933.27,
+      "mean": 6383.24,
+      "median": -1799.89,
+      "min": -6099.75,
+      "n": 5,
+      "nonnegative": 2
+    }
+  },
+  "gates": {
+    "complete": true,
+    "held_out_scenarios_present": false,
+    "normal_beats_flat": false,
+    "normal_ci_excludes_loss": false,
+    "scenarios_beating_flat": 0
+  },
+  "held_out_scenarios": [],
+  "policies": [
+    "comp_median",
+    "comp_property",
+    "engine",
+    "flat",
+    "premium_cap",
+    "property_flat",
+    "tool"
+  ],
+  "provenance": {
+    "argv": [
+      "/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Harness for my wonderful Mother/src/cli/main.py",
+      "proving-ground",
+      "market",
+      "--scenario",
+      "normal",
+      "--seeds",
+      "5",
+      "--workers",
+      "7",
+      "--grid",
+      "--diagnostics",
+      "--retain-dbs",
+      "normal",
+      "--output-dir",
+      "/Users/jacobpfeifer/wp-price-runs/full_sim_20261012_82f3f0a_2/market_screen_benchmarks"
+    ],
+    "completed_jobs": 35,
+    "config": {
+      "calibration_file_sha256": "ea4add7941aa991d6fc4513dcab9d3c9e91b4e38978e4fe7fa01bbe6cb1287ea",
+      "calibration_sha256": "ea4add7941aa991d6fc4513dcab9d3c9e91b4e38978e4fe7fa01bbe6cb1287ea",
+      "engine_policy_effective_sha256": "c404c496ea0b40ec525ee9ea543d895f40a94f2bfbeaeda9abc3aef4e55ec232",
+      "engine_policy_path": "/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Harness for my wonderful Mother/config/policies/default.yaml",
+      "engine_policy_sha256": "6f9a9d05fa1f9b475f37dc6a691a19f251fa4c1e38357cc503b27d99dbb97700",
+      "git_commit": "82f3f0adfa3a86c4e92876a2fd0bc055cee3d684",
+      "git_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_dirty": true,
+      "git_dirty_tracked": false,
+      "git_status": "?? docs/reports/FULL_SIMULATION_2026-10-12.md\n?? docs/reports/market_sim/full_sim_82f3f0a/",
+      "git_untracked": [
+        "docs/reports/FULL_SIMULATION_2026-10-12.md",
+        "docs/reports/market_sim/full_sim_82f3f0a/audit.json",
+        "docs/reports/market_sim/full_sim_82f3f0a/candidate_base_anchor_audit.json",
+        "docs/reports/market_sim/full_sim_82f3f0a/decomp_normal_vs_flat.json",
+        "docs/reports/market_sim/full_sim_82f3f0a/decomp_normal_vs_flat.md",
+        "docs/reports/market_sim/full_sim_82f3f0a/property.md",
+        "docs/reports/market_sim/full_sim_82f3f0a/scoreboard.csv"
+      ],
+      "incremental": false,
+      "max_days": null,
+      "models_enabled": [],
+      "policies": [
+        "engine",
+        "flat",
+        "comp_median",
+        "tool",
+        "property_flat",
+        "comp_property",
+        "premium_cap"
+      ],
+      "retained_scenarios": [
+        "normal"
+      ],
+      "scenarios": [
+        "normal"
+      ],
+      "scenarios_sha256": "b127185ff8031b7f57c8d1a7ca37485af71b175618bc117332d639fad2adadaa",
+      "seeds": 5,
+      "sensitivity_label": null,
+      "sensitivity_sha256": null
+    },
+    "elapsed_seconds_this_invocation": 157.3,
+    "expected_jobs": 35,
+    "finished_at": "2026-10-12T23:55:40.968165+00:00",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.14 (main, Aug 12 2026, 13:57:54) [Clang 21.0.0 (clang-2100.1.1.101)]",
+    "resumed_jobs": 0,
+    "started_at": "2026-10-12T23:53:03.656466+00:00",
+    "workers": 7
+  },
+  "row_count": 35,
+  "scenario_count": 1,
+  "seeds_from": 1
+}
