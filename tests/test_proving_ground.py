@@ -70,6 +70,26 @@ def test_proving_ground_writes_manifest_scoreboard_and_queue(tmp_path: Path):
     assert "What is still fake or stubbed" in artifacts.report_path.read_text(encoding="utf-8")
 
 
+def test_proving_ground_report_does_not_print_unscored_brier_or_hide_twin_baselines():
+    from src.proving_ground.runner import _format_report
+
+    def score(policy_id: str, revenue: float) -> dict:
+        return {"policy_id": policy_id, "revenue": revenue, "regret_vs_oracle": 0.1,
+                "brier": 0.0 if policy_id != "engine" else 0.19, "worst10_loss": 1.0}
+
+    run = {
+        "level": 1, "content_hash": "h", "engine_path": "generate_recommendations",
+        "world": "W1_calm", "evidence_label": "internal_only", "passed": False, "gates": [],
+        "scores": [score("engine", 44.0), score("flat_seasonal", 68.0),
+                   score("comp_median_follower", 68.0), score("moat_off", 50.0)],
+    }
+    report = _format_report(run)
+    assert "| engine | 44.00 | 0.1000 | 0.1900 |" in report
+    assert "| flat_seasonal | 68.00 | 0.1000 | n/a |" in report
+    assert "`comp_median_follower` scored exactly like `flat_seasonal`" in report
+    assert "`moat_off` scored exactly like" not in report
+
+
 def test_proving_ground_cli_decision_step_defaults_weekly():
     """Weekly cadence stays the default; daily is opt-in via --decision-step."""
     from src.cli.main import build_parser

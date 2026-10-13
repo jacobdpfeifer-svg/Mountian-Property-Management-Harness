@@ -494,9 +494,24 @@ def _format_report(run: dict[str, Any]) -> str:
         f"| {g['name']} | {g['observed']} | {g['threshold']} | {'PASS' if g['passed'] else 'FAIL'} |"
         for g in run["gates"]
     ]
+    # Only the engine forecasts a booking probability. The stored 0.0 for the
+    # others means "not scored", and printing it reads as perfect calibration.
     score_lines = [
-        "| {policy_id} | {revenue:.2f} | {regret_vs_oracle:.4f} | {brier:.4f} | {worst10_loss:.2f} |".format(**s)
+        "| {policy_id} | {revenue:.2f} | {regret_vs_oracle:.4f} | {brier} | {worst10_loss:.2f} |".format(
+            **{**s, "brier": f"{s['brier']:.4f}" if s["policy_id"] == "engine" else "n/a"}
+        )
         for s in run["scores"]
+    ]
+    by_id = {s["policy_id"]: s for s in run["scores"]}
+    duplicates = [
+        f"- `{name}` scored exactly like `{twin}` in this world, so it is not an independent baseline"
+        f" ({why})"
+        for name, twin, why in (
+            ("comp_median_follower", "flat_seasonal",
+             "a night with no comp snapshots falls back to the flat price"),
+            ("moat_off", "engine", "turning SQI off changed no price"),
+        )
+        if name in by_id and twin in by_id and by_id[name]["revenue"] == by_id[twin]["revenue"]
     ]
     return "\n".join([
         f"# Proving Ground Phase 0 Audit — L{run['level']}",
@@ -524,6 +539,7 @@ def _format_report(run: dict[str, Any]) -> str:
         "- Level 2 NRCS/NOAA as-issued vintages (fixture labels only)",
         "- Humility false-alarm rate (not yet measured from engine uncertainty)",
         "- Independent auditor session",
+        *duplicates,
         "",
     ]) + "\n"
 

@@ -204,6 +204,29 @@ def test_incremental_reprice_matches_full_recommendation_fields(tmp_path: Path):
     assert _rec_digest(full) == _rec_digest(inc)
 
 
+def test_score_only_engine_job_reports_the_retained_guardrail_counts(tmp_path: Path):
+    # Paired confirmations run score-only. Their guardrail deltas were all zero
+    # because the counts were read from recommendations that were never written.
+    retained = run_market_job("normal", 1, "engine", db_path=tmp_path / "kept.db", max_days=40)
+    score_only = run_market_job(
+        "normal", 1, "engine", db_path=tmp_path / "score.db", max_days=40,
+        persist_recommendations=False, trace_choices=False,
+    )
+    assert retained.scores["guardrail_triggers"] > 0
+    assert score_only.scores["guardrail_by_action"] == retained.scores["guardrail_by_action"]
+    assert score_only.scores["guardrail_triggers"] == retained.scores["guardrail_triggers"]
+    assert score_only.content_hash == retained.content_hash
+    conn = connect(tmp_path / "kept.db")
+    try:
+        persisted = conn.execute(
+            "SELECT COUNT(*) FROM price_recommendations "
+            "WHERE guardrail_action IS NOT NULL AND guardrail_action != ''"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert retained.scores["guardrail_triggers"] == persisted
+
+
 def test_market_pool_can_retain_job_databases_for_audit(tmp_path: Path):
     output = tmp_path / "retained"
     run_pool("normal", 1, "flat", workers=1, output_dir=output, max_days=2, retain_dbs=True)
