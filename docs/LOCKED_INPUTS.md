@@ -25,9 +25,9 @@ health, not a configured setting.** See `docs/rules/AUTONOMY.md`.
 
 | Property | Guesty listing id | Address | Config |
 |---|---|---|---|
-| Summit Haus | `69f3fce1fd7011001188056e` | 312 N Woods Pl, Winter Park | 5bd / 5.5ba / sleeps 16 |
-| Overlook Ridge | `69f14a198a424c00146db9d8` | 300 N Woods Pl, Winter Park | 5bd / 5.5ba / sleeps 16 |
-| Cloud 9 | `6a8e355230f5b5007c81df4b` | 1615 Pioneer Trail, Winter Park | 6bd / 4ba / sleeps 18 |
+| Summit Haus | `(local: config/local/listings.yaml)` | (address kept locally) | 5bd / 5.5ba / sleeps 16 |
+| Overlook Ridge | `(local: config/local/listings.yaml)` | (address kept locally) | 5bd / 5.5ba / sleeps 16 |
+| Cloud 9 | `(local: config/local/listings.yaml)` | (address kept locally) | 6bd / 4ba / sleeps 18 |
 
 Three active listings, not four. Summit Haus and Overlook Ridge are next-door twins on
 N Woods Pl and are priced in lockstep.

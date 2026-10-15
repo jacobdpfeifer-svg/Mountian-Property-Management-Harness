@@ -43,7 +43,6 @@ properties:
     # Operator-confirmed 2026-09-20: keep shared, do not split.
     market_id: grand_home
     town: Fraser
-    mailing_address: 1615 Pioneer Trail, Winter Park, CO 80482
     display_name: Cloud 9
     # Physically in Fraser (see above). TODO(operator-confirm) before relying on it.
     jurisdiction: fraser

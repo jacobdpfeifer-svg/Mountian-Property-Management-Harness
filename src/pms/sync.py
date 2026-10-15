@@ -153,6 +153,15 @@ def recalibrate_bounds(conn: sqlite3.Connection, report: SyncReport,
 def sync_listings(conn: sqlite3.Connection, client: GuestyClient,
                   report: SyncReport,
                   property_ids: list[str] | None = None) -> list[GuestyListing]:
+    # A home synced before keeps its property_id even if its nickname changes.
+    from src.pms.guesty import register_listing_ids
+
+    register_listing_ids({
+        str(row["pms_listing_id"]): str(row["property_id"])
+        for row in conn.execute(
+            "SELECT pms_listing_id, property_id FROM properties WHERE pms_listing_id IS NOT NULL"
+        )
+    })
     listings = client.listings()
     if property_ids:
         wanted = set(property_ids)

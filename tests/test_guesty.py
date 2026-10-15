@@ -34,6 +34,21 @@ from src.pms.sync import (
 )
 
 
+# Fake listing ids: the real ones live in the gitignored config/local/listings.yaml.
+FAKE_LOCKED = {
+    "lockedsummithaus0000000a": "summit_haus",
+    "lockedoverlookridge0000b": "overlook_ridge",
+    "lockedcloud9chalet00000c": "cloud_9",
+}
+
+
+@pytest.fixture(autouse=True)
+def _fake_locked_listings(monkeypatch):
+    import src.pms.guesty as guesty
+
+    monkeypatch.setattr(guesty, "LOCKED_LISTING_PROPERTY_IDS", dict(FAKE_LOCKED))
+
+
 def _listing(**kw) -> GuestyListing:
     base = dict(listing_id="abc123", nickname="Test Haus", title="t", bedrooms=5,
                 bathrooms=5.5, accommodates=16, base_price=420.0,
@@ -66,7 +81,7 @@ def test_property_id_is_a_stable_slug():
     assert _listing(nickname="Café / Lodge!").property_id == "cafe_lodge"
     assert _listing(nickname="   ").property_id == "abc123"  # falls back to listing id
     assert _listing(
-        listing_id="6a8e355230f5b5007c81df4b", nickname="Cloud 9 Chalet"
+        listing_id="lockedcloud9chalet00000c", nickname="Cloud 9 Chalet"
     ).property_id == "cloud_9"
 
 
@@ -545,7 +560,7 @@ def test_sync_listings_warns_when_no_weekend_differential(db: Path):
 def test_sync_keeps_extra_listing_out_of_default_scope(tmp_path: Path):
     path = tmp_path / "sync-scope.db"
     init_db(path)
-    locked = _listing(listing_id="69f3fce1fd7011001188056e", nickname="Summit Haus")
+    locked = _listing(listing_id="lockedsummithaus0000000a", nickname="Summit Haus")
     extra = _listing(listing_id="zzzzzzzzzzzzzzzzzzzzzzzz", nickname="Creekside Haven")
     client = _FakeGuestyClient([locked, extra], {}, [])
     with connect(path) as conn:
@@ -566,7 +581,7 @@ def test_sync_keeps_extra_listing_out_of_default_scope(tmp_path: Path):
 def test_sync_property_filter_skips_extra_listing(tmp_path: Path):
     path = tmp_path / "sync-filter.db"
     init_db(path)
-    locked = _listing(listing_id="69f3fce1fd7011001188056e", nickname="Summit Haus")
+    locked = _listing(listing_id="lockedsummithaus0000000a", nickname="Summit Haus")
     extra = _listing(listing_id="zzzzzzzzzzzzzzzzzzzzzzzz", nickname="Creekside Haven")
     client = _FakeGuestyClient([locked, extra], {}, [])
     with connect(path) as conn:
@@ -743,3 +758,24 @@ def test_sync_reservations_keeps_cleaning_fee_and_host_payout(db: Path):
     assert row["fare_cleaning"] == pytest.approx(450.0)
     assert row["host_payout"] == pytest.approx(1720.5)
     assert row["channel_commission"] == pytest.approx(237.5)
+
+
+def test_a_synced_home_keeps_its_id_when_the_local_listing_file_is_missing(tmp_path: Path, monkeypatch):
+    """The properties table remembers each listing id, so a renamed listing
+    cannot fork a second property even without config/local/listings.yaml."""
+    import src.pms.guesty as guesty
+    from src.pms.sync import sync_listings, SyncReport
+
+    monkeypatch.setattr(guesty, "LOCKED_LISTING_PROPERTY_IDS", {})
+    path = tmp_path / "known.db"
+    init_db(path)
+    with connect(path) as conn:
+        conn.execute(
+            "INSERT INTO properties (property_id, name, bedrooms, bathrooms, base_ceiling_rate, "
+            "min_floor_rate, max_ceiling_rate, pms_listing_id) VALUES ('cloud_9', 'Cloud 9', 6, 4.5, "
+            "1041, 440, 5571, 'renamedlisting000000000z')"
+        )
+        renamed = _listing(listing_id="renamedlisting000000000z", nickname="Cloud 9 Chalet Deluxe")
+        sync_listings(conn, _FakeGuestyClient([renamed], {}, []), SyncReport())
+        ids = {r["property_id"] for r in conn.execute("SELECT property_id FROM properties")}
+    assert ids == {"cloud_9"}
