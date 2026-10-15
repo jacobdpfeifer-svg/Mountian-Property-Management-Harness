@@ -1,0 +1,3 @@
+# Copy to config/local/aliases.yaml (gitignored). Street addresses stay local.
+aliases:
+  cloud_9: ["<street address>"]

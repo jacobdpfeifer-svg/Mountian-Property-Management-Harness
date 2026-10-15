@@ -31,3 +31,10 @@ docs/reports/**/*.db
 docs/reports/**/*.db-wal
 docs/reports/**/*.db-shm
 .hypothesis/
+
+# Business-confidential, never in the public repo (2026-10-15):
+# Cloud 9's real calendar/prices/evaluation, real Guesty listing ids and addresses.
+data/cloud9/
+data/dec2023/
+config/local/*
+!config/local/*.example.yaml

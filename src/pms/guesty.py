@@ -44,13 +44,34 @@ def load_dotenv(path: Path | str | None = None) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
-# Listing ids confirmed in docs/LOCKED_INPUTS.md. Nickname changes must not
-# fork a second property_id (Cloud 9 → "Cloud 9 Chalet" would otherwise).
-LOCKED_LISTING_PROPERTY_IDS: dict[str, str] = {
-    "69f3fce1fd7011001188056e": "summit_haus",
-    "69f14a198a424c00146db9d8": "overlook_ridge",
-    "6a8e355230f5b5007c81df4b": "cloud_9",
-}
+# Listing id -> property_id for the managed homes. Nickname changes must not fork
+# a second property_id (Cloud 9 -> "Cloud 9 Chalet" would otherwise). The real ids
+# are not in the public repo: they come from the gitignored
+# config/local/listings.yaml (see listings.example.yaml) and, on every sync, from
+# the properties table, which already records each home's pms_listing_id.
+LISTINGS_PATH = Path(
+    os.environ.get("WP_PRICE_LISTINGS")
+    or Path(__file__).resolve().parents[2] / "config" / "local" / "listings.yaml"
+)
+
+
+def _load_locked_listings(path: Path = LISTINGS_PATH) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    import yaml
+
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {str(k): str(v) for k, v in (data.get("listing_property_ids") or {}).items()}
+
+
+LOCKED_LISTING_PROPERTY_IDS: dict[str, str] = _load_locked_listings()
+
+
+def register_listing_ids(mapping: dict[str, str]) -> None:
+    """Add listing ids already known elsewhere (the properties table) to the lock."""
+    for listing_id, property_id in mapping.items():
+        if listing_id and property_id:
+            LOCKED_LISTING_PROPERTY_IDS.setdefault(str(listing_id), str(property_id))
 
 
 @dataclass

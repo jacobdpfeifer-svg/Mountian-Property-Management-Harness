@@ -16,9 +16,9 @@ filter, not a one-time hand-built catalog.
 |-------|-------|
 | Property ID | `cloud_9` |
 | Name | Cloud 9 Chalet |
-| Address | 1615 Pioneer Trail, Winter Park, CO 80482 (Guesty mailing city) |
+| Address | (address kept locally) (Guesty mailing city) |
 | Town (operator-confirmed) | Fraser, CO — adjacent to Winter Park; same `grand_home` market |
-| Guesty listing ID | `6a8e355230f5b5007c81df4b` |
+| Guesty listing ID | `(local: config/local/listings.yaml)` |
 | Bedrooms / baths | 6 bed / 4–4.5 ba |
 | Sleeps | 18 |
 | Luxury tier | luxury |

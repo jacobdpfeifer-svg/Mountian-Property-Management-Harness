@@ -23,8 +23,22 @@ OPS_POLICY_PATH = ROOT / "config" / "policies" / "operations.yaml"
 _PROFILE_FIELDS = {f.name for f in fields(OpsProfile)} - {"property_id", "version"}
 
 
+LOCAL_ALIASES_PATH = Path(__file__).resolve().parents[2] / "config" / "local" / "aliases.yaml"
+
+
 def load_ops_config(path: Path | None = None) -> dict[str, Any]:
-    return load_yaml(path or OPS_CONFIG_PATH)
+    """The ops config, plus street-address aliases from the gitignored local file.
+
+    Addresses stay out of the public repo; vendor exports (Turno, Breezeway) often
+    name a home by its address, so the resolver still needs them locally.
+    """
+    cfg = load_yaml(path or OPS_CONFIG_PATH)
+    if path is None and LOCAL_ALIASES_PATH.exists():
+        local = load_yaml(LOCAL_ALIASES_PATH).get("aliases") or {}
+        aliases = cfg.setdefault("aliases", {})
+        for pid, names in local.items():
+            aliases[pid] = [*(aliases.get(pid) or []), *(names or [])]
+    return cfg
 
 
 def load_ops_policy(path: Path | None = None) -> dict[str, Any]:

@@ -54,7 +54,9 @@ properties:
 aliases:
   summit_haus: ["312 Northwoods", "312 Northwoods Dr", "Summit Haus"]
   overlook_ridge: ["300 Northwoods", "300 Northwoods Dr", "Overlook Ridge"]
-  cloud_9: ["Cloud 9", "Cloud Nine", "1615 Pioneer Trail"]
+  cloud_9: ["Cloud 9", "Cloud Nine"]
+# Street-address aliases are kept out of this public file: put them in the
+# gitignored config/local/aliases.yaml (same shape: aliases: {property_id: [...]})
 
 # Crew roster -> daily available worker-minutes per access zone. The manual
 # capacity source turns this into operations_capacity_snapshots. Imported

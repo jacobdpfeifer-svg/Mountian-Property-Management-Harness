@@ -1,0 +1,7 @@
+# Copy to config/local/listings.yaml (gitignored) and fill in the real Guesty
+# listing ids. Real ids never go in the public repo. After the first sync the
+# properties table also remembers each home's listing id.
+listing_property_ids:
+  "<guesty-listing-id-1>": summit_haus
+  "<guesty-listing-id-2>": overlook_ridge
+  "<guesty-listing-id-3>": cloud_9
