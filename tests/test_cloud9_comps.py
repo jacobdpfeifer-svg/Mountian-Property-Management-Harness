@@ -11,9 +11,18 @@ from src.ingest import CsvIngestAdapter
 from src.scrape import run_scrape
 from src.scrape.providers import FixtureProvider
 
-ROOT = Path(__file__).resolve().parents[1]
-CLOUD9_COMPS = ROOT / "data" / "cloud9" / "comps.csv"
 START = date(2026, 12, 18)
+
+# The curated Cloud 9 comp set (data/cloud9/comps.csv) is kept out of the public
+# repo. This test only needs its shape: two Airbnb comps matched by room id and
+# one direct-book comp that must stay in the set without scrape prices.
+COMPS_CSV = (
+    "comp_id,name,bedrooms,bathrooms,sleeps,amenities,notes,source_url,airbnb_room_id,"
+    "platform,for_properties,active,as_of,stay_date,listed_price,available,source\n"
+    "comp_ranch_creek,Ranch Creek,5,4.0,18,hot tub,,,897819634480326640,airbnb,cloud_9,1,,,,,\n"
+    "comp_family_friendly,Family Friendly,6,4.0,16,hot tub,,,28918989,airbnb,cloud_9,1,,,,,\n"
+    "comp_deer,Deer,7,5.5,16,hot tub,,,,direct,cloud_9,1,,,,,\n"
+)
 
 
 def test_cloud9_shares_grand_home_market_with_twins():
@@ -30,6 +39,8 @@ def test_cloud9_shares_grand_home_market_with_twins():
 def test_cloud9_airbnb_comps_refresh_on_same_scrape_path(tmp_path: Path):
     path = tmp_path / "c9.db"
     init_db(path)
+    comps_csv = tmp_path / "comps.csv"
+    comps_csv.write_text(COMPS_CSV, encoding="utf-8")
     fixture = tmp_path / "sweep.json"
     fixture.write_text(
         '{"sweeps": {"2026-12-18": ['
@@ -46,7 +57,7 @@ def test_cloud9_airbnb_comps_refresh_on_same_scrape_path(tmp_path: Path):
                base_ceiling_rate, min_floor_rate, max_ceiling_rate, timezone, owner_id, market_id)
                VALUES ('cloud_9','Cloud 9',6,4.5,'[]',1100,400,2000,'America/Denver','cloud9','grand_home')"""
         )
-        CsvIngestAdapter(comps_csv=CLOUD9_COMPS).load_all(conn)
+        CsvIngestAdapter(comps_csv=comps_csv).load_all(conn)
         members = {
             r["comp_id"]
             for r in conn.execute(
