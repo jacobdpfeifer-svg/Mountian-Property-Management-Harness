@@ -17,6 +17,7 @@ from __future__ import annotations
 import html
 import json
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
@@ -363,7 +364,7 @@ def write_owner_receipt(db_path: Path | str, owner_id: str, month: str, *,
                         output: Path | None = None, allow_placeholder_names: bool = False) -> Path:
     from src.memory.paths import assert_private_root, ensure_layout
 
-    with connect(db_path) as conn:
+    with closing(connect(db_path)) as conn, conn:
         om = load_owner_month(conn, owner_id, month, allow_placeholder_names=allow_placeholder_names)
     doc = render(om)
     if output is None:

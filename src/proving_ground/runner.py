@@ -41,7 +41,9 @@ class PolicyScore:
     policy_id: str
     revenue: float
     regret_vs_oracle: float
-    brier: float
+    # None for policies that do not forecast a booking probability. 0.0 would
+    # read as perfect calibration in the CSV and manifest.
+    brier: float | None
     worst10_loss: float
 
 
@@ -52,6 +54,9 @@ class Gate:
     threshold: float | str
     passed: bool
     measured_by: str = ""
+    # False for a gate the runner cannot measure yet. It reports NOT MEASURED
+    # and never counts as a pass: a run with an unmeasured gate cannot PASS.
+    measured: bool = True
 
 
 @dataclass(frozen=True)
@@ -325,7 +330,7 @@ def _score_all_policies(
             (max(o.revpan - n.revpan, 0.0) for o, n in zip(oracle_nights, nights)),
             reverse=True,
         )
-        brier = 0.0
+        brier: float | None = None
         if prob_map:
             truth = [
                 booking_probability(
@@ -340,7 +345,7 @@ def _score_all_policies(
             policy_id=policy_id,
             revenue=round(revenue, 4),
             regret_vs_oracle=round(max(oracle_revenue - revenue, 0.0) / oracle_revenue, 6),
-            brier=round(brier, 6),
+            brier=round(brier, 6) if brier is not None else None,
             worst10_loss=round(sum(losses[:10]), 4),
         )
 
@@ -353,7 +358,7 @@ def _score_all_policies(
             policy_id="oracle",
             revenue=round(oracle_revenue, 4),
             regret_vs_oracle=0.0,
-            brier=0.0,
+            brier=None,
             worst10_loss=0.0,
         ),
     ]
@@ -383,11 +388,13 @@ def _evaluate_level_gates(
         for d in stay_dates
     ]
     flat_base_brier = _brier([_mean(world_probs)] * len(world_probs), world_probs)
-    brier_improvement = 1 - (engine.brier / flat_base_brier) if flat_base_brier and engine.brier else 1.0
+    # No engine forecast means calibration was not measured, not that it was perfect.
+    brier_improvement: float | None = None
+    if engine.brier is not None and flat_base_brier:
+        brier_improvement = 1 - (engine.brier / flat_base_brier)
 
     best_baseline_revenue = max(b.revenue for b in baselines)
     best_baseline_worst10 = min(b.worst10_loss for b in baselines) or 1.0
-    false_alarm_rate = 0.0
 
     return [
         Gate(
@@ -406,12 +413,16 @@ def _evaluate_level_gates(
         ),
         Gate(
             "p_book_calibration_brier_improvement",
-            round(brier_improvement, 6),
+            round(brier_improvement, 6) if brier_improvement is not None else "not_measured",
             threshold.brier_improvement_min
             if threshold.brier_improvement_min is not None
             else "n/a",
-            threshold.brier_improvement_min is None or brier_improvement >= threshold.brier_improvement_min,
+            brier_improvement is not None and (
+                threshold.brier_improvement_min is None
+                or brier_improvement >= threshold.brier_improvement_min
+            ),
             "src.proving_ground.runner._evaluate_level_gates",
+            measured=brier_improvement is not None,
         ),
         Gate(
             "worst10_tail_loss",
@@ -420,15 +431,17 @@ def _evaluate_level_gates(
             engine.worst10_loss <= best_baseline_worst10 * threshold.worst10_loss_multiplier_max,
             "src.proving_ground.runner._evaluate_level_gates",
         ),
+        # Not measured from engine uncertainty yet. Reporting 0.0 as a PASS made
+        # a stub look like evidence (2026-10-14 audit).
         Gate(
             "humility_false_alarm_rate",
-            round(false_alarm_rate, 6),
+            "not_measured",
             threshold.humility_false_alarm_max
             if threshold.humility_false_alarm_max is not None
             else "n/a",
-            threshold.humility_false_alarm_max is None
-            or false_alarm_rate <= threshold.humility_false_alarm_max,
-            "src.proving_ground.runner._evaluate_level_gates",
+            False,
+            "not yet measured from engine uncertainty",
+            measured=False,
         ),
         Gate(
             "oracle_reference_revenue",
@@ -489,16 +502,27 @@ def _write_scoreboard(path: Path, scores: list[dict[str, Any]]) -> None:
         writer.writerows(scores)
 
 
+def _forecasts(score: dict[str, Any]) -> bool:
+    # Older manifests stored 0.0 for policies that make no forecast.
+    return score["policy_id"] == "engine" and score.get("brier") is not None
+
+
+def _gate_result(gate: dict[str, Any]) -> str:
+    if not gate.get("measured", True):
+        return "NOT MEASURED"
+    return "PASS" if gate["passed"] else "FAIL"
+
+
 def _format_report(run: dict[str, Any]) -> str:
     gate_lines = [
-        f"| {g['name']} | {g['observed']} | {g['threshold']} | {'PASS' if g['passed'] else 'FAIL'} |"
+        f"| {g['name']} | {g['observed']} | {g['threshold']} | {_gate_result(g)} |"
         for g in run["gates"]
     ]
     # Only the engine forecasts a booking probability. The stored 0.0 for the
     # others means "not scored", and printing it reads as perfect calibration.
     score_lines = [
         "| {policy_id} | {revenue:.2f} | {regret_vs_oracle:.4f} | {brier} | {worst10_loss:.2f} |".format(
-            **{**s, "brier": f"{s['brier']:.4f}" if s["policy_id"] == "engine" else "n/a"}
+            **{**s, "brier": f"{s['brier']:.4f}" if _forecasts(s) else "n/a"}
         )
         for s in run["scores"]
     ]

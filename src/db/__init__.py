@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -459,7 +460,9 @@ def resolve_property_ids(
 def init_db(db_path: Path | str | None = None, *, seed_markets: bool = True) -> Path:
     path = Path(db_path) if db_path else DEFAULT_DB_PATH
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
-    with connect(path) as conn:
+    # ``with conn`` only commits; closing() releases the file. A connection left
+    # open here kept a lock on every fresh database (2026-10-14).
+    with closing(connect(path)) as conn, conn:
         conn.executescript(schema)
         _ensure_columns(conn)
         _ensure_reservations_table(conn)

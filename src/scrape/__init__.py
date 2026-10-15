@@ -222,7 +222,8 @@ def run_scrape(
                                nights, provider.name, run_id)
                         continue
                     _write(conn, comp_id, as_of, stay, float(listing.nightly_price), 1, None,
-                           "ok", nights, provider.name, run_id)
+                           "ok", nights, provider.name, run_id,
+                           price_basis=getattr(listing, "price_basis", None))
                     report.observations += 1
 
             for comp_id in set(comps.values()) - seen_this_window:
@@ -281,20 +282,25 @@ def _verdict(report: ScrapeReport, policy: dict[str, Any]) -> str:
 
 def _write(conn: sqlite3.Connection, comp_id: str, as_of: date, stay: date,
            price: float | None, available: int | None, min_nights: int | None,
-           status: str, window_nights: int, source: str, run_id: str) -> None:
+           status: str, window_nights: int, source: str, run_id: str,
+           price_basis: str | None = None) -> None:
+    # capture_method records how the nightly rate was read: scrape_nightly (fee-free
+    # breakdown) or scrape_total (window total / nights, may include fees).
+    method = f"scrape_{price_basis}" if price_basis else "scrape"
     conn.execute(
         """
         INSERT INTO comp_snapshots (comp_id, as_of, stay_date, listed_price, available,
             min_nights, scrape_status, window_nights, source, capture_method, run_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scrape', ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(comp_id, as_of, stay_date) DO UPDATE SET
             listed_price=excluded.listed_price, available=excluded.available,
             min_nights=COALESCE(excluded.min_nights, comp_snapshots.min_nights),
             scrape_status=excluded.scrape_status, window_nights=excluded.window_nights,
-            source=excluded.source, capture_method='scrape', run_id=excluded.run_id
+            source=excluded.source, capture_method=excluded.capture_method,
+            run_id=excluded.run_id
         """,
         (comp_id, as_of.isoformat(), stay.isoformat(), price, available, min_nights,
-         status, window_nights, source, run_id),
+         status, window_nights, source, method, run_id),
     )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -542,7 +543,7 @@ def write_receipt(
     *,
     output: Path | None = None,
 ) -> Path:
-    with connect(db_path) as conn:
+    with closing(connect(db_path)) as conn, conn:
         facts = _load(conn, run_id)
     if not facts.nights and facts.granted_level is None:
         raise LookupError(run_id)

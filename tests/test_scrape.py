@@ -270,3 +270,15 @@ def test_sweep_deduplicates_room_ids(tmp_path: Path):
     f.write_text(json.dumps(dup))
     sweep = FixtureProvider(f).sweep(START, 2)
     assert [l.room_id for l in sweep.listings] == ["A", "B"]
+
+
+def test_nightly_price_records_whether_fees_could_be_inside_it():
+    """A breakdown line is the fee-free nightly rate; a divided total may include fees."""
+    from src.scrape.parse import BASIS_NIGHTLY, BASIS_TOTAL, nightly_price_with_basis
+
+    breakdown = {"price": {"break_down": [{"description": "2 nights x $1,800.00"}],
+                           "unit": {"amount": 4600, "qualifier": "for 2 nights"}}}
+    total_only = {"price": {"unit": {"amount": 4600, "qualifier": "for 2 nights"}}}
+    assert nightly_price_with_basis(breakdown, 2) == (1800.0, BASIS_NIGHTLY)
+    assert nightly_price_with_basis(total_only, 2) == (2300.0, BASIS_TOTAL)
+    assert nightly_price_with_basis({"price": {}}, 2) == (None, None)

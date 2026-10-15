@@ -26,7 +26,20 @@ def _to_float(text: Any) -> float | None:
 
 
 def nightly_price(listing: dict[str, Any], window_nights: int) -> float | None:
-    """Nightly rate from an Airbnb search result.
+    """Nightly rate from an Airbnb search result. See ``nightly_price_with_basis``."""
+    return nightly_price_with_basis(listing, window_nights)[0]
+
+
+# The two ways a nightly rate is read. "nightly" comes from Airbnb's own
+# "N nights x $X" line and excludes fees. "total" divides the window total by the
+# nights, and Airbnb's total can include cleaning and service fees, so it can read
+# high (2026-10-14 audit). Stored per snapshot so analyses can separate them.
+BASIS_NIGHTLY = "nightly"
+BASIS_TOTAL = "total"
+
+
+def nightly_price_with_basis(listing: dict[str, Any], window_nights: int) -> tuple[float | None, str | None]:
+    """Nightly rate from an Airbnb search result, and which basis produced it.
 
     Airbnb quotes a stay total plus a breakdown string; `price.unit.amount` is the
     TOTAL for the searched window, not a nightly rate. Dividing by the wrong night
@@ -41,15 +54,15 @@ def nightly_price(listing: dict[str, Any], window_nights: int) -> float | None:
             nights = int(m.group(1))
             amount = _to_float(m.group(2))
             if nights > 0 and amount:
-                return amount
+                return amount, BASIS_NIGHTLY
 
     unit = price.get("unit") or {}
     amount = _to_float(unit.get("amount"))
     if amount is None:
-        return None
+        return None, None
     m = _QUALIFIER.search(str(unit.get("qualifier", "")))
     nights = int(m.group(1)) if m else window_nights
-    return amount / nights if nights > 0 else None
+    return (amount / nights, BASIS_TOTAL) if nights > 0 else (None, None)
 
 
 @dataclass
