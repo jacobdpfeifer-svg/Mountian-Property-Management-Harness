@@ -21,6 +21,7 @@ MODEL_NAMES = (
     "stay_pricing",
     "portfolio_pricing",
     "ops_aware_stay",
+    "pace_pricing",
 )
 TWINS = ("overlook_ridge", "summit_haus")
 BETA_LO = -2.5
@@ -308,6 +309,10 @@ class ModelAdjustment:
     min_stay_source: str | None = None
     ops_facts: dict[str, Any] | None = None
     requires_human: bool = False
+    # Pace pricing: the search may reach this price even when the history-built
+    # ceiling is lower (that ceiling starts from this season's own low prices).
+    # Guardrails and the home's max_ceiling_rate still bound the result.
+    search_ceiling: float | None = None
 
 
 def _any_model(policy: dict[str, Any]) -> bool:
@@ -361,6 +366,98 @@ def _macro_z(conn: sqlite3.Connection, as_of: date, market_id: str) -> float | N
     return float(row["value"])
 
 
+def _season_stays(conn: sqlite3.Connection, season: str, seasons: dict[str, Any]) -> set[str]:
+    from src.runcache import memo
+    from src.utils import parse_date, season_for
+
+    def _load() -> set[str]:
+        return {
+            str(row["stay_date"])
+            for row in conn.execute("SELECT DISTINCT stay_date FROM nightly_inventory")
+            if season_for(parse_date(row["stay_date"]), seasons)[0] == season
+        }
+
+    return memo(("pace_season_stays", id(conn), season), _load)
+
+
+def _comparable_stays(conn: sqlite3.Connection, feat: Any, policy: dict[str, Any],
+                      seasons: dict[str, Any]) -> set[str]:
+    """Same season and same demand tier: a Christmas night is compared with
+    holiday sales, not with mid-January ones."""
+    from src.ceiling import demand_index, demand_tier
+
+    tier = demand_tier(feat.demand_strength, policy)
+    index = demand_index(conn)
+    return {
+        stay for stay in _season_stays(conn, feat.season, seasons)
+        if demand_tier(index.get(date.fromisoformat(stay), 0.2), policy) == tier
+    }
+
+
+def _apply_pace(
+    conn: sqlite3.Connection,
+    feat: Any,
+    policy: dict[str, Any],
+    bp: Any,
+    as_of: date,
+    cfg: dict[str, Any],
+    econ: dict[str, Any],
+    seasons: dict[str, Any],
+) -> tuple[Any, tuple[str, str, float], Callable[[float], float]]:
+    """Market-anchored reference x booking pace, and the owner-net objective.
+
+    See src/pricing/pace.py for the reasoning and sources.
+    """
+    from src.pricing.pace import (
+        blend_reference,
+        comp_anchor,
+        own_sold_evidence,
+        owner_terms,
+        pace_multiplier,
+        pace_reading,
+    )
+
+    anchor, quotes = comp_anchor(conn, feat.property_id, feat.stay_date, as_of)
+    premium = float((cfg.get("premium") or {}).get(feat.property_id, 1.0))
+    comp = anchor * premium if anchor is not None and quotes >= int(cfg.get("min_comp_quotes", 2)) else None
+    own, own_n = (None, 0)
+    # Off by default: a home's sales are its own listed prices, so this evidence
+    # is self-referential and lowered owner net in the v2 screen (2026-10-14).
+    if cfg.get("own_evidence", False):
+        own, own_n = own_sold_evidence(
+            conn, feat.property_id, as_of,
+            _comparable_stays(conn, feat, policy, seasons),
+        )
+    blended = blend_reference(comp, own, own_n, float(cfg.get("own_evidence_k", 10)))
+    if blended is not None:
+        base = blended
+        source = (f"comp median of {quotes} x {premium:.2f}" if comp is not None else "no comp quotes")
+        source += f", own sales n={own_n}" if own_n else ""
+    else:
+        base, source = float(bp.price_ref), "own history (no comp quotes, no sales)"
+    reading = pace_reading(
+        conn, stay=feat.stay_date, as_of=as_of, season=feat.season,
+        final_stays_same_season=_season_stays(conn, feat.season, seasons), cfg=cfg,
+    )
+    mult = pace_multiplier(reading, cfg)
+    before = unconstrained_optimum(bp.price_ref, bp.beta)
+    bp = replace(bp, price_ref=base * mult)
+    after = unconstrained_optimum(bp.price_ref, bp.beta)
+    share, margin = owner_terms(econ)
+
+    def objective(price: float, _bp=bp, _s=share, _m=margin) -> float:
+        return _bp.prob_at(price) * (_s * price + _m)
+
+    reason = (
+        "pacing",
+        f"Reference ${base:.0f} ({source}) x pace {mult:.2f} "
+        f"(on books {reading.on_books:.0%} vs {reading.expected:.0%} expected, {reading.source}); "
+        f"owner keeps {share:.0%} + ${margin:.0f}/night fee margin",
+        after - before,
+    )
+    return bp, reason, objective
+
+
 def apply_models(
     conn: sqlite3.Connection,
     feat: Any,
@@ -383,6 +480,16 @@ def apply_models(
     bp = probability
     reasons: list[tuple[str, str, float]] = []
     seasons = policy.get("seasons", {})
+    pace_on = enabled(policy, "pace_pricing")
+    pace_cfg = (policy.get("models") or {}).get("pace_pricing") or {}
+    econ = policy.get("owner_economics") or {}
+
+    if pace_on and pace_cfg.get("beta_is_all_in", True):
+        # The configured prior describes reaction to the all-in price. Convert it
+        # to the nightly rate before learning, which then works in nightly terms.
+        from src.pricing.pace import all_in_beta
+
+        bp = replace(bp, beta=all_in_beta(float(bp.beta), float(bp.price_ref), econ))
 
     if enabled(policy, "learned_elasticity"):
         prior = float(bp.beta)
@@ -460,6 +567,12 @@ def apply_models(
             ))
 
     objective = None
+    search_ceiling = None
+    if pace_on:
+        bp, pace_reason, objective = _apply_pace(conn, feat, policy, bp, as_of, pace_cfg, econ, seasons)
+        reasons.append(pace_reason)
+        search_ceiling = float(bp.price_ref) * float(pace_cfg.get("ceiling_headroom", 1.25))
+
     if enabled(policy, "booking_horizon") and ceil > floor:
         leadb = _lead_bucket(feat.lead_time_days)
         obs = _lead_observations(conn, as_of, seasons)
@@ -560,4 +673,5 @@ def apply_models(
                         reasons.append(("turnover_cost", inputs.message(standing, ops_len, ops_ev), 0.0))
 
     return ModelAdjustment(bp, reasons, objective, price_delta, min_stay_nights,
-                           min_stay_source, ops_facts, ops_requires_human)
+                           min_stay_source, ops_facts, ops_requires_human,
+                           search_ceiling=search_ceiling)
