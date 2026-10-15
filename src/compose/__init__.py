@@ -253,6 +253,8 @@ def _model_reason(code: str, message: str, contribution: float,
         return Reason("learned_elasticity", message, contribution=contribution)
     if code == "demand_level":
         return Reason("demand_level", message, contribution=contribution)
+    if code == "pacing":
+        return Reason("pacing", message, contribution=contribution)
     if code == "booking_horizon":
         return Reason("booking_horizon", message, contribution=contribution)
     if code == "stay_value":
@@ -316,6 +318,10 @@ def recommend_night(
         portfolio_quotes=portfolio_quotes,
     )
     bp = adjustment.probability
+    if adjustment.search_ceiling is not None:
+        g = policy.get("global", {})
+        ceil = max(ceil, min(adjustment.search_ceiling, feat.max_ceiling_rate,
+                             float(g.get("max_price", 1e9))))
 
     from src.memory.features import FEATURE_VERSION, build_memory_features
 
