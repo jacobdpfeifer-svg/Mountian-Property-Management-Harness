@@ -1,0 +1,74 @@
+{
+  "calibration": "proving_ground_exam/market/calibration_v2.yaml",
+  "policy": "current_practice",
+  "seeds": 10,
+  "holiday_spans": [
+    "2026-12-19..2027-01-03",
+    "2027-01-16..2027-01-19",
+    "2027-02-13..2027-02-16"
+  ],
+  "checks": [
+    {
+      "target": "lead_le_21",
+      "simulated": 0.3652,
+      "expected": "0.3-0.75",
+      "source": "first party 28/47 = 0.60 is June-Dec stays (summer heavy). Colorado ski markets average 24-33 day booking windows (Beyond Pricing: Breckenridge 26, Park City 24, Tahoe 33) and large houses book further out than condos (KeyData ski forecast), so the winter floor is lowered to 0.30 (2026-10-14)",
+      "result": "PASS"
+    },
+    {
+      "target": "los_mean",
+      "simulated": 4.6096,
+      "expected": "2.5-6.5",
+      "source": "first party mean 3.64, widened for a winter mix",
+      "result": "PASS"
+    },
+    {
+      "target": "inquiry_per_confirmed",
+      "simulated": 0.9083,
+      "expected": "0.4-1.6",
+      "source": "first party 40/47 = 0.85, widened",
+      "result": "PASS"
+    },
+    {
+      "target": "occupancy_peak",
+      "simulated": 0.6769,
+      "expected": "0.25-0.75",
+      "source": "suggestive \u2014 partial 2026 book, widened",
+      "result": "PASS"
+    },
+    {
+      "target": "occupancy_early",
+      "simulated": 0.5167,
+      "expected": "0.1-0.55",
+      "source": "suggestive \u2014 partial 2026 book, widened",
+      "result": "PASS"
+    },
+    {
+      "target": "booked_adr_early_winter",
+      "simulated_vs_real": "-18.9%",
+      "real_nights": 53,
+      "tolerance": "\u00b125%",
+      "result": "PASS"
+    },
+    {
+      "target": "booked_adr_holiday",
+      "simulated_vs_real": "+4.0%",
+      "real_nights": 24,
+      "tolerance": "\u00b125%",
+      "result": "PASS"
+    },
+    {
+      "target": "booked_adr_peak_ski",
+      "simulated_vs_real": "+8.6%",
+      "real_nights": 11,
+      "tolerance": "\u00b125%",
+      "result": "PASS"
+    },
+    {
+      "target": "booked_adr_shoulder_spring",
+      "result": "NOT MEASURED",
+      "note": "real booked nights 0 (< 10) or none simulated"
+    }
+  ],
+  "passed": true
+}

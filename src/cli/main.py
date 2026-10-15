@@ -192,9 +192,12 @@ def cmd_proving_ground_run(args: argparse.Namespace) -> int:
 
 
 def cmd_proving_ground_market(args: argparse.Namespace) -> int:
+    from proving_ground_exam.market.parameters import is_v2, load_calibration
     from src.proving_ground.market_loop import (
         CORE_POLICIES,
         DIAGNOSTIC_POLICIES,
+        V2_POLICIES,
+        resolve_calibration,
         run_grid,
         scenario_names,
     )
@@ -211,9 +214,16 @@ def cmd_proving_ground_market(args: argparse.Namespace) -> int:
         print("--scenario is required", file=sys.stderr)
         return 2
 
+    calibration_path = resolve_calibration(args.calibration)
+    v2 = is_v2(load_calibration(calibration_path))
     policies = CORE_POLICIES if args.grid else (args.policy,)
+    if args.grid and v2:
+        policies = tuple(dict.fromkeys([*policies, *V2_POLICIES]))
     if args.diagnostics:
         policies = tuple(dict.fromkeys([*policies, *DIAGNOSTIC_POLICIES]))
+    if "current_practice" in policies and not v2:
+        print("--policy current_practice needs --calibration v2", file=sys.stderr)
+        return 2
     retain: bool | set[str] = False
     if args.retain_dbs == "all":
         retain = True
@@ -238,6 +248,9 @@ def cmd_proving_ground_market(args: argparse.Namespace) -> int:
             sensitivity_path=Path(args.sensitivity).expanduser() if args.sensitivity else None,
             resume=args.resume,
             argv=sys.argv,
+            calibration_path=calibration_path if args.calibration else None,
+            approval_rate=args.approval_rate,
+            allow_models=args.allow_models,
         )
     except (RuntimeError, FileExistsError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
@@ -854,6 +867,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--workers", type=int, default=1)
     s.add_argument("--policy", default="engine", choices=[
         "engine", "flat", "comp_median", "tool", "property_flat", "comp_property", "premium_cap",
+        "current_practice",
     ])
     s.add_argument(
         "--grid",
@@ -892,6 +906,26 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="YAML overlay on the simulator calibration. Does not edit calibration.yaml. "
         "The resulting scoreboard is not the official engine score.",
+    )
+    s.add_argument(
+        "--calibration",
+        default=None,
+        help="Simulator calibration: v1 (official, default), v2 (real-data market, fees, "
+        "owner-net economics; 2026-10-14 overhaul), or a YAML path.",
+    )
+    s.add_argument(
+        "--allow-models",
+        action="store_true",
+        help="Evaluate an engine policy whose learning models are enabled (a candidate). "
+        "Recorded in run_config.json. Without it such a policy is refused.",
+    )
+    s.add_argument(
+        "--approval-rate",
+        type=float,
+        default=None,
+        help="Production-faithful mode: only unblocked 'handle' prices go live on their own; "
+        "every other price goes live with this daily approval probability (0-1). "
+        "Default: every recommended price goes live (recommendation quality).",
     )
     s.add_argument(
         "--resume",

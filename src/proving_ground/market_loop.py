@@ -15,13 +15,17 @@ from typing import Any
 
 from proving_ground_exam.market.competitors import tool_price
 from proving_ground_exam.market.parameters import (
+    ROOT as MARKET_ROOT,
+    CALIBRATION_PATH,
     daterange,
+    is_v2,
     list_scenarios,
     load_calibration,
     load_scenario,
     season_of,
     value_of,
 )
+from proving_ground_exam.market.rngutil import generator
 from proving_ground_exam.market.scoring import hindsight_revenue, realized
 from proving_ground_exam.market.world import MarketWorld, seed_market_db
 from src.compose import Recommendation, generate_recommendations
@@ -30,12 +34,28 @@ from src.db import DB_KIND_DEMO, connect, init_db, mark_db_identity
 from src.pacing import take_snapshot
 
 CORE_POLICIES = ("engine", "flat", "comp_median", "tool")
+# Calibration v2 adds the homes' real rate card as a benchmark: what the manager
+# charges today. A grid run on v2 includes it automatically.
+V2_POLICIES = ("current_practice",)
 # Benchmarks that separate "the engine is worse than one flat rate" from
 # "the engine's property premia are worse". hindsight_oracle is not a policy:
 # it is the non-deployable bound already stored on every result.
 DIAGNOSTIC_POLICIES = ("property_flat", "comp_property", "premium_cap")
-POLICIES = CORE_POLICIES + DIAGNOSTIC_POLICIES
+POLICIES = CORE_POLICIES + DIAGNOSTIC_POLICIES + V2_POLICIES
+CALIBRATIONS = {"v1": CALIBRATION_PATH, "v2": MARKET_ROOT / "calibration_v2.yaml"}
+
+
+def resolve_calibration(name_or_path: str | Path | None) -> Path:
+    """``v1``/``v2`` or a path. None means the official v1 file."""
+    if name_or_path is None:
+        return CALIBRATION_PATH
+    key = str(name_or_path)
+    if key in CALIBRATIONS:
+        return CALIBRATIONS[key]
+    return Path(key).expanduser()
 _RESUME_IGNORE = frozenset({
+    # The file's hash (calibration_file_sha256) is the identity; the path is for readers.
+    "calibration_path",
     "git_dirty",
     "git_dirty_tracked",
     "git_status",
@@ -175,6 +195,22 @@ def _property_season_rate(world: MarketWorld, prop: str, night: date) -> float:
     return base * value_of(world.cal["flat_price"][season_of(night)]) / peak
 
 
+def _apply_current_practice(world: MarketWorld, nights: list[date]) -> None:
+    """Each home at its real seasonal listed price (publicly listed rate card).
+
+    Calibration v2 only. Holiday nights use the holiday rate.
+    """
+    card = world.cal.get("current_practice")
+    if not card:
+        raise ValueError("current_practice needs calibration v2 (a current_practice rate card)")
+    prices = {}
+    for prop in world.properties:
+        rates = card[prop]
+        for night in nights:
+            prices[(prop, night)] = value_of(world.priced_by_span(rates, night))
+    world.set_own_prices(prices)
+
+
 def _comp_medians(conn: sqlite3.Connection, day: date) -> dict[date, float]:
     return {
         date.fromisoformat(row["stay_date"]): float(row["px"])
@@ -276,6 +312,7 @@ def _apply_engine(
     cache: dict[tuple[str, date], tuple],
     engine_policy: dict | None = None,
     persist_recommendations: bool = True,
+    approval_rate: float | None = None,
 ) -> list[Recommendation]:
     start, end = nights[0], nights[-1]
     props = list(world.properties)
@@ -302,7 +339,11 @@ def _apply_engine(
         # recommendation priced a night on the day it booked.
         run_id=f"sim-{day.isoformat()}",
     )
-    prices = {(rec.property_id, rec.stay_date): rec.recommended_price for rec in recs}
+    prices = {
+        (rec.property_id, rec.stay_date): rec.recommended_price
+        for rec in recs
+        if _goes_live(rec, world, day, approval_rate)
+    }
     world.set_own_prices(prices)
     if incremental:
         current = _fingerprint(conn, props, nights, day)
@@ -310,6 +351,27 @@ def _apply_engine(
             key = (rec.property_id, rec.stay_date)
             cache[key] = (current.get(key), _serialize_rec(rec), rec.recommended_price)
     return recs
+
+
+def _goes_live(rec: Recommendation, world: MarketWorld, day: date, approval_rate: float | None) -> bool:
+    """Whether a recommendation reaches the listing.
+
+    ``approval_rate`` None scores recommendation quality: every price goes live
+    (the owner approves everything). Otherwise the run is production-faithful:
+    production pushes only unblocked ``handle`` recommendations
+    (src/pms/__init__.py), and everything else goes live only if a human
+    approves it that day, with probability ``approval_rate``. A night that is
+    not approved keeps yesterday's listed price.
+    """
+    if approval_rate is None:
+        return True
+    if rec.status != "blocked" and rec.autonomy_level == "handle":
+        return True
+    draw = generator(
+        world.scenario_name, world.seed, "approve", rec.property_id,
+        rec.stay_date.isoformat(), day.isoformat(),
+    ).random()
+    return float(draw) < approval_rate
 
 
 @dataclass
@@ -338,6 +400,7 @@ def run_market_job(
     engine_policy: dict | None = None,
     persist_recommendations: bool = True,
     trace_choices: bool = True,
+    approval_rate: float | None = None,
 ) -> MarketResult:
     if policy not in POLICIES:
         raise ValueError(f"policy must be one of {POLICIES}")
@@ -375,15 +438,24 @@ def run_market_job(
                 _apply_comp_property(world, conn, day, nights)
             elif policy == "premium_cap":
                 _apply_premium_cap(world, conn, day, nights)
+            elif policy == "current_practice":
+                _apply_current_practice(world, nights)
             else:
                 recs = _apply_engine(
                     world, conn, day, nights,
                     incremental=incremental, cache=cache, engine_policy=engine_policy,
                     persist_recommendations=persist_recommendations,
+                    approval_rate=approval_rate,
                 )
                 guardrails.update(rec.guardrail_action or "" for rec in recs)
             world.end_day(day)
-        scores = realized(conn, list(world.properties))
+        if is_v2(cal):
+            scores = realized(
+                conn, list(world.properties),
+                economics=cal.get("economics"), guest_fees=cal.get("guest_fees"),
+            )
+        else:
+            scores = realized(conn, list(world.properties))
         if policy == "engine":
             # The examiner counts guardrails from persisted recommendations, which a
             # score-only job does not write. Count the same rows here so a score-only
@@ -391,7 +463,8 @@ def run_market_job(
             scores["guardrail_by_action"] = dict(sorted(guardrails.items()))
             scores["guardrail_triggers"] = sum(n for action, n in guardrails.items() if action)
         hind, gap = hindsight_revenue(
-            world.shoppers, cal["properties"], start, end, value_of(cal["median_nightly"])
+            world.shoppers, cal["properties"], start, end,
+            world.reference if is_v2(cal) else value_of(cal["median_nightly"]),
         )
         payload = {
             "scenario": scenario_name,
@@ -412,6 +485,26 @@ def run_market_job(
             hindsight_revenue=hind,
             hindsight_gap=gap,
         )
+    finally:
+        _close_job_db(conn)
+
+
+def _close_job_db(conn: sqlite3.Connection) -> None:
+    """Close a finished job database as a single self-contained file.
+
+    A WAL-mode file makes every later read-only reader (audit, decomposer)
+    leave ``-wal``/``-shm`` files beside it. Switching back to a rollback
+    journal after the last write means a retained ``.db`` copies and reads
+    cleanly on its own. Scores and hashes are computed before this point.
+    """
+    try:
+        # journal_mode cannot change inside an open transaction.
+        conn.commit()
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        conn.execute("PRAGMA journal_mode=DELETE")
+    except sqlite3.Error:
+        # A failed job closes as it is; the error that ended it is what matters.
+        pass
     finally:
         conn.close()
 
@@ -539,8 +632,10 @@ def _discard_db(path: Path) -> None:
 
 
 # (scenario, seed, policy, output_dir, max_days, incremental, retain_db,
-#  engine_policy_path, sensitivity_path)
-Job = tuple[str, int, str, str, int | None, bool, bool, str | None, str | None]
+#  engine_policy_path, sensitivity_path, calibration_path, approval_rate)
+Job = tuple[
+    str, int, str, str, int | None, bool, bool, str | None, str | None, str | None, float | None
+]
 
 CHECKPOINT = "results.jsonl"
 RUN_CONFIG = "run_config.json"
@@ -555,18 +650,23 @@ _DISK_HEADROOM = 10_000_000_000
 def _pool_job(job: Job) -> MarketResult:
     from src.proving_ground.sensitivity import apply_sensitivity, load_sensitivity
 
-    name, seed, policy, output_dir, max_days, incremental, retain_db, engine_policy_path, sensitivity_path = job
+    (name, seed, policy, output_dir, max_days, incremental, retain_db, engine_policy_path,
+     sensitivity_path, calibration_path, approval_rate) = job
     db_path = Path(output_dir) / "dbs" / f"{name}_{policy}_{seed}.db"
     engine_policy = load_policy_overlay(Path(engine_policy_path)) if engine_policy_path else None
-    calibration = None
+    calibration = load_calibration(Path(calibration_path)) if calibration_path else None
     if sensitivity_path:
-        calibration = apply_sensitivity(load_calibration(), load_sensitivity(Path(sensitivity_path)))
+        calibration = apply_sensitivity(
+            calibration if calibration is not None else load_calibration(),
+            load_sensitivity(Path(sensitivity_path)),
+        )
     try:
         return run_market_job(
             name, seed, policy, db_path=db_path, max_days=max_days, incremental=incremental,
             engine_policy=engine_policy, calibration=calibration,
             persist_recommendations=retain_db,
             trace_choices=retain_db,
+            approval_rate=approval_rate,
         )
     finally:
         if not retain_db:
@@ -633,9 +733,12 @@ def run_config(
     engine_policy_path: Path | None,
     sensitivity_path: Path | None = None,
     retained_scenarios: Collection[str] | None = None,
+    calibration_path: Path | None = None,
+    approval_rate: float | None = None,
+    allow_models: bool = False,
 ) -> dict[str, Any]:
     """Everything that must match for two runs' rows to be comparable."""
-    from proving_ground_exam.market.parameters import CALIBRATION_PATH, SCENARIO_DIR
+    from proving_ground_exam.market.parameters import SCENARIO_DIR
     from src.config import DEFAULT_POLICY_PATH
     from src.proving_ground.sensitivity import apply_sensitivity, canonical_sha256, load_sensitivity
 
@@ -645,7 +748,8 @@ def run_config(
     for name in names:
         scenario_hash.update(name.encode())
         scenario_hash.update((SCENARIO_DIR / f"{name}.yaml").read_bytes())
-    file_sha = _sha256_file(CALIBRATION_PATH)
+    calibration_file = calibration_path or CALIBRATION_PATH
+    file_sha = _sha256_file(calibration_file)
     sensitivity_label = None
     sensitivity_sha = None
     calibration_sha = file_sha
@@ -653,7 +757,7 @@ def run_config(
         spec = load_sensitivity(sensitivity_path)
         sensitivity_label = str(spec["label"])
         sensitivity_sha = _sha256_file(sensitivity_path)
-        calibration_sha = canonical_sha256(apply_sensitivity(load_calibration(), spec))
+        calibration_sha = canonical_sha256(apply_sensitivity(load_calibration(calibration_file), spec))
     effective = hashlib.sha256(
         json.dumps(policy, sort_keys=True, default=str).encode()
     ).hexdigest()
@@ -670,12 +774,19 @@ def run_config(
         **_git_provenance(),
         "calibration_sha256": calibration_sha,
         "calibration_file_sha256": file_sha,
+        "calibration_path": str(calibration_file),
+        "calibration_version": int(load_calibration(calibration_file).get("version", 1) or 1),
+        # None = recommendation quality (every price goes live). A number = the
+        # production-faithful mode with that daily human approval rate.
+        "approval_rate": approval_rate,
         "sensitivity_label": sensitivity_label,
         "sensitivity_sha256": sensitivity_sha,
         "scenarios_sha256": scenario_hash.hexdigest(),
         "engine_policy_path": str(policy_path),
         "engine_policy_sha256": _sha256_file(policy_path),
         "engine_policy_effective_sha256": effective,
+        # Learning models are refused unless a candidate run asks for them.
+        "models_allowed": allow_models,
         "models_enabled": sorted(
             name for name, spec in (policy.get("models") or {}).items()
             if isinstance(spec, dict) and spec.get("enabled")
@@ -723,10 +834,11 @@ def _run_jobs(
 ) -> list[MarketResult]:
     """One market simulation may run. Databases and logs stay outside iCloud."""
     assert_outside_icloud(output_dir)
-    if config.get("models_enabled"):
+    if config.get("models_enabled") and not config.get("models_allowed"):
         raise RuntimeError(
             "market sim refuses a policy with learning models enabled: "
             + ", ".join(config["models_enabled"])
+            + " (pass --allow-models to evaluate a model candidate on purpose)"
         )
     from src.proving_ground.run_lock import market_run_lock
 
@@ -885,14 +997,20 @@ def run_grid(
     sensitivity_path: Path | None = None,
     resume: bool = False,
     argv: list[str] | None = None,
+    calibration_path: Path | None = None,
+    approval_rate: float | None = None,
+    allow_models: bool = False,
 ) -> dict[str, str]:
     """One scoreboard covering every listed policy. Jobs share a process pool."""
     names = scenario_names(scenario_name)
     policy_arg = str(engine_policy_path) if engine_policy_path else None
     sensitivity_arg = str(sensitivity_path) if sensitivity_path else None
+    calibration_arg = str(calibration_path) if calibration_path else None
+    if approval_rate is not None and not 0.0 <= approval_rate <= 1.0:
+        raise ValueError("approval_rate must be between 0 and 1")
     jobs: list[Job] = [
         (name, seed, policy, str(output_dir), max_days, incremental,
-         _retains(retain_dbs, name), policy_arg, sensitivity_arg)
+         _retains(retain_dbs, name), policy_arg, sensitivity_arg, calibration_arg, approval_rate)
         for policy in policies
         for name in names
         for seed in range(1, seeds + 1)
@@ -911,6 +1029,9 @@ def run_grid(
         incremental=incremental, engine_policy_path=engine_policy_path,
         sensitivity_path=sensitivity_path,
         retained_scenarios=retained_scenarios,
+        calibration_path=calibration_path,
+        approval_rate=approval_rate,
+        allow_models=allow_models,
     )
     results = _run_jobs(
         jobs, workers=workers, output_dir=output_dir, config=config, resume=resume, argv=argv,
@@ -933,11 +1054,13 @@ def run_pool(
     sensitivity_path: Path | None = None,
     resume: bool = False,
     argv: list[str] | None = None,
+    calibration_path: Path | None = None,
+    approval_rate: float | None = None,
 ) -> dict[str, str]:
     paths = run_grid(
         scenario_name, seeds, (policy,), workers=workers, output_dir=output_dir,
         max_days=max_days, incremental=incremental, retain_dbs=retain_dbs,
         engine_policy_path=engine_policy_path, sensitivity_path=sensitivity_path,
-        resume=resume, argv=argv,
+        resume=resume, argv=argv, calibration_path=calibration_path, approval_rate=approval_rate,
     )
     return paths

@@ -7,7 +7,7 @@ from datetime import date, timedelta
 
 import numpy as np
 
-from proving_ground_exam.market.parameters import LEAD_BUCKETS, LOS_VALUES, season_of, value_of
+from proving_ground_exam.market.parameters import LEAD_BUCKETS, LOS_VALUES, season_of, seasonal, value_of
 from proving_ground_exam.market.rngutil import generator
 
 
@@ -67,29 +67,36 @@ def draw_shoppers(
         seg = cal["segments"][name]
         share = float(seg["share"][season])
         mean = value_of(cal["arrival_mean"]) * share
-        mean *= _modulator(seg["weights"], snow, access, macro)
+        mean *= _modulator(seasonal(seg["weights"], season), snow, access, macro)
         mean *= _holiday_boost(day, holidays, holiday_mult, bool(seg.get("holiday_sensitive")))
         mean *= pandemic_factor
         if name == "international":
             mean *= den_capacity
         count = int(rng.poisson(max(mean, 0.0)))
-        lead_p = np.asarray(seg["lead"], dtype=float)
+        # v2 segments may give lead, LOS, party, channel and weights per season
+        # (the shopping day's season, like share). v1 values pass through.
+        lead_p = np.asarray(seasonal(seg["lead"], season), dtype=float)
         lead_p = lead_p / lead_p.sum()
-        los_p = np.asarray(seg["los"], dtype=float)
+        los_p = np.asarray(seasonal(seg["los"], season), dtype=float)
         los_p = los_p / max(los_p.sum(), 1e-9)
-        channels = list(seg["channel"])
-        channel_p = np.asarray([seg["channel"][c] for c in channels], dtype=float)
+        party_spec = seasonal(seg["party"], season)
+        channel_spec = seasonal(seg["channel"], season)
+        channels = list(channel_spec)
+        channel_p = np.asarray([channel_spec[c] for c in channels], dtype=float)
         channel_p = channel_p / channel_p.sum()
         for i in range(count):
             bucket = int(rng.choice(len(LEAD_BUCKETS), p=lead_p))
             lo, hi = LEAD_BUCKETS[bucket]
             lead = int(rng.integers(lo, hi + 1))
             los = int(rng.choice(np.asarray(LOS_VALUES), p=los_p))
-            party = int(round(float(rng.triangular(seg["party"]["low"], seg["party"]["mode"], seg["party"]["high"]))))
-            party = int(min(seg["party"]["high"], max(seg["party"]["low"], party)))
+            party = int(round(float(rng.triangular(party_spec["low"], party_spec["mode"], party_spec["high"]))))
+            party = int(min(party_spec["high"], max(party_spec["low"], party)))
             channel = str(rng.choice(np.asarray(channels), p=channel_p))
             z_w = float(rng.normal())
-            wtp = float(seg["wtp"]["median"]) * float(np.exp(float(seg["wtp"]["sigma"]) * z_w))
+            # Willingness to pay belongs to the stay, so v2 reads it by the
+            # check-in season (spec: families 1.20 peak / 1.10 early / 1.05 shoulder).
+            wtp_median = seasonal(seg["wtp"]["median"], season_of(day + timedelta(days=lead)))
+            wtp = float(wtp_median) * float(np.exp(float(seg["wtp"]["sigma"]) * z_w))
             z_b = float(rng.normal())
             coef = float(seg["price_coef"][season]) * float(np.exp(sigma * z_b))
             coef = float(min(-0.05, coef))

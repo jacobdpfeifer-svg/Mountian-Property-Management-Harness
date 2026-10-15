@@ -21,9 +21,12 @@ def tool_price(
     occupancy_30: float,
     lead_days: int,
     price_war: bool,
+    seasonal: bool = True,
 ) -> float:
+    """``seasonal=False`` drops the tool's own season factor, for a base that is
+    already seasonal (calibration v2 prices competitors off the market reference)."""
     season = season_of(day)
-    factor = {"peak_ski": 1.15, "early_winter": 1.00, "shoulder_spring": 0.90}[season]
+    factor = {"peak_ski": 1.15, "early_winter": 1.00, "shoulder_spring": 0.90}[season] if seasonal else 1.0
     if _is_weekend(day):
         factor *= 1.08
     if holiday:

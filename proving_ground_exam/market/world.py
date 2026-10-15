@@ -14,7 +14,15 @@ from typing import Any
 from proving_ground_exam.market.choice import Alternative, choose, loss_reason, stay_nights
 from proving_ground_exam.market.competitors import occupancy, static_price, tool_min_stay, tool_price
 from proving_ground_exam.market.funnel import cancel_hazard, converts
-from proving_ground_exam.market.parameters import daterange, season_of, value_of
+from proving_ground_exam.market.parameters import (
+    daterange,
+    holiday_spans,
+    is_v2,
+    reference_price,
+    season_of,
+    stay_fees,
+    value_of,
+)
 from proving_ground_exam.market.rngutil import generator
 from proving_ground_exam.market.scrape import observe
 from proving_ground_exam.market.shoppers import Shopper, draw_shoppers
@@ -60,6 +68,13 @@ class MarketWorld:
         self.nights = list(daterange(self.season_start, self.season_end))
         self.scenario_name = str(scenario.get("name", "normal"))
         self.median = value_of(cal["median_nightly"])
+        # Calibration v2 (2026-10-14 overhaul): market reference by season and
+        # holiday, guest fees judged all-in, per-home value index, capacity.
+        self.v2 = is_v2(cal)
+        self.own_fees = cal.get("guest_fees") if self.v2 else None
+        self.comp_fees = cal.get("competitor_fees") if self.v2 else None
+        self.fee_salience = value_of(cal.get("fee_salience", 1.0)) if self.v2 else 1.0
+        self.enforce_capacity = bool(cal.get("enforce_capacity", False)) if self.v2 else False
         self.properties = list(cal["properties"])
         self.comp_ids = list(cal["competitors"])
         if float(scenario.get("supply_extra", 0) or 0) > 0:
@@ -91,11 +106,48 @@ class MarketWorld:
         self._price_comps(self.season_start)
 
     def _flat(self, night: date) -> float:
-        return value_of(self.cal["flat_price"][season_of(night)])
+        return value_of(self.priced_by_span(self.cal["flat_price"], night))
+
+    def span_key(self, night: date) -> str | None:
+        """v2: the reference key of the holiday span holding this night, if any."""
+        if not self.v2:
+            return None
+        offset = timedelta(days=int(self.scenario.get("holiday_offset_days", 0) or 0))
+        for start, end, key in holiday_spans(self.cal) or []:
+            if start + offset <= night <= end + offset:
+                return key
+        return "holiday" if self.is_holiday(night) else None
+
+    def priced_by_span(self, rates: dict[str, Any], night: date) -> Any:
+        """Pick a rate for this night: its holiday span's key if the table has
+        one, else its season. v1 tables are by season only."""
+        key = self.span_key(night)
+        if key and key in rates:
+            return rates[key]
+        return rates[season_of(night)]
+
+    def reference(self, night: date) -> float:
+        """Market reference nightly price (v1: the single median)."""
+        if not self.v2:
+            return self.median
+        return reference_price(self.cal, night, self.span_key(night) or False)
+
+    def stay_anchor(self, nights: list[date], party: int) -> float:
+        """The all-in market price a shopper measures every option against.
+
+        v1: the single median. v2: the stay's mean reference nightly price plus
+        the market-typical (competitor) fees for this party, spread per night.
+        """
+        if not self.v2:
+            return self.median
+        nightly = sum(self.reference(night) for night in nights) / len(nights)
+        return nightly + self.fee_salience * stay_fees(self.comp_fees, party) / len(nights)
 
     def holidays(self) -> list[tuple[date, date]]:
         offset = timedelta(days=int(self.scenario.get("holiday_offset_days", 0) or 0))
-        return [(start + offset, end + offset) for start, end in HOLIDAY_SPANS]
+        v2_spans = holiday_spans(self.cal) if self.v2 else None
+        spans = [(start, end) for start, end, _key in v2_spans] if v2_spans else list(HOLIDAY_SPANS)
+        return [(start + offset, end + offset) for start, end in spans]
 
     def is_holiday(self, night: date) -> bool:
         return any(start <= night <= end for start, end in self.holidays())
@@ -183,7 +235,11 @@ class MarketWorld:
                 nightly = sum(self.listed[(prop, night)] for night in nights) / len(nights)
             else:
                 nightly = 10**9
-            alts.append(Alternative(prop, "own", int(meta["sleeps"]), value_of(meta["quality"]), nightly))
+            alts.append(Alternative(
+                prop, "own", int(meta["sleeps"]), value_of(meta["quality"]), nightly,
+                fees=stay_fees(self.own_fees, shopper.party),
+                value_index=value_of(meta.get("value_index", 1.0)),
+            ))
         for cid in self.comp_ids:
             meta = self.cal["competitors"].get(cid) or {"sleeps": 12, "quality": {"value": 0.8}}
             quality = value_of(meta["quality"]) if isinstance(meta.get("quality"), dict) else 0.8
@@ -191,7 +247,12 @@ class MarketWorld:
                 nightly = sum(self.comp_price[(cid, night)] for night in nights) / len(nights)
             else:
                 nightly = 10**9
-            alts.append(Alternative(cid, "comp", int(meta.get("sleeps", 12)), quality, nightly))
+            alts.append(Alternative(
+                cid, "comp", int(meta.get("sleeps", 12)), quality, nightly,
+                fees=stay_fees(self.comp_fees, shopper.party),
+                value_index=value_of(meta.get("value_index", 1.0)),
+            ))
+        anchor = self.stay_anchor(nights, shopper.party)
         outside_utility = value_of(self.cal.get("outside_utility", 0.0))
         fit_penalty = value_of(self.cal["fit_penalty"])
         fit_ratio = value_of(self.cal["fit_ratio"])
@@ -199,11 +260,13 @@ class MarketWorld:
             shopper,
             alts,
             free=self.free,
-            median=self.median,
+            median=anchor,
             fit_penalty=fit_penalty,
             fit_ratio=fit_ratio,
             season_end=self.season_end,
             outside_utility=outside_utility,
+            fee_salience=self.fee_salience,
+            enforce_capacity=self.enforce_capacity,
         )
         kind = "outside"
         revenue = 0.0
@@ -241,7 +304,7 @@ class MarketWorld:
             self._trace_losses(
                 day, shopper, alts, chosen, kind,
                 fit_penalty=fit_penalty, fit_ratio=fit_ratio, outside_utility=outside_utility,
-                free=free_at_choice,
+                free=free_at_choice, anchor=anchor,
             )
 
     def _trace_losses(
@@ -256,6 +319,7 @@ class MarketWorld:
         fit_ratio: float,
         outside_utility: float,
         free: dict[str, set[date]] | None = None,
+        anchor: float | None = None,
     ) -> None:
         """Record why each own home lost. The choice itself is already made."""
         available = free if free is not None else self.free
@@ -268,11 +332,13 @@ class MarketWorld:
                 alt,
                 chosen,
                 free=available,
-                median=self.median,
+                median=self.median if anchor is None else anchor,
                 fit_penalty=fit_penalty,
                 fit_ratio=fit_ratio,
                 season_end=self.season_end,
                 outside_utility=outside_utility,
+                fee_salience=self.fee_salience,
+                enforce_capacity=self.enforce_capacity,
             )
             if reason == "chosen":
                 reason = {"book": "booked", "inquiry": "inquiry"}.get(kind, "chosen")
@@ -407,6 +473,9 @@ class MarketWorld:
             )
 
     def _price_comps(self, day: date) -> None:
+        if self.v2:
+            self._price_comps_v2(day)
+            return
         price_war = bool(self.scenario.get("price_war"))
         factor = 0.80 if price_war else value_of(self.cal["undercut_factor"])
         medians: dict[date, float] = {}
@@ -450,6 +519,51 @@ class MarketWorld:
                     today_quotes[night].append(price)
         for night, quotes in today_quotes.items():
             self._yesterday[night] = quotes or [self.median]
+
+    def _price_comps_v2(self, day: date) -> None:
+        """Competitors priced relative to the night's market reference.
+
+        v1 competitors quote fixed dollars ($620-$700) in a market whose real
+        large homes list near $2,000 at peak. v2 gives each agent a ``ratio`` to
+        the reference, so the season and holiday shape comes from the market
+        itself. The tool keeps its weekend, lead-time and occupancy rules but
+        not its own season/holiday factors (the reference already has them).
+        """
+        price_war = bool(self.scenario.get("price_war"))
+        factor = 0.80 if price_war else value_of(self.cal["undercut_factor"])
+        open_nights = [night for night in self.nights if night >= day]
+        medians = {
+            night: float(sorted(q)[len(q) // 2])
+            for night in open_nights
+            for q in [self._yesterday.get(night) or [self.reference(night)]]
+        }
+        today_quotes: dict[date, list[float]] = {night: [] for night in open_nights}
+        for cid in self.comp_ids:
+            meta: dict[str, Any] = (
+                {"agent": "market_follower", "ratio": 0.97} if cid == "comp_supply"
+                else self.cal["competitors"][cid]
+            )
+            agent = meta["agent"]
+            ratio = value_of(meta.get("ratio", 1.0))
+            for night in open_nights:
+                ref = self.reference(night)
+                if agent == "static_owner":
+                    price = round(ratio * ref, 2)
+                elif agent == "generalized_tool":
+                    occ = occupancy(self.comp_booked[cid], day)
+                    price = tool_price(
+                        night, base=ratio * ref, holiday=False, occupancy_30=occ,
+                        lead_days=(night - day).days, price_war=price_war, seasonal=False,
+                    )
+                elif agent == "undercutter":
+                    price = round(factor * medians[night], 2)
+                else:
+                    price = round(ratio * medians[night], 2)
+                self.comp_price[(cid, night)] = price
+                if agent != "undercutter":
+                    today_quotes[night].append(price)
+        for night, quotes in today_quotes.items():
+            self._yesterday[night] = quotes or [self.reference(night)]
 
     def _write_scrape(self, day: date) -> None:
         outage = bool(self.scenario.get("scrape_outage"))

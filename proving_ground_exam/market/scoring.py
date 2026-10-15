@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import itertools
 import sqlite3
+from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
 
 from proving_ground_exam.market.choice import stay_nights
-from proving_ground_exam.market.parameters import season_of
+from proving_ground_exam.market.parameters import season_of, stay_fees, value_of
 from proving_ground_exam.market.shoppers import Shopper
 
 
@@ -16,10 +17,54 @@ def _parse(value: str) -> date:
     return date.fromisoformat(value[:10])
 
 
-def realized(conn: sqlite3.Connection, properties: list[str]) -> dict[str, Any]:
+def stay_economics(
+    room_revenue: float,
+    *,
+    nights: int,
+    party: int,
+    channel: str | None,
+    guest_fees: dict[str, Any] | None,
+    economics: dict[str, Any],
+) -> dict[str, float]:
+    """Owner net and manager income for one confirmed stay.
+
+    Guests pay the room plus fees (cleaning per stay, consumables per guest,
+    insurance per stay). The channel takes its commission on everything the
+    guest pays (Airbnb's host-only fee is charged on the full total). The
+    management fee is charged on room revenue. Turnover cleaning, consumables
+    and insurance are real costs the fees are meant to cover. Every rate is a
+    calibration value with a source and a sweep.
+    """
+    fees = stay_fees(guest_fees, party)
+    guest_paid = room_revenue + fees
+    channel_fees = economics.get("channel_fee") or {}
+    rate = value_of(channel_fees.get(channel or "", channel_fees.get("default", 0.0)))
+    mgmt = value_of(economics["management_fee"]) * room_revenue
+    costs = (
+        value_of(economics.get("turnover_cost_per_stay", 0.0))
+        + value_of(economics.get("consumables_cost_per_guest", 0.0)) * party
+        + value_of(economics.get("insurance_cost_per_stay", 0.0))
+    )
+    return {
+        "guest_paid": guest_paid,
+        "channel_fee": rate * guest_paid,
+        "management_fee": mgmt,
+        "stay_costs": costs,
+        "owner_net": guest_paid - rate * guest_paid - mgmt - costs,
+    }
+
+
+def realized(
+    conn: sqlite3.Connection,
+    properties: list[str],
+    *,
+    economics: dict[str, Any] | None = None,
+    guest_fees: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     rows = conn.execute(
         """
-        SELECT property_id, check_in, nights, status, nightly_rate, created_at_pms, guest_count
+        SELECT property_id, check_in, nights, status, nightly_rate, created_at_pms, guest_count,
+               source
         FROM reservations
         WHERE property_id IN ({})
         """.format(",".join("?" * len(properties))),
@@ -32,6 +77,10 @@ def realized(conn: sqlite3.Connection, properties: list[str]) -> dict[str, Any]:
     los = []
     confirmed = 0
     inquiries = 0
+    money: dict[str, float] = {
+        "guest_paid": 0.0, "channel_fee": 0.0, "management_fee": 0.0,
+        "stay_costs": 0.0, "owner_net": 0.0,
+    }
     for row in rows:
         if row["status"] == "inquiry":
             inquiries += 1
@@ -69,6 +118,12 @@ def realized(conn: sqlite3.Connection, properties: list[str]) -> dict[str, Any]:
                 counted += 1
         revenue += stay_rev
         booked_nights += counted
+        if economics is not None and counted:
+            for key, value in stay_economics(
+                stay_rev, nights=counted, party=int(row["guest_count"] or 0),
+                channel=row["source"], guest_fees=guest_fees, economics=economics,
+            ).items():
+                money[key] += value
         if row["created_at_pms"]:
             leads.append((check_in - _parse(row["created_at_pms"])).days)
     inventory = conn.execute(
@@ -114,7 +169,7 @@ def realized(conn: sqlite3.Connection, properties: list[str]) -> dict[str, Any]:
             """
         )
     }
-    return {
+    scores: dict[str, Any] = {
         "revenue": round(revenue, 2),
         "revpan": round(revenue / total_nights, 4),
         "occupancy": round(booked_nights / total_nights, 4),
@@ -130,6 +185,14 @@ def realized(conn: sqlite3.Connection, properties: list[str]) -> dict[str, Any]:
         "occupancy_peak": round(peak_booked / peak_total, 4) if peak_total else 0.0,
         "occupancy_early": round(early_booked / early_total, 4) if early_total else 0.0,
     }
+    if economics is not None:
+        # v2 only: v1 score dicts (and so their content hashes) are unchanged.
+        scores["owner_net"] = round(money["owner_net"], 2)
+        scores["pm_fee_income"] = round(money["management_fee"], 2)
+        scores["guest_paid"] = round(money["guest_paid"], 2)
+        scores["channel_fees"] = round(money["channel_fee"], 2)
+        scores["stay_costs"] = round(money["stay_costs"], 2)
+    return scores
 
 
 def hindsight_revenue(
@@ -137,9 +200,12 @@ def hindsight_revenue(
     properties: dict[str, Any],
     season_start: date,
     season_end: date,
-    median: float,
+    median: float | Callable[[date], float],
 ) -> tuple[float, float | None]:
     """Greedy upper bound: charge willingness to pay, ignore competitors.
+
+    ``median`` is the v1 single market median, or (v2) a function giving each
+    night's market reference.
 
     Returns (greedy revenue, optimality gap on a 6-shopper subset or None).
     The gap is (brute - greedy) / brute on that subset. It is not a bound on
@@ -158,6 +224,11 @@ def hindsight_revenue(
             return None
         return nights
 
+    def charge(shopper: Shopper, nights: list[date]) -> float:
+        if callable(median):
+            return shopper.wtp_multiplier * sum(median(night) for night in nights)
+        return shopper.wtp_multiplier * median * len(nights)
+
     eligible = [(shopper, nights) for shopper in shoppers if (nights := fits(shopper))]
     eligible.sort(key=lambda item: -item[0].wtp_multiplier * item[0].los)
 
@@ -171,7 +242,7 @@ def hindsight_revenue(
             ]
             if not options:
                 continue
-            revenue += shopper.wtp_multiplier * median * len(nights)
+            revenue += charge(shopper, nights)
             for night in nights:
                 free[options[0]].discard(night)
         return revenue
@@ -193,7 +264,7 @@ def hindsight_revenue(
             if shopper.party > sleeps[choice] or any(night not in free[choice] for night in nights):
                 ok = False
                 break
-            revenue += shopper.wtp_multiplier * median * len(nights)
+            revenue += charge(shopper, nights)
             for night in nights:
                 free[choice].discard(night)
         if ok:
