@@ -156,6 +156,17 @@ def _accumulate(bucket: dict[str, list[float]], key: str, value: float | None) -
         bucket[key].append(value)
 
 
+def _run_calibration(run_dir: Path) -> Path | None:
+    """The calibration the run used (run_config.json), so a v2 run is read with v2."""
+    config_path = run_dir / "run_config.json"
+    if not config_path.exists():
+        return None
+    import json
+
+    recorded = json.loads(config_path.read_text(encoding="utf-8")).get("config", {}).get("calibration_path")
+    return Path(recorded) if recorded else None
+
+
 def diagnose(
     run_dir: Path,
     scenario: str,
@@ -166,7 +177,7 @@ def diagnose(
     engine_seeds = _seeds(db_dir, scenario, "engine")
     if not engine_seeds:
         raise FileNotFoundError(f"no retained {scenario} engine databases under {db_dir}")
-    cal = load_calibration()
+    cal = load_calibration(_run_calibration(run_dir))
     # Candidate reports must use the same policy file that produced the run.
     # Falling back to default is useful for legacy retained databases, but it
     # must be explicit in the report so a candidate cannot look like default.
@@ -199,11 +210,11 @@ def diagnose(
                         season_key = f"{rec['property_id']}|{rec['season']}"
                         for field in ("ceiling", "floor", "listed", "final", "confidence"):
                             _accumulate(rec_acc[season_key], field, rec[field])
-                    for row in _trace(conn):
+                    for trace in _trace(conn):
                         trace_rows += 1
-                        reasons[row["property_id"]][row["reason"]] += 1
-                        if row["wtp"] is not None:
-                            wtp_acc[row["property_id"]].append(float(row["wtp"]))
+                        reasons[trace["property_id"]][trace["reason"]] += 1
+                        if trace["wtp"] is not None:
+                            wtp_acc[trace["property_id"]].append(float(trace["wtp"]))
                     if seed == engine_seeds[0]:
                         probes.extend(_probe_ceiling(conn, policy))
             finally:
@@ -235,7 +246,7 @@ def diagnose(
             key = f"{prop}|{season}"
             if key not in price_acc and key not in rec_acc:
                 continue
-            lead = {}
+            lead: dict[str, dict[str, float]] = {}
             for (p, s, bucket), values in occ_acc.items():
                 if p == prop and s == season:
                     lead[bucket] = {"nights": len(values)}
@@ -257,8 +268,8 @@ def diagnose(
         })
 
     probe_summary: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for row in probes:
-        probe_summary[row["property_id"]].append(row)
+    for probe in probes:
+        probe_summary[probe["property_id"]].append(probe)
 
     policy_label = str(policy_path) if policy_path else "default.yaml"
     return {
@@ -331,7 +342,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         for prop, rows in report["ceiling_probes"].items():
             # Average identical probes across seeds by showing the first seed's shape
             # and the mean booked count.
-            seen = {}
+            seen: dict[str, list[dict[str, Any]]] = {}
             for row in rows:
                 seen.setdefault(row["stay_date"], []).append(row)
             for stay, group in sorted(seen.items()):

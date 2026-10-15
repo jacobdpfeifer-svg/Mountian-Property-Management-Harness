@@ -1,0 +1,305 @@
+# Calibration v2 — 2026-10-14 overhaul (docs/plans/OVERHAUL_2026-10-14.md).
+#
+# v1 (calibration.yaml) priced the whole market at $620-$910: every shopper's cap was a
+# multiplier x one $700 median, the same for every home and season, and competitors
+# quoted fixed $620-$700. The homes really list near $2,000/night at peak and above
+# $3,300 in holiday week. v2 changes, each with a source:
+#   - market_reference by season and holiday, from publicly listed prices of the curated
+#     large-home comp set and of the homes themselves (operator DB, as of 2026-10-14);
+#   - per-home value_index and the real capacities (Cloud 9 sleeps 18);
+#   - guest fees judged all-in (FTC 2024 total-price rule), competitor fees assumed;
+#   - families' per-season segment columns restored from SIM_PARAMETERS.md;
+#   - competitors priced as ratios to the reference;
+#   - owner economics (channel fee, management fee, turnover costs) for owner-net scoring;
+#   - current_practice: the homes' real seasonal listed prices as a benchmark.
+# Booked (confidential) prices are NOT here: this repo is public. They live in the
+# gitignored data/exports/rate_card.yaml and are used only by the validation script.
+# Every mapping that carries a "value" must also carry a "source".
+version: 2
+market_id: grand_home
+season_start: "2026-11-01"
+season_end: "2027-04-29"
+
+# Kept for tools that still read it; v2 shoppers use market_reference.
+median_nightly: {value: 700, source: "v1 value; unused by v2 choice", confidence: low}
+
+market_reference:
+  early_winter:
+    value: 900
+    source: "comp-set listed medians Nov-mid Dec 2026 (14 large homes, median ~$1,030) blended with the homes' own listed medians ($521-$850); operator DB 2026-10-14"
+    confidence: low
+    sweep: [700, 1100]
+  peak_ski:
+    value: 2000
+    source: "comp-set listed medians Jan-Mar 2027 (5 homes with quotes, median $2,073); own listed medians $2,006-$2,153; operator DB 2026-10-14"
+    confidence: medium
+    sweep: [1500, 2400]
+  holiday:
+    value: 2600
+    source: "comp holiday medians (6 homes, median ~$1,790) vs own listed $3,363-$3,489; ski-market holiday premium +40-80% over peak (RedAwning 2026, Xplorie 2019): 2,000 x 1.3"
+    confidence: low
+    sweep: [1800, 3400]
+  shoulder_spring:
+    value: 650
+    source: "own listed April medians $538-$850; v1 shoulder flat $650; no comp quotes"
+    confidence: low
+    sweep: [500, 850]
+  thanksgiving:
+    value: 1200
+    source: "Thanksgiving week 2026: homes list $952-$1,218; comps $1,295 and $2,875 (operator DB 2026-10-14)"
+    confidence: low
+    sweep: [950, 1600]
+  presidents:
+    value: 2300
+    source: "Presidents' Day weekend: homes list ~$3,050 (1.5x other Jan-Feb nights); scaled by the Christmas reference/own-listed ratio (2,600/3,420)"
+    confidence: low
+    sweep: [1900, 3000]
+
+# Holiday spans with their own reference level (v1 used fixed spans and one level).
+# MLK lists slightly below other January nights, so it keeps the peak reference and
+# only the holiday arrival boost.
+holidays:
+  - {name: thanksgiving, start: "2026-11-25", end: "2026-11-29", reference: thanksgiving}
+  - {name: christmas_new_year, start: "2026-12-19", end: "2027-01-03", reference: holiday}
+  - {name: mlk, start: "2027-01-16", end: "2027-01-19", reference: peak_ski}
+  - {name: presidents, start: "2027-02-13", end: "2027-02-16", reference: presidents}
+
+arrival_mean: {value: 3.2, source: "assumed, swept", confidence: low, sweep: [2.0, 3.2, 5.0]}
+holiday_multiplier: {value: 1.8, source: "assumed, swept (arrival boost)", confidence: low}
+conversion: {value: 0.55, source: "assumed, swept — not the 40/47 inquiry ratio", confidence: low}
+mixed_logit_sigma: {value: 0.25, source: "assumed, swept", confidence: low}
+fit_penalty: {value: -1.2, source: "assumed", confidence: low}
+fit_ratio: {value: 0.35, source: "assumed", confidence: low}
+outside_utility: {value: 0.0, source: "normalization", confidence: high}
+scrape_log_sigma: {value: 0.04, source: "assumed", confidence: low}
+scrape_missing_prob: {value: 0.08, source: "assumed", confidence: low}
+undercut_factor: {value: 0.92, source: "assumed, SIM_PARAMETERS competitor rules", confidence: low}
+
+# Guests pay these on top of the nightly rate; platforms show the total.
+guest_fees:
+  cleaning_per_stay: {value: 600, source: "operator (2026-10-14): $600 cleaning fee", confidence: high}
+  per_guest: {value: 75, source: "operator (2026-10-14): $75 per guest consumables", confidence: high}
+  insurance_per_stay: {value: 80, source: "operator (2026-10-14): $80 insurance", confidence: high}
+competitor_fees:
+  cleaning_per_stay: {value: 500, source: "assumed for 16-sleeper homes; not scraped yet", confidence: low, sweep: [300, 700]}
+  per_guest: {value: 0, source: "assumed", confidence: low}
+  insurance_per_stay: {value: 0, source: "assumed", confidence: low}
+fee_salience:
+  value: 1.0
+  source: "FTC rule on unfair or deceptive fees (Dec 2024): short-term lodging must show the total price most prominently; Blake et al. (StubHub) show fee display changes conversion"
+  confidence: medium
+  sweep: [0.5, 1.0]
+enforce_capacity: true
+
+economics:
+  management_fee: {value: 0.25, source: "operator chose 25% for now (2026-10-14); ski-market full service 20-35% (LocalVR Vail/Park City/Big Sky, SkyRun)", confidence: low, sweep: [0.20, 0.35]}
+  channel_fee:
+    airbnb: {value: 0.155, source: "Airbnb host-only fee for PMS-connected hosts (Hostaway, 2025)", confidence: medium}
+    vrbo: {value: 0.08, source: "assumed: VRBO pay-per-booking 5% + ~3% processing; not verified", confidence: low}
+    direct: {value: 0.03, source: "assumed card processing", confidence: low}
+    default: {value: 0.155, source: "Airbnb rate as the conservative default", confidence: low}
+  turnover_cost_per_stay: {value: 350, source: "assumed; $300-450 per turn for a large ski home (weak source; Turno Colorado data stops at 3BR)", confidence: low, sweep: [300, 450]}
+  consumables_cost_per_guest: {value: 75, source: "assumed pass-through of the $75 fee", confidence: low}
+  insurance_cost_per_stay: {value: 80, source: "assumed pass-through of the $80 fee", confidence: low}
+
+cancel_hazard:
+  ge_60: {value: 0.004, source: "assumed, swept", confidence: low}
+  ge_21: {value: 0.002, source: "assumed, swept", confidence: low}
+  ge_8: {value: 0.001, source: "assumed, swept", confidence: low}
+  ge_0: {value: 0.0004, source: "assumed, swept", confidence: low}
+
+# One market-rate price for all three homes (continuity benchmark).
+flat_price:
+  peak_ski: {value: 2000, source: "= market_reference.peak_ski", confidence: low}
+  holiday: {value: 2600, source: "= market_reference.holiday", confidence: low}
+  thanksgiving: {value: 1200, source: "= market_reference.thanksgiving", confidence: low}
+  presidents: {value: 2300, source: "= market_reference.presidents", confidence: low}
+  early_winter: {value: 900, source: "= market_reference.early_winter", confidence: low}
+  shoulder_spring: {value: 650, source: "= market_reference.shoulder_spring", confidence: low}
+
+# What the manager charges today: each home's real seasonal listed median
+# (public Airbnb prices, operator DB, stays 2026-11-01..2027-04-30, as of 2026-10-14).
+# Far-future asking prices; they will move as dates approach.
+current_practice:
+  summit_haus:
+    early_winter: {value: 537, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    peak_ski: {value: 2052, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    holiday: {value: 3489, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    shoulder_spring: {value: 560, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    thanksgiving: {value: 952, source: "listed, 25-29 Nov 2026, operator DB 2026-10-14", confidence: medium}
+    mlk: {value: 1676, source: "listed, 16-19 Jan 2027, operator DB 2026-10-14", confidence: medium}
+    presidents: {value: 3047, source: "listed, 13-16 Feb 2027, operator DB 2026-10-14", confidence: medium}
+  overlook_ridge:
+    early_winter: {value: 521, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    peak_ski: {value: 2006, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    holiday: {value: 3404, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    shoulder_spring: {value: 538, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    thanksgiving: {value: 991, source: "listed, 25-29 Nov 2026, operator DB 2026-10-14", confidence: medium}
+    mlk: {value: 1614, source: "listed, 16-19 Jan 2027, operator DB 2026-10-14", confidence: medium}
+    presidents: {value: 2975, source: "listed, 13-16 Feb 2027, operator DB 2026-10-14", confidence: medium}
+  cloud_9:
+    early_winter: {value: 850, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    peak_ski: {value: 2153, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    holiday: {value: 3363, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    shoulder_spring: {value: 850, source: "listed median, operator DB 2026-10-14", confidence: medium}
+    thanksgiving: {value: 1218, source: "listed, 25-29 Nov 2026, operator DB 2026-10-14", confidence: medium}
+    mlk: {value: 1867, source: "listed, 16-19 Jan 2027, operator DB 2026-10-14", confidence: medium}
+    presidents: {value: 3147, source: "listed, 13-16 Feb 2027, operator DB 2026-10-14", confidence: medium}
+
+validation:
+  lead_le_21:
+    lo: 0.30
+    hi: 0.75
+    source: "first party 28/47 = 0.60 is June-Dec stays (summer heavy). Colorado ski markets average 24-33 day booking windows (Beyond Pricing: Breckenridge 26, Park City 24, Tahoe 33) and large houses book further out than condos (KeyData ski forecast), so the winter floor is lowered to 0.30 (2026-10-14)"
+  los_mean: {lo: 2.5, hi: 6.5, source: "first party mean 3.64, widened for a winter mix"}
+  inquiry_per_confirmed: {lo: 0.40, hi: 1.60, source: "first party 40/47 = 0.85, widened"}
+  occupancy_peak: {lo: 0.25, hi: 0.75, source: "suggestive — partial 2026 book, widened"}
+  occupancy_early: {lo: 0.10, hi: 0.55, source: "suggestive — partial 2026 book, widened"}
+
+# Engine-facing configuration mirrors production (operator DB properties table,
+# 2026-10-14): base/floor/ceiling are what the live engine would use.
+properties:
+  summit_haus:
+    name: Summit Haus
+    bedrooms: 5
+    sleeps: 16
+    floor: 324
+    base: 889
+    ceiling: 5368
+    owner_id: northwoods
+    twin: overlook_ridge
+    quality: {value: 1.0, source: "assumed, twins share a quality", confidence: low}
+    value_index: {value: 1.0, source: "reference home (5BR, sleeps 16)", confidence: medium}
+  overlook_ridge:
+    name: Overlook Ridge
+    bedrooms: 5
+    sleeps: 16
+    floor: 336
+    base: 1042
+    ceiling: 5238
+    owner_id: northwoods
+    twin: summit_haus
+    quality: {value: 1.0, source: "assumed, twins share a quality", confidence: low}
+    value_index: {value: 1.0, source: "reference home (5BR, sleeps 16)", confidence: medium}
+  cloud_9:
+    name: Cloud 9 Chalet
+    bedrooms: 6
+    sleeps: 18
+    floor: 440
+    base: 1041
+    ceiling: 5571
+    owner_id: cloud9
+    twin: null
+    quality: {value: 1.0, source: "no evidence it is below the twins: lists and books at least as high (operator DB 2026-10-14); v1 had 0.95 assumed", confidence: low}
+    value_index: {value: 1.05, source: "6BR/sleeps 18 vs 5BR/16; capacity is a top hedonic price driver; listed peak median 1.06x the twins, holiday 0.98x", confidence: low, sweep: [0.95, 1.15]}
+
+# Priced as a ratio to the night's market reference (v2). Sizes follow the real
+# curated comp set (5-7BR, sleeps 16-18).
+competitors:
+  comp_static:
+    agent: static_owner
+    ratio: {value: 0.85, source: "cheaper large homes list ~0.6-0.9x the reference (The Views, Family Friendly)", confidence: low}
+    sleeps: 16
+    quality: {value: 0.85, source: "assumed, swept", confidence: low}
+  comp_follower:
+    agent: market_follower
+    ratio: {value: 1.0, source: "follows yesterday's median", confidence: low}
+    sleeps: 16
+    quality: {value: 0.90, source: "assumed, swept", confidence: low}
+  comp_tool:
+    agent: generalized_tool
+    ratio: {value: 1.0, source: "tool base at the reference", confidence: low}
+    sleeps: 18
+    quality: {value: 0.95, source: "assumed, swept", confidence: low}
+  comp_undercut:
+    agent: undercutter
+    sleeps: 14
+    quality: {value: 0.80, source: "assumed, swept", confidence: low}
+  comp_premium:
+    agent: static_owner
+    ratio: {value: 1.45, source: "premium large homes list ~1.4-1.5x the reference (Winter Park Ski House 7BR)", confidence: low}
+    sleeps: 16
+    quality: {value: 1.05, source: "assumed", confidence: low}
+
+segments:
+  families_at_holidays:
+    share: {peak_ski: 0.28, early_winter: 0.18, shoulder_spring: 0.12}
+    # v2: the per-season columns of SIM_PARAMETERS.md (v1 kept only the peak column).
+    lead:
+      peak_ski: [0.10, 0.20, 0.45, 0.25]
+      early_winter: [0.20, 0.35, 0.30, 0.15]
+      shoulder_spring: [0.25, 0.40, 0.25, 0.10]
+    los:
+      peak_ski: [0.05, 0.15, 0.30, 0.30, 0.20]
+      early_winter: [0.10, 0.30, 0.30, 0.20, 0.10]
+      shoulder_spring: [0.20, 0.35, 0.25, 0.15, 0.05]
+    party:
+      peak_ski: {low: 6, mode: 10, high: 16}
+      early_winter: {low: 6, mode: 10, high: 16}
+      shoulder_spring: {low: 6, mode: 8, high: 16}
+    channel: {airbnb: 0.70, vrbo: 0.15, direct: 0.15}
+    wtp:
+      median: {peak_ski: 1.20, early_winter: 1.10, shoulder_spring: 1.05}
+      sigma: 0.15
+    price_coef: {peak_ski: -1.10, early_winter: -1.30, shoulder_spring: -1.40}
+    weights:
+      peak_ski: {snow: 0.35, access: 0.45, macro: 0.20}
+      early_winter: {snow: 0.50, access: 0.40, macro: 0.25}
+      shoulder_spring: {snow: 0.15, access: 0.30, macro: 0.30}
+    holiday_sensitive: true
+    source: "SIM_PARAMETERS.md families_at_holidays, all three season columns; shares assumed, swept"
+  ski_groups:
+    share: {peak_ski: 0.22, early_winter: 0.24, shoulder_spring: 0.10}
+    lead: [0.15, 0.40, 0.35, 0.10]
+    los: [0.25, 0.35, 0.25, 0.10, 0.05]
+    party: {low: 4, mode: 8, high: 12}
+    channel: {airbnb: 0.75, vrbo: 0.20, direct: 0.05}
+    wtp: {median: 1.05, sigma: 0.12}
+    price_coef: {peak_ski: -1.40, early_winter: -1.50, shoulder_spring: -1.60}
+    weights: {snow: 0.70, access: 0.35, macro: 0.15}
+    holiday_sensitive: false
+    source: "SIM_PARAMETERS.md ski_groups; assumed, swept"
+  couples:
+    share: {peak_ski: 0.10, early_winter: 0.16, shoulder_spring: 0.28}
+    lead: [0.40, 0.35, 0.20, 0.05]
+    los: [0.45, 0.35, 0.15, 0.05, 0.00]
+    party: {low: 2, mode: 2, high: 4}
+    channel: {airbnb: 0.80, vrbo: 0.10, direct: 0.10}
+    wtp: {median: 0.90, sigma: 0.10}
+    price_coef: {peak_ski: -1.80, early_winter: -1.80, shoulder_spring: -1.80}
+    weights: {snow: 0.20, access: 0.25, macro: 0.20}
+    holiday_sensitive: false
+    source: "SIM_PARAMETERS.md couples; assumed, swept"
+  international:
+    share: {peak_ski: 0.06, early_winter: 0.05, shoulder_spring: 0.06}
+    lead: [0.05, 0.10, 0.25, 0.60]
+    los: [0.05, 0.10, 0.25, 0.30, 0.30]
+    party: {low: 2, mode: 6, high: 10}
+    channel: {airbnb: 0.40, vrbo: 0.35, direct: 0.25}
+    wtp: {median: 1.15, sigma: 0.18}
+    price_coef: {peak_ski: -0.90, early_winter: -0.90, shoulder_spring: -0.90}
+    weights: {snow: 0.25, access: 0.20, macro: 0.50}
+    holiday_sensitive: false
+    source: "SIM_PARAMETERS.md international; assumed, swept"
+  multi_generational:
+    share: {peak_ski: 0.28, early_winter: 0.27, shoulder_spring: 0.24}
+    lead: [0.10, 0.25, 0.40, 0.25]
+    los: [0.05, 0.10, 0.25, 0.30, 0.30]
+    party: {low: 8, mode: 12, high: 16}
+    channel: {airbnb: 0.55, vrbo: 0.20, direct: 0.25}
+    wtp: {median: 1.30, sigma: 0.12}
+    price_coef: {peak_ski: -0.80, early_winter: -0.80, shoulder_spring: -0.80}
+    weights: {snow: 0.30, access: 0.40, macro: 0.25}
+    holiday_sensitive: true
+    source: "SIM_PARAMETERS.md multi_generational; assumed, swept. Inquiry LOS 7.95 is a hint only"
+  corporate_retreat:
+    share: {peak_ski: 0.06, early_winter: 0.10, shoulder_spring: 0.20}
+    lead: [0.10, 0.25, 0.45, 0.20]
+    los: [0.20, 0.40, 0.25, 0.10, 0.05]
+    party: {low: 6, mode: 10, high: 16}
+    channel: {airbnb: 0.20, vrbo: 0.10, direct: 0.70}
+    wtp: {median: 1.25, sigma: 0.10}
+    price_coef: {peak_ski: -0.70, early_winter: -0.70, shoulder_spring: -0.70}
+    weights: {snow: 0.10, access: 0.20, macro: 0.60}
+    holiday_sensitive: false
+    source: "SIM_PARAMETERS.md corporate_retreat; assumed, swept"
