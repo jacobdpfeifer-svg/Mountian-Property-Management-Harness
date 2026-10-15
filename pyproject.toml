@@ -68,6 +68,9 @@ skip_empty = true
 python_version = "3.12"
 packages = ["src"]
 ignore_missing_imports = true
+check_untyped_defs = true
+# iCloud duplicates ("name 2.py") are not modules.
+exclude = [' 2\.py$']
 
 [tool.vulture]
 min_confidence = 80

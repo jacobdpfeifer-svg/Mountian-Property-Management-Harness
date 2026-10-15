@@ -1,3 +1,12 @@
+> **SUPERSEDED 2026-10-14 — do not run.** This protocol only re-proves numbers that are
+> already known, in a simulated market priced far below the real one. Use
+> `scripts/regress_market_sim.py` to check that nothing moved (minutes). The next full run is
+> defined in Phase 6 of [`docs/plans/OVERHAUL_2026-10-14.md`](../plans/OVERHAUL_2026-10-14.md)
+> and runs only after the simulator is recalibrated. Known errors in this prompt: the
+> "2,596 vs 2,243" figure was the Cloud 9/Overlook cap arm, not the base anchor; the L1 step
+> should pass `--output-dir "$RUN/l1"`; the flat benchmark already exists for seeds 1–30 in
+> `~/wp-price-runs/market_sim/baseline_79dae5d`.
+
 # Full simulation run — next run after `5aa99a7`
 
 You are running the end-to-end simulation and audit protocol on this repo and

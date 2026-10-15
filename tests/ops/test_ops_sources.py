@@ -225,3 +225,16 @@ def test_telemetry_derives_severity_and_escalates_only_to_at_risk(ops_db):
     assert result.accepted == 2 and again.duplicates == 2
     assert cloud.state == "at_risk" and cloud.actor == "telemetry"
     assert summit.state == "ready"  # a warn reading changes nothing
+
+
+def test_capacity_confidence_that_is_not_a_number_falls_back_to_the_default(ops_db, tmp_path):
+    """A text confidence ("high") used to reach the float field as None."""
+    f = tmp_path / "cap.csv"
+    f.write_text("service_date,access_zone,available_worker_minutes,confidence\n"
+                 "2026-12-20,pioneer,480,high\n2026-12-21,pioneer,480,\n2026-12-22,pioneer,480,0.9\n")
+    with connect(ops_db) as conn:
+        result = import_csv(conn, f, kind="capacity")
+        rows = [r["confidence"] for r in conn.execute(
+            "SELECT confidence FROM operations_capacity_snapshots ORDER BY service_date")]
+    assert result.accepted == 3
+    assert rows == [0.7, 0.7, 0.9]

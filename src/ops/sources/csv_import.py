@@ -199,6 +199,10 @@ def _import_outcomes(conn, headers, rows, preset, source, resolver, result):
     return record_outcomes(conn, outcomes, result)
 
 
+def _or_default(value: float | None, default: float) -> float:
+    return default if value is None else value
+
+
 def _import_capacity(conn, headers, rows, source, result):
     snaps = []
     for i, row in enumerate(rows, start=2):
@@ -217,7 +221,9 @@ def _import_capacity(conn, headers, rows, source, result):
             committed_worker_minutes=as_float(row.get("committed_worker_minutes")) or 0.0,
             service_type=str(row.get("service_type") or "turnover").strip() or "turnover",
             source=source,
-            confidence=as_float(row.get("confidence")) if not blank(row.get("confidence")) else 0.7,
+            # Blank or unparseable confidence falls back to the import default;
+            # None would reach a float field (mypy --check-untyped-defs).
+            confidence=_or_default(as_float(row.get("confidence")), 0.7),
         ))
     return record_capacity(conn, snaps, result)
 

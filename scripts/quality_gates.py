@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repeatable quality gates. mypy is advisory this pass and does not fail the run."""
+"""Repeatable quality gates. mypy (with untyped bodies checked) fails the run; pip-audit is advisory."""
 
 from __future__ import annotations
 
@@ -54,9 +54,11 @@ def main() -> int:
     audit = [sys.executable, "-m", "pip_audit"]
     _run(audit, advisory=True)
 
-    mypy = [sys.executable, "-m", "mypy", "src"]
-    _run(mypy, advisory=True)
-    print("QUALITY GATES OK (mypy/pip-audit advisory)")
+    # scripts/ produces the numbers in the reports, so it is type-checked too.
+    mypy = [sys.executable, "-m", "mypy", "src", "scripts"]
+    if _run(mypy) != 0:
+        return 1
+    print("QUALITY GATES OK (pip-audit advisory)")
     return 0
 
 

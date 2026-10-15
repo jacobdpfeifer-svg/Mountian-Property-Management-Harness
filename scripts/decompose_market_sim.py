@@ -9,7 +9,13 @@ Reads ``<run_dir>/dbs/<scenario>_<policy>_<seed>.db`` pairs written by
 - a night-by-night split of the gap into nights both policies sold (price
   effect), nights only one sold (volume effect), and nights neither sold;
 - for the engine side: how often the final price sat at the ceiling or the
-  floor, and the guardrail action on the day each night booked.
+  floor (within a relative tolerance, because prices are rounded after the
+  ceiling is applied), how often the model's own price was already at or above
+  the ceiling, and the guardrail action on the day each night booked.
+
+The right-hand policy may live in another run directory (``--right-dir``), for
+example a candidate screen compared with the flat benchmark of the default
+screen. Each side is reconciled against its own ``scoreboard.csv``.
 
 It never runs the market. Every number comes from the retained databases.
 """
@@ -73,12 +79,17 @@ def load_engine_recs(path: Path) -> dict[tuple[str, str, str], dict[str, Any]]:
     """(run_id, property, stay_date) -> rec. run_id is ``sim-<decision day>``."""
     conn = _connect(path)
     try:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(price_recommendations)")}
+        # Databases retained before model_price existed still decompose; the
+        # "model ≥ ceiling" share is then reported as 0.
+        model = "model_price" if "model_price" in columns else "NULL AS model_price"
         return {
             (row["run_id"], row["property_id"], row["stay_date"]): dict(row)
             for row in conn.execute(
-                """
+                f"""
                 SELECT run_id, property_id, stay_date, final_price, ceiling_price,
-                       floor_price, COALESCE(guardrail_action, '') AS guardrail_action
+                       floor_price, {model},
+                       COALESCE(guardrail_action, '') AS guardrail_action
                 FROM price_recommendations
                 """
             )
@@ -108,27 +119,55 @@ class Tally:
         }
 
 
-def _at(value: float | None, target: float | None) -> bool:
-    return value is not None and target is not None and abs(value - target) < 0.5
+# Final prices are rounded after the ceiling is applied, so an exact or
+# $0.50 match misses most ceiling-bound nights (2026-10-14 audit: "17.7% at
+# ceiling" was really ~97% within 3%). A relative band catches them.
+DEFAULT_TOLERANCE = 0.01
 
 
-def decompose(run_dir: Path, scenario: str, left: str, right: str) -> dict[str, Any]:
-    db_dir = run_dir / "dbs"
+def _at_ceiling(value: float | None, ceiling: float | None, tol: float = DEFAULT_TOLERANCE) -> bool:
+    return value is not None and ceiling is not None and ceiling > 0 and value >= ceiling * (1 - tol)
+
+
+def _at_floor(value: float | None, floor: float | None, tol: float = DEFAULT_TOLERANCE) -> bool:
+    return value is not None and floor is not None and floor > 0 and value <= floor * (1 + tol)
+
+
+def _model_wants_ceiling(rec: dict[str, Any]) -> bool:
+    """The model's own price was at or above the ceiling before any bound."""
+    model, ceiling = rec.get("model_price"), rec.get("ceiling_price")
+    return model is not None and ceiling is not None and ceiling > 0 and model >= ceiling - 0.5
+
+
+def decompose(
+    run_dir: Path,
+    scenario: str,
+    left: str,
+    right: str,
+    *,
+    right_dir: Path | None = None,
+    tolerance: float = DEFAULT_TOLERANCE,
+) -> dict[str, Any]:
+    right_run = right_dir if right_dir is not None else run_dir
+    dirs = {left: run_dir / "dbs", right: right_run / "dbs"}
     seeds = sorted(
         int(path.stem.rsplit("_", 1)[1])
-        for path in db_dir.glob(f"{scenario}_{left}_*.db")
-        if (db_dir / f"{scenario}_{right}_{path.stem.rsplit('_', 1)[1]}.db").exists()
+        for path in dirs[left].glob(f"{scenario}_{left}_*.db")
+        if (dirs[right] / f"{scenario}_{right}_{path.stem.rsplit('_', 1)[1]}.db").exists()
     )
     if not seeds:
         raise FileNotFoundError(
-            f"no retained {scenario} {left}/{right} database pairs under {db_dir}"
+            f"no retained {scenario} {left}/{right} database pairs under "
+            f"{dirs[left]} and {dirs[right]}"
         )
     dims = ("season", "property", "lead_bucket")
     tallies: dict[str, dict[str, dict[str, Tally]]] = {
         dim: defaultdict(lambda: {left: Tally(), right: Tally()}) for dim in dims
     }
     totals = {left: Tally(), right: Tally()}
-    split = defaultdict(lambda: {"nights": 0, "revenue_left": 0.0, "revenue_right": 0.0})
+    split: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"nights": 0, "revenue_left": 0.0, "revenue_right": 0.0}
+    )
     split_by_season: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     rec_stats: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     guard_at_booking: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
@@ -136,11 +175,12 @@ def decompose(run_dir: Path, scenario: str, left: str, right: str) -> dict[str, 
 
     for seed in seeds:
         nights = {
-            left: load_nights(db_dir / f"{scenario}_{left}_{seed}.db"),
-            right: load_nights(db_dir / f"{scenario}_{right}_{seed}.db"),
+            left: load_nights(dirs[left] / f"{scenario}_{left}_{seed}.db"),
+            right: load_nights(dirs[right] / f"{scenario}_{right}_{seed}.db"),
         }
         recs = (
-            load_engine_recs(db_dir / f"{scenario}_engine_{seed}.db") if engine_side else {}
+            load_engine_recs(dirs[engine_side] / f"{scenario}_engine_{seed}.db")
+            if engine_side else {}
         )
         for key in sorted(nights[left]):
             a, b = nights[left][key], nights[right].get(key)
@@ -167,22 +207,25 @@ def decompose(run_dir: Path, scenario: str, left: str, right: str) -> dict[str, 
             season = season_of(date.fromisoformat(stay))
             stats = rec_stats[season]
             stats["recs"] += 1
-            stats["at_ceiling"] += _at(rec["final_price"], rec["ceiling_price"])
-            stats["at_floor"] += _at(rec["final_price"], rec["floor_price"])
+            stats["at_ceiling"] += _at_ceiling(rec["final_price"], rec["ceiling_price"], tolerance)
+            stats["at_floor"] += _at_floor(rec["final_price"], rec["floor_price"], tolerance)
+            stats["model_wants_ceiling"] += _model_wants_ceiling(rec)
             stats[f"guardrail:{rec['guardrail_action'] or 'none'}"] += 1
         if engine_side:
             for key, night in nights[engine_side].items():
                 if not night["booked"] or not night["booked_at"]:
                     continue
-                rec = recs.get((f"sim-{night['booked_at']}", key[0], key[1]))
-                action = (rec["guardrail_action"] or "none") if rec else "no_rec_that_day"
+                day_rec = recs.get((f"sim-{night['booked_at']}", key[0], key[1]))
+                action = (day_rec["guardrail_action"] or "none") if day_rec else "no_rec_that_day"
                 cell = guard_at_booking[action]
                 cell["nights"] += 1
                 cell["revenue"] += night["price"]
-                cell["at_ceiling"] += bool(rec and _at(rec["final_price"], rec["ceiling_price"]))
+                cell["at_ceiling"] += bool(
+                    day_rec and _at_ceiling(day_rec["final_price"], day_rec["ceiling_price"], tolerance)
+                )
 
     n = len(seeds)
-    by_dim = {}
+    by_dim: dict[str, dict[str, Any]] = {}
     for dim, groups in tallies.items():
         by_dim[dim] = {}
         for name in sorted(groups):
@@ -194,6 +237,8 @@ def decompose(run_dir: Path, scenario: str, left: str, right: str) -> dict[str, 
             }
     return {
         "run_dir": str(run_dir),
+        "right_dir": str(right_run),
+        "ceiling_tolerance": tolerance,
         "scenario": scenario,
         "left": left,
         "right": right,
@@ -222,6 +267,7 @@ def decompose(run_dir: Path, scenario: str, left: str, right: str) -> dict[str, 
                 "recs": stats["recs"],
                 "share_at_ceiling": round(stats["at_ceiling"] / stats["recs"], 4),
                 "share_at_floor": round(stats["at_floor"] / stats["recs"], 4),
+                "share_model_wants_ceiling": round(stats["model_wants_ceiling"] / stats["recs"], 4),
                 "guardrail": {
                     key.split(":", 1)[1]: value
                     for key, value in sorted(stats.items()) if key.startswith("guardrail:")
@@ -237,14 +283,17 @@ def decompose(run_dir: Path, scenario: str, left: str, right: str) -> dict[str, 
             }
             for action, cell in sorted(guard_at_booking.items())
         },
-        "scoreboard_check": _scoreboard_check(run_dir, scenario, (left, right), seeds, totals, n),
+        "scoreboard_check": {
+            **_scoreboard_check(run_dir, scenario, (left,), seeds, totals, n),
+            **_scoreboard_check(right_run, scenario, (right,), seeds, totals, n),
+        },
     }
 
 
 def _scoreboard_check(
     run_dir: Path,
     scenario: str,
-    policies: tuple[str, str],
+    policies: tuple[str, ...],
     seeds: list[int],
     totals: dict[str, Tally],
     n: int,
@@ -252,14 +301,14 @@ def _scoreboard_check(
     """Booked-night revenue should reconcile with the scoreboard's revenue column."""
     path = run_dir / "scoreboard.csv"
     if not path.exists():
-        return {"status": "no scoreboard.csv"}
+        return {policy: {"status": f"no scoreboard.csv in {run_dir}"} for policy in policies}
     wanted = {str(seed) for seed in seeds}
     board: dict[str, list[float]] = defaultdict(list)
     with path.open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             if row["scenario"] == scenario and row["seed"] in wanted and row["policy"] in policies:
                 board[row["policy"]].append(float(row["revenue"]))
-    out = {}
+    out: dict[str, dict[str, Any]] = {}
     for policy in policies:
         if len(board[policy]) != n:
             out[policy] = {"status": f"scoreboard has {len(board[policy])} of {n} seeds"}
@@ -283,6 +332,10 @@ def to_markdown(result: dict[str, Any]) -> str:
         "All figures are per-seed means from retained job databases (simulated, not realized, revenue).",
         "",
         f"Total revenue delta ({left} − {right}): **{result['totals']['revenue_delta']:,.0f}**",
+        "",
+        f"Ceiling/floor tolerance: {result['ceiling_tolerance']:.0%} of the bound. "
+        "\"Model ≥ ceiling\" is the share of recommendations whose model price was already "
+        "at or above the ceiling, i.e. the ceiling, not the demand model, set the price.",
         "",
         "## Night split",
         "",
@@ -317,14 +370,14 @@ def to_markdown(result: dict[str, Any]) -> str:
             "",
             "## Engine recommendations by season",
             "",
-            "| season | recs | at ceiling | at floor | guardrail actions |",
-            "|---|---:|---:|---:|---|",
+            "| season | recs | at ceiling | model ≥ ceiling | at floor | guardrail actions |",
+            "|---|---:|---:|---:|---:|---|",
         ]
         for season, stats in result["engine_recommendations_by_season"].items():
             actions = ", ".join(f"{k}={v}" for k, v in stats["guardrail"].items())
             lines.append(
                 f"| {season} | {stats['recs']} | {stats['share_at_ceiling']:.1%} | "
-                f"{stats['share_at_floor']:.1%} | {actions} |"
+                f"{stats['share_model_wants_ceiling']:.1%} | {stats['share_at_floor']:.1%} | {actions} |"
             )
         lines += [
             "",
@@ -348,10 +401,22 @@ def main() -> int:
     parser.add_argument("--scenario", default="normal")
     parser.add_argument("--left", default="engine")
     parser.add_argument("--right", default="flat")
+    parser.add_argument(
+        "--right-dir", type=Path,
+        help="Run dir holding the right-hand policy's dbs/ and scoreboard.csv (default: run_dir)",
+    )
+    parser.add_argument(
+        "--tolerance", type=float, default=DEFAULT_TOLERANCE,
+        help="Relative band for 'at ceiling' / 'at floor' (default 0.01 = 1%%)",
+    )
     parser.add_argument("--json", dest="json_path", type=Path)
     parser.add_argument("--md", dest="md_path", type=Path)
     args = parser.parse_args()
-    result = decompose(args.run_dir.expanduser(), args.scenario, args.left, args.right)
+    result = decompose(
+        args.run_dir.expanduser(), args.scenario, args.left, args.right,
+        right_dir=args.right_dir.expanduser() if args.right_dir else None,
+        tolerance=args.tolerance,
+    )
     if args.json_path:
         args.json_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     markdown = to_markdown(result)

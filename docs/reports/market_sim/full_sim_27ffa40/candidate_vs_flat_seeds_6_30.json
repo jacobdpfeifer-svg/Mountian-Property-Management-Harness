@@ -1,0 +1,85 @@
+{
+  "combined_minus_default": {
+    "adr": {
+      "bootstrap_95": {
+        "hi": 26.8958,
+        "lo": 21.3158
+      },
+      "max": 35.33,
+      "mean": 24.1392,
+      "median": 24.6,
+      "min": 10.17,
+      "n": 25,
+      "nonnegative": 25,
+      "seeds_left_higher": 25,
+      "seeds_left_lower": 0,
+      "stdev": 7.1821
+    },
+    "occupancy": {
+      "bootstrap_95": {
+        "hi": -0.0551,
+        "lo": -0.0771
+      },
+      "max": -0.0186,
+      "mean": -0.0662,
+      "median": -0.0667,
+      "min": -0.1148,
+      "n": 25,
+      "nonnegative": 0,
+      "seeds_left_higher": 0,
+      "seeds_left_lower": 25,
+      "stdev": 0.0277
+    },
+    "occupancy_peak": {
+      "bootstrap_95": {
+        "hi": -0.0804,
+        "lo": -0.1176
+      },
+      "max": -0.0187,
+      "mean": -0.0993,
+      "median": -0.1028,
+      "min": -0.1838,
+      "n": 25,
+      "nonnegative": 0,
+      "seeds_left_higher": 0,
+      "seeds_left_lower": 25,
+      "stdev": 0.048
+    },
+    "revenue": {
+      "bootstrap_95": {
+        "hi": -17177.23,
+        "lo": -28310.94
+      },
+      "max": -2110.0,
+      "mean": -22679.6,
+      "median": -23240.0,
+      "min": -48145.0,
+      "n": 25,
+      "nonnegative": 0,
+      "seeds_left_higher": 0,
+      "seeds_left_lower": 25,
+      "stdev": 13889.1959
+    },
+    "revpan": {
+      "bootstrap_95": {
+        "hi": -31.8097,
+        "lo": -52.4277
+      },
+      "max": -3.9074,
+      "mean": -41.9993,
+      "median": -43.037,
+      "min": -89.1574,
+      "n": 25,
+      "nonnegative": 0,
+      "seeds_left_higher": 0,
+      "seeds_left_lower": 25,
+      "stdev": 25.7207
+    }
+  },
+  "left_policy": "engine",
+  "right_policy": "flat",
+  "scenario": "normal",
+  "seed_count": 25,
+  "seeds_from": 6,
+  "seeds_to": null
+}

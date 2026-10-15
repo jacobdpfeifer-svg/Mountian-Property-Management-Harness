@@ -25,7 +25,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from src.scrape.parse import nightly_price
+from src.scrape.parse import nightly_price_with_basis
 
 
 @dataclass
@@ -36,6 +36,8 @@ class Listing:
     bedrooms: int | None = None
     sleeps: int | None = None
     rating: float | None = None
+    # "nightly" (fee-free breakdown) or "total" (window total / nights; may include fees).
+    price_basis: str | None = None
 
 
 def _int_or_none(value: Any) -> int | None:
@@ -201,9 +203,11 @@ class PyAirbnbProvider(CompProvider):
             seen.add(str(room_id))
             rating = item.get("rating")
             bedrooms, sleeps = _listing_size(item)
+            price, basis = nightly_price_with_basis(item, nights)
             listings.append(Listing(
                 room_id=str(room_id),
-                nightly_price=nightly_price(item, nights),
+                nightly_price=price,
+                price_basis=basis,
                 name=str(item.get("name") or "") or None,
                 bedrooms=bedrooms,
                 sleeps=sleeps,
