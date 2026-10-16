@@ -166,6 +166,20 @@ def sync_listings(conn: sqlite3.Connection, client: GuestyClient,
     if property_ids:
         wanted = set(property_ids)
         listings = [item for item in listings if item.property_id in wanted]
+    # Audit unknown listings before processing them.  Legacy sync remains able
+    # to retain a non-portfolio listing as read-only history (the original
+    # product supports demo/import databases); recommendation and live-write
+    # boundaries still exclude it.  A migrated database receives the immutable
+    # quarantine event before any downstream work sees the listing.
+    from src.security.scope import EXPECTED_PROPERTY_IDS, quarantine
+
+    for l in listings:
+        if l.property_id not in EXPECTED_PROPERTY_IDS:
+            quarantine(conn, boundary="sync", property_id=l.property_id,
+                       listing_id=l.listing_id, reason="unknown_listing")
+            report.warnings.append(
+                f"out-of-portfolio listing {l.property_id!r} quarantined from pricing"
+            )
     for l in listings:
         floor, base_ceiling, max_ceiling = _floor_and_ceiling(l)
         conn.execute(
