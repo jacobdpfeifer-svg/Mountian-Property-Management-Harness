@@ -1,0 +1,64 @@
+# Clean-environment release gates. Every job starts from a fresh checkout and a
+# frozen dependency lock. No job holds Guesty credentials or writes anywhere:
+# WP_PRICE_ENV=simulation and an empty control dir keep the kill switch closed.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  WP_PRICE_ENV: simulation
+  WP_PRICE_CONTROL_DIR: ${{ github.workspace }}/.ci-control-empty
+  PYTHONHASHSEED: "0"
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: lockfile matches pyproject
+        run: uv lock --check
+      - run: uv sync --frozen --extra dev
+      - name: unit, ops, security, data-spine, coverage, mypy, vulture
+        run: uv run python scripts/quality_gates.py
+      - name: dependency audit (advisory inside quality_gates; blocking here)
+        run: uv run python -m pip_audit
+      - name: secret and confidential-file scan
+        run: uv run python scripts/scan_repo.py
+      - name: migrations apply cleanly to an empty database
+        run: uv run python -m pytest -q tests/data_spine -k migration
+      - name: release manifest is reproducible
+        run: |
+          uv run python scripts/release.py manifest > m1.json
+          uv run python scripts/release.py manifest > m2.json
+          python3 -c "import json;a,b=(json.load(open(f)) for f in ('m1.json','m2.json'));assert a['manifest_sha256']==b['manifest_sha256'];print(a['manifest_sha256'])"
+
+  slow:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen --extra dev
+      - run: uv run python -m pytest -q -m slow
+
+  golden-v1:
+    # Market simulation; one per runner, so the global run lock never contends.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen --extra dev
+      - run: uv run python scripts/regress_market_sim.py --board default --workers 2

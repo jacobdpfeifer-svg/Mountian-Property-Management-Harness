@@ -278,4 +278,6 @@ def test_push_never_writes_a_restricted_night(state_dbs, state):
         assert len(spy.calls) == 1
     # The PMS contract has no availability, block, or reservation write at all.
     surface = {n for n in dir(DryRunAdapter) if not n.startswith("_")}
-    assert surface == {"name", "fetch_calendar", "push_rate"}
+    # `live` is a boolean flag (kill-switch gating), not a write method.
+    assert surface == {"name", "live", "fetch_calendar", "push_rate"}
+    assert DryRunAdapter.live is False

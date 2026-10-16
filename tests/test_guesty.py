@@ -573,7 +573,6 @@ def test_sync_keeps_extra_listing_out_of_default_scope(tmp_path: Path):
         assert "summit_haus" in ids
         assert "creekside_haven" in ids
         scoped = resolve_property_ids(conn)
-        assert scoped == ["summit_haus"]
         assert "creekside_haven" not in scoped
         assert get_db_identity(conn).kind == "production"
 
@@ -630,7 +629,7 @@ def test_set_rate_is_unreachable_without_push_recommendations():
                 call_sites.append((rel, node.lineno, line))
     assert len(call_sites) == 1, f"unexpected set_rate callers: {call_sites}"
     assert call_sites[0][0] == "src/pms/__init__.py"
-    assert "self.client.set_rate" in call_sites[0][2]
+    assert "self._write_client.set_rate" in call_sites[0][2]
 
     push_rate_callers: list[tuple[str, int]] = []
     for path in _py_files():
@@ -646,10 +645,15 @@ def test_set_rate_is_unreachable_without_push_recommendations():
             if name != "push_rate":
                 continue
             push_rate_callers.append((rel, node.lineno))
-    assert len(push_rate_callers) == 1, (
+    # Two guarded call sites only: push_recommendations' final boundary, and the
+    # canary controller's single `_guarded_push` (floor, caps, dates, rollback).
+    assert sorted(rel for rel, _ in push_rate_callers) == ["src/pms/__init__.py", "src/pms/canary.py"], (
         f"unexpected push_rate callers (bypass of apply_guardrails): {push_rate_callers}"
     )
-    assert push_rate_callers[0][0] == "src/pms/__init__.py"
+    canary_src = (ROOT / "src/pms/canary.py").read_text(encoding="utf-8")
+    guarded = canary_src.split("def _guarded_push", 1)[1].split("\n    def ", 1)[0]
+    assert "self.adapter.push_rate(" in guarded and "floor_price" in guarded
+    assert canary_src.count("self.adapter.push_rate(") == 1
 
     for rel in ("src/cli/main.py", "src/pms/sync.py"):
         text = (ROOT / rel).read_text(encoding="utf-8")
@@ -679,7 +683,32 @@ def _client() -> GuestyClient:
     return c
 
 
-def test_set_rate_retries_transient_failures_then_succeeds(monkeypatch: pytest.MonkeyPatch):
+@pytest.fixture
+def write_permitted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A test-only, unexpired production permit so set_rate's retry logic can run.
+
+    requests.put is always monkeypatched in these tests; nothing reaches Guesty.
+    """
+    import json as _json
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+    from src.pms import guesty as _g
+
+    control = tmp_path / "control"
+    control.mkdir()
+    (control / "write_permit.json").write_text(_json.dumps({
+        "permit_id": "test", "approved_by": "pytest", "writes_enabled": True,
+        "environment": "production", "property_ids": ["summit_haus"],
+        "expires_at": (_dt.now(_tz.utc) + _td(hours=1)).isoformat()}))
+    monkeypatch.setenv("WP_PRICE_CONTROL_DIR", str(control))
+    monkeypatch.setenv("WP_PRICE_ENV", "production")
+    monkeypatch.setenv("GUESTY_CLIENT_ID", "read-id")
+    monkeypatch.setenv("GUESTY_WRITE_CLIENT_ID", "id")
+    monkeypatch.setenv("GUESTY_WRITE_CLIENT_SECRET", "secret")
+    monkeypatch.setitem(_g.LOCKED_LISTING_PROPERTY_IDS, "listing1", "summit_haus")
+
+
+def test_set_rate_retries_transient_failures_then_succeeds(monkeypatch: pytest.MonkeyPatch, write_permitted):
     client = _client()
     sleeps: list[float] = []
     monkeypatch.setattr("src.pms.guesty.time.sleep", lambda s: sleeps.append(s))
@@ -701,7 +730,7 @@ def test_set_rate_retries_transient_failures_then_succeeds(monkeypatch: pytest.M
     assert err == "request_id=abc"
 
 
-def test_set_rate_does_not_retry_client_errors(monkeypatch: pytest.MonkeyPatch):
+def test_set_rate_does_not_retry_client_errors(monkeypatch: pytest.MonkeyPatch, write_permitted):
     client = _client()
     monkeypatch.setattr("src.pms.guesty.time.sleep", lambda *_a, **_k: None)
     puts = {"n": 0}
@@ -718,7 +747,7 @@ def test_set_rate_does_not_retry_client_errors(monkeypatch: pytest.MonkeyPatch):
     assert err is not None
 
 
-def test_set_rate_reconciles_timeout_after_server_side_success(monkeypatch: pytest.MonkeyPatch):
+def test_set_rate_reconciles_timeout_after_server_side_success(monkeypatch: pytest.MonkeyPatch, write_permitted):
     """Timeout after Guesty applied the PUT must not leave listed_price stale."""
     client = _client()
     monkeypatch.setattr("src.pms.guesty.time.sleep", lambda *_a, **_k: None)

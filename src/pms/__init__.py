@@ -35,6 +35,9 @@ class PMSAdapter(ABC):
     """Vendor-neutral PMS contract."""
 
     name: str = "abstract"
+    # True for adapters that can change a real channel. Live adapters are gated
+    # by portfolio scope and the global write kill switch in push_recommendations.
+    live: bool = False
 
     @abstractmethod
     def fetch_calendar(self, property_id: str, start: date, end: date) -> list[dict[str, Any]]: ...
@@ -60,17 +63,20 @@ class DryRunAdapter(PMSAdapter):
 class GuestyAdapter(PMSAdapter):
     """Guesty rate writer — delegates to the verified client in src/pms/guesty.py.
 
-    Credentials come from .env (GUESTY_CLIENT_ID / GUESTY_CLIENT_SECRET). The
-    property_id -> Guesty listing id map is read from properties.pms_listing_id,
-    which `wp-price sync-guesty` populates, so nothing has to be configured by hand.
+    Reads use GUESTY_CLIENT_ID / GUESTY_CLIENT_SECRET. Writes instantiate a
+    separate, non-cached client from GUESTY_WRITE_CLIENT_ID / SECRET only after
+    the final safety boundaries have allowed a rate push. The property_id ->
+    Guesty listing id map is read from properties.pms_listing_id.
     """
 
     name = "guesty"
+    live = True
 
     def __init__(self, conn: sqlite3.Connection | None = None, **kwargs: Any) -> None:
         from src.pms.guesty import GuestyClient
 
         self.client = GuestyClient(**kwargs)
+        self._write_client: Any | None = None
         self.listing_map: dict[str, str] = {}
         if conn is not None:
             self.load_map(conn)
@@ -101,7 +107,22 @@ class GuestyAdapter(PMSAdapter):
             listing_id = self._listing_id(property_id)
         except KeyError as exc:
             return PushResult(property_id, stay_date, None, price, False, "failed", str(exc))
-        ok, error = self.client.set_rate(listing_id, stay_date, price, min_stay)
+        # Do not reuse the read/sync OAuth client for a live write.  The client
+        # itself repeats this check at its final HTTP boundary.
+        if self._write_client is None:
+            from src.security.environment import CredentialPurpose, MissingSecret, resolve_credential
+            try:
+                credential = resolve_credential(CredentialPurpose.WRITE)
+            except MissingSecret as exc:
+                return PushResult(property_id, stay_date, None, price, False, "failed", str(exc))
+            from src.pms.guesty import GuestyClient
+            self._write_client = GuestyClient(
+                client_id=credential.client_id,
+                client_secret=credential.client_secret,
+                timeout=self.client.timeout,
+                use_token_cache=False,
+            )
+        ok, error = self._write_client.set_rate(listing_id, stay_date, price, min_stay)
         request_id = None
         if ok and error and error.startswith("request_id="):
             request_id, error = error.split("=", 1)[1], None
@@ -213,6 +234,36 @@ def push_recommendations(
                 "refused_db_kind": ident.kind,
             }
 
+    refused_scope = refused_switch = 0
+    if getattr(adapter, "live", False):
+        from src.security.audit import record_event
+        from src.security.kill_switch import state as switch_state
+        from src.security.scope import ScopeError, load_scope
+
+        try:
+            scope = load_scope(conn)
+        except ScopeError as exc:
+            record_event(conn, event_type="write_refused", boundary="push", severity="critical",
+                         detail={"reason": f"scope unavailable: {exc}"})
+            conn.commit()
+            return {"attempted": 0, "applied": 0, "failed": 0,
+                    "skipped_autonomy": len(recs), "refused_scope": len(recs)}
+        cleared = []
+        for rec in recs:
+            if not scope.check_property(rec.property_id).allowed:
+                scope.filter_properties(conn, [rec.property_id], boundary="push")
+                refused_scope += 1
+                continue
+            gate = switch_state(rec.property_id)
+            if not gate.writes_allowed:
+                record_event(conn, event_type="write_refused", boundary="push", severity="warning",
+                             subject=rec.property_id, detail={"reason": gate.reason,
+                                                              "stay_date": rec.stay_date.isoformat()})
+                refused_switch += 1
+                continue
+            cleared.append(rec)
+        recs = cleared
+
     if policy is None:
         from src.config import load_policy
         policy = load_policy()
@@ -222,6 +273,9 @@ def push_recommendations(
     policy_min_enabled = bool((policy.get("min_stay_rules") or {}).get("enabled", False))
 
     counts = {"attempted": 0, "applied": 0, "failed": 0, "skipped_autonomy": 0}
+    if refused_scope or refused_switch:
+        counts["refused_scope"] = refused_scope
+        counts["refused_kill_switch"] = refused_switch
     for rec in recs:
         if rec.status == "blocked" or rec.autonomy_level != "handle":
             counts["skipped_autonomy"] += 1

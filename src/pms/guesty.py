@@ -5,9 +5,9 @@ imply. In particular the calendar does NOT live at /v1/listings/{id}/calendar; i
 /v1/availability-pricing/api/calendar/listings/{id}. Getting that wrong fails closed
 (404) rather than silently, but it is worth pinning in a comment.
 
-Auth: OAuth2 client-credentials, scope 'open-api'. Tokens last 24h and the token
-endpoint is rate-limited, so the token is cached to disk across processes — a daily
-cron that re-authenticates on every invocation will eventually get throttled.
+Auth: OAuth2 client-credentials, scope 'open-api'. Local durable token caching
+is disabled by default: an OAuth token is a secret. A managed runtime may opt in
+to an approved external cache explicitly, outside this repository.
 """
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ class GuestyListing:
 
 class GuestyClient:
     def __init__(self, client_id: str | None = None, client_secret: str | None = None,
-                 timeout: int = 30, use_token_cache: bool = True):
+                 timeout: int = 30, use_token_cache: bool = False):
         load_dotenv()
         self.client_id = client_id or os.environ.get("GUESTY_CLIENT_ID", "")
         self.client_secret = client_secret or os.environ.get("GUESTY_CLIENT_SECRET", "")
@@ -290,6 +290,26 @@ class GuestyClient:
                 break
 
     # -- write --------------------------------------------------------------
+    def _write_block_reason(self, listing_id: str) -> str | None:
+        from src.security.environment import CredentialPurpose, MissingSecret, resolve_credential
+        from src.security.kill_switch import state as switch_state
+
+        property_id = LOCKED_LISTING_PROPERTY_IDS.get(str(listing_id))
+        try:
+            from src.security.scope import EXPECTED_PROPERTY_IDS
+        except Exception:  # pragma: no cover - import failure must not open writes
+            return "scope unavailable"
+        if property_id is None or property_id not in EXPECTED_PROPERTY_IDS:
+            return "listing not in portfolio scope"
+        try:
+            write = resolve_credential(CredentialPurpose.WRITE)
+        except MissingSecret as exc:
+            return str(exc)
+        if write.client_id != self.client_id:
+            return "client is not using the write credential"
+        gate = switch_state(property_id)
+        return None if gate.writes_allowed else gate.reason
+
     def set_rate(self, listing_id: str, stay_date: date, price: float,
                  min_nights: int | None = None) -> tuple[bool, str | None]:
         """Write one night's rate. Returns (ok, error).
@@ -302,6 +322,13 @@ class GuestyClient:
         reconciled against the live calendar so we do not log a false failure.
         """
         import requests
+
+        # Final adapter boundary. Nothing below this block may run unless the
+        # listing is in the portfolio, this client holds the separate write
+        # credential, and the global kill switch permits a write right now.
+        blocked = self._write_block_reason(listing_id)
+        if blocked is not None:
+            return False, f"write blocked: {blocked}"
 
         target = round(float(price), 2)
         body: dict[str, Any] = {
