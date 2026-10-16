@@ -1,0 +1,16 @@
+# TEMPLATE — inactive until real owner statements arrive.
+contract: owner_statement
+source_system: owner_statement_export
+columns:
+  statement_key: "Statement ID"
+  owner_id: "Owner"
+  property_id: "Listing"
+  period_start: "Period Start"
+  period_end: "Period End"
+  reported_owner_net: "Net to Owner"
+  currency: "Currency"
+values:
+  property_id: {}
+  owner_id: {}                          # owner names -> stable owner ids (no names stored)
+absolute_amounts: false                 # owner net may be negative
+dates_are_utc_midnight: true

@@ -1,0 +1,100 @@
+{
+ "experiment_id": "EXP-PACE-V3-001",
+ "candidate_policy": "config/policies/candidates/pace_v3_anchor_repair.yaml",
+ "calibration": "proving_ground_exam/market/calibration_v2.yaml",
+ "objective": "simulated owner net per season (V2 market, all-in guest price)",
+ "comparator": "current_practice",
+ "harm_fraction": 0.02,
+ "segment_fraction": 0.03,
+ "harm_basis": "Margin = 50% of the smallest gain worth deploying (FDA non-inferiority M2 = 0.5 x M1 convention). Smallest worthwhile gain taken as 4% of current-practice owner net (~$14.6k/season on the v2 screen), which exceeds plausible running costs; 50% of it is 2%. Per-home segment margin 3%: one home has a third of the data, so its estimate is noisier. Fixed before any V3 board exists.",
+ "screen_requires_gain": true,
+ "reject_below": null,
+ "screen": {
+  "seeds": [
+   1001,
+   1002,
+   1003,
+   1004,
+   1005
+  ],
+  "scenarios": [
+   "normal",
+   "scrape_degraded"
+  ],
+  "note": "Fresh seeds: every earlier board ran seeds 1-30 only (exposed_seeds, 2026-10-16). scrape_degraded is screened too: the v2 simulator scrapes kindly in normal (8% missing), where the anchor repair barely acts (audit S6)."
+ },
+ "evaluation": {
+  "seeds": [
+   2001,
+   2002,
+   2003,
+   2004,
+   2005,
+   2006,
+   2007,
+   2008,
+   2009,
+   2010,
+   2011,
+   2012,
+   2013,
+   2014,
+   2015,
+   2016,
+   2017,
+   2018,
+   2019,
+   2020,
+   2021,
+   2022,
+   2023,
+   2024,
+   2025
+  ],
+  "primary_scenarios": [
+   "normal"
+  ],
+  "scenarios": [
+   "normal",
+   "price_war",
+   "recession",
+   "pandemic_collapse",
+   "regime_change",
+   "holiday_shift",
+   "den_capacity_cut",
+   "i70_closure",
+   "supply_surge",
+   "record_snow",
+   "drought",
+   "late_opening",
+   "early_closure",
+   "stale_pms",
+   "scrape_outage",
+   "scrape_degraded"
+  ],
+  "comparators": [
+   "current_practice"
+  ]
+ },
+ "metrics": [
+  "owner_net (primary, paired)",
+  "owner_net_by_property (segment harm)",
+  "gross_revenue",
+  "adr",
+  "occupancy",
+  "guardrail_actions_per_1000",
+  "peak_ceiling_binding_share",
+  "max_adverse_seed"
+ ],
+ "stop_conditions": [
+  "screen decision is not ADVANCE_TO_EVALUATION",
+  "any change to candidate policy, calibration or code_paths after freeze (new candidate)",
+  "any board made by other code, from a dirty tree, or started before the freeze",
+  "any held-out seed opened before the screen gate passes"
+ ],
+ "code_paths": [
+  "src",
+  "config/policies",
+  "proving_ground_exam"
+ ]
+}

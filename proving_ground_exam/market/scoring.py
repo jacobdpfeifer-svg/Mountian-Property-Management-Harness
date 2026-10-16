@@ -81,6 +81,7 @@ def realized(
         "guest_paid": 0.0, "channel_fee": 0.0, "management_fee": 0.0,
         "stay_costs": 0.0, "owner_net": 0.0,
     }
+    owner_net_by_property: dict[str, float] = {p: 0.0 for p in properties}
     for row in rows:
         if row["status"] == "inquiry":
             inquiries += 1
@@ -124,6 +125,8 @@ def realized(
                 channel=row["source"], guest_fees=guest_fees, economics=economics,
             ).items():
                 money[key] += value
+                if key == "owner_net":
+                    owner_net_by_property[row["property_id"]] += value
         if row["created_at_pms"]:
             leads.append((check_in - _parse(row["created_at_pms"])).days)
     inventory = conn.execute(
@@ -192,6 +195,9 @@ def realized(
         scores["guest_paid"] = round(money["guest_paid"], 2)
         scores["channel_fees"] = round(money["channel_fee"], 2)
         scores["stay_costs"] = round(money["stay_costs"], 2)
+        # Segment harm is judged per home (and so per owner): a portfolio gain that
+        # comes out of one owner's pocket is not a pass.
+        scores["owner_net_by_property"] = {p: round(v, 2) for p, v in sorted(owner_net_by_property.items())}
     return scores
 
 

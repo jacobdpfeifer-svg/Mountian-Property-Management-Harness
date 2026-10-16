@@ -706,6 +706,12 @@ def assert_outside_icloud(path: Path) -> None:
         )
 
 
+def _code_sha256() -> str:
+    from src.experiments import code_sha256
+
+    return code_sha256(Path(__file__).resolve().parents[2])
+
+
 def _git_provenance() -> dict[str, Any]:
     tracked = _git("status", "--porcelain", "--untracked-files=no")
     full = _git("status", "--porcelain")
@@ -736,6 +742,7 @@ def run_config(
     calibration_path: Path | None = None,
     approval_rate: float | None = None,
     allow_models: bool = False,
+    seed_start: int = 1,
 ) -> dict[str, Any]:
     """Everything that must match for two runs' rows to be comparable."""
     from proving_ground_exam.market.parameters import SCENARIO_DIR
@@ -764,6 +771,9 @@ def run_config(
     return {
         "scenarios": names,
         "seeds": seeds,
+        # Seeds run are seed_start .. seed_start + seeds - 1. A preregistered
+        # experiment needs seeds no earlier run has exposed (src/experiments).
+        "seed_start": seed_start,
         "policies": list(policies),
         "max_days": max_days,
         "incremental": incremental,
@@ -772,6 +782,7 @@ def run_config(
         # it does not change the score.
         "retained_scenarios": sorted(retained_scenarios or []),
         **_git_provenance(),
+        "code_sha256": _code_sha256(),
         "calibration_sha256": calibration_sha,
         "calibration_file_sha256": file_sha,
         "calibration_path": str(calibration_file),
@@ -877,18 +888,26 @@ def _execute_jobs(
         raise FileExistsError(
             f"{checkpoint} already holds {len(done)} results; use a fresh --output-dir or --resume"
         )
+    started = datetime.now(timezone.utc)
+    first_started = started.isoformat()
     if resume and config_path.exists():
-        previous = json.loads(config_path.read_text(encoding="utf-8"))["config"]
+        prior = json.loads(config_path.read_text(encoding="utf-8"))
+        previous = prior["config"]
         drift = sorted(
             key for key in config
             if key not in _RESUME_IGNORE and previous.get(key) != config[key]
         )
         if drift:
             raise ValueError(f"cannot resume: run config changed since the checkpoint: {drift}")
-    started = datetime.now(timezone.utc)
+        # A resume must not launder provenance: the board keeps its first start and
+        # stays dirty if any invocation ran from a dirty tracked tree (2026-10-16 audit).
+        first_started = prior.get("first_started_at") or prior.get("started_at") or first_started
+        if previous.get("git_dirty_tracked") is not False:
+            config = {**config, "git_dirty_tracked": previous.get("git_dirty_tracked")}
     config_path.write_text(
         json.dumps(
             {
+                "first_started_at": first_started,
                 "config": config,
                 "argv": argv,
                 "python": sys.version,
@@ -1000,6 +1019,7 @@ def run_grid(
     calibration_path: Path | None = None,
     approval_rate: float | None = None,
     allow_models: bool = False,
+    seed_start: int = 1,
 ) -> dict[str, str]:
     """One scoreboard covering every listed policy. Jobs share a process pool."""
     names = scenario_names(scenario_name)
@@ -1008,12 +1028,14 @@ def run_grid(
     calibration_arg = str(calibration_path) if calibration_path else None
     if approval_rate is not None and not 0.0 <= approval_rate <= 1.0:
         raise ValueError("approval_rate must be between 0 and 1")
+    if seed_start < 1:
+        raise ValueError("seed_start must be at least 1")
     jobs: list[Job] = [
         (name, seed, policy, str(output_dir), max_days, incremental,
          _retains(retain_dbs, name), policy_arg, sensitivity_arg, calibration_arg, approval_rate)
         for policy in policies
         for name in names
-        for seed in range(1, seeds + 1)
+        for seed in range(seed_start, seed_start + seeds)
     ]
     retained_scenarios: Collection[str] | None
     if retain_dbs is True:
@@ -1032,6 +1054,7 @@ def run_grid(
         calibration_path=calibration_path,
         approval_rate=approval_rate,
         allow_models=allow_models,
+        seed_start=seed_start,
     )
     results = _run_jobs(
         jobs, workers=workers, output_dir=output_dir, config=config, resume=resume, argv=argv,

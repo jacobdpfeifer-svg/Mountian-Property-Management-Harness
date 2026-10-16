@@ -1,0 +1,21 @@
+# TEMPLATE — inactive until the operations (cleaning/turnover) export arrives.
+contract: ops_task
+source_system: ops_export               # e.g. Breezeway, Properly, Guesty Tasks
+columns:
+  task_key: "Task ID"
+  property_id: "Property"
+  task_type: "Type"
+  service_date: "Date"
+  status: "Status"
+  vendor: "Assignee Company"
+  cost: "Cost"
+  currency: "Currency"
+  reservation_key: "Reservation ID"
+values:
+  property_id: {}
+  task_type: {"Turnover": turn, "Cleaning": turn, "Inspection": inspection, "Maintenance": maintenance,
+              "Incident": incident}
+  status: {"Scheduled": scheduled, "In Progress": in_progress, "Completed": completed, "Done": completed,
+           "Failed": failed, "Cancelled": cancelled}
+reservation_key_prefix: "guesty:"
+dates_are_utc_midnight: true

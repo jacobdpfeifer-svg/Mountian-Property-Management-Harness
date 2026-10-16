@@ -1,0 +1,33 @@
+{
+ "plan_id": "FT-PACE-V3-2027W",
+ "status_note": "DRAFT. Do not freeze until the real-data, evaluation and power steps in PREREGISTRATION.md are complete. Remove this key when freezing.",
+ "properties": [
+  "summit_haus",
+  "overlook_ridge",
+  "cloud_9"
+ ],
+ "owners": {
+  "summit_haus": "owner_a",
+  "overlook_ridge": "owner_a",
+  "cloud_9": "owner_b"
+ },
+ "start": "2027-01-04",
+ "end": "2027-04-25",
+ "block_days": 7,
+ "primary_metric": "settled owner net per eligible available night",
+ "portfolio_margin": 0.03,
+ "segment_margin": 0.05,
+ "alpha": 0.1,
+ "stop_rules": {
+  "max_pickup_gap": 0.15,
+  "min_nights": 20,
+  "max_cancel_gap": 0.1
+ },
+ "comparator": "current_practice",
+ "candidate_register": "EXP-PACE-V3-001",
+ "analysis": "paired sign-flip randomization test and inverted 90% CI; covariates and power to be fixed from backfilled history before freezing",
+ "covariate_coefficients": {
+  "ly_owner_net_per_night": "TO FIT on pre-period data before freezing",
+  "market_index": "TO FIT"
+ }
+}

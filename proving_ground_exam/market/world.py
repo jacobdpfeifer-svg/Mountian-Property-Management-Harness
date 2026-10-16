@@ -570,6 +570,18 @@ class MarketWorld:
         log_sigma = value_of(self.cal["scrape_log_sigma"])
         missing = value_of(self.cal["scrape_missing_prob"])
         rng = generator(self.scenario_name, self.seed, "scrape", day.isoformat())
+        # Degraded scraping as measured on the real scraper (2026-09-20..10-16): whole
+        # days with no good quote, and on other days only some comps reached. Drawn
+        # from its own stream so scenarios without it keep their exact draws.
+        day_fail = float(self.scenario.get("scrape_day_fail_prob", 0) or 0)
+        comp_fail = float(self.scenario.get("scrape_comp_fail_prob", 0) or 0)
+        down: set[str] = set()
+        if day_fail or comp_fail:
+            health = generator(self.scenario_name, self.seed, "scrape_health", day.isoformat())
+            if float(health.random()) < day_fail:
+                down = set(self.comp_ids)
+            else:
+                down = {cid for cid in self.comp_ids if float(health.random()) < comp_fail}
         rows = []
         for cid in self.comp_ids:
             for night in self.nights:
@@ -580,7 +592,7 @@ class MarketWorld:
                     rng,
                     log_sigma=log_sigma,
                     missing_prob=missing,
-                    outage=outage,
+                    outage=outage or cid in down,
                 )
                 rows.append((cid, day.isoformat(), night.isoformat(), price, 1 if status == "ok" else 0, status, "sim"))
         self.conn.executemany(

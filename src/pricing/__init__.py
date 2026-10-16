@@ -409,6 +409,8 @@ def _apply_pace(
     See src/pricing/pace.py for the reasoning and sources.
     """
     from src.pricing.pace import (
+        ANCHOR_MAX_AGE_DAYS,
+        ANCHOR_MIN_COMPS,
         blend_reference,
         comp_anchor,
         own_sold_evidence,
@@ -417,9 +419,11 @@ def _apply_pace(
         pace_reading,
     )
 
-    anchor, quotes = comp_anchor(conn, feat.property_id, feat.stay_date, as_of)
+    anchor, quotes = comp_anchor(conn, feat.property_id, feat.stay_date, as_of,
+                                 max_age_days=int(cfg.get("anchor_max_age_days", ANCHOR_MAX_AGE_DAYS)))
     premium = float((cfg.get("premium") or {}).get(feat.property_id, 1.0))
-    comp = anchor * premium if anchor is not None and quotes >= int(cfg.get("min_comp_quotes", 2)) else None
+    min_quotes = int(cfg.get("min_comp_quotes", ANCHOR_MIN_COMPS))
+    comp = anchor * premium if anchor is not None and quotes >= min_quotes else None
     own, own_n = (None, 0)
     # Off by default: a home's sales are its own listed prices, so this evidence
     # is self-referential and lowered owner net in the v2 screen (2026-10-14).
@@ -431,7 +435,8 @@ def _apply_pace(
     blended = blend_reference(comp, own, own_n, float(cfg.get("own_evidence_k", 10)))
     if blended is not None:
         base = blended
-        source = (f"comp median of {quotes} x {premium:.2f}" if comp is not None else "no comp quotes")
+        source = (f"comp median of {quotes} x {premium:.2f}" if comp is not None
+                  else f"too few comp quotes ({quotes} < {min_quotes})")
         source += f", own sales n={own_n}" if own_n else ""
     else:
         base, source = float(bp.price_ref), "own history (no comp quotes, no sales)"
