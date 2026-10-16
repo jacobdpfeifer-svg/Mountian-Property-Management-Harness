@@ -54,11 +54,29 @@ def _signed(row: sqlite3.Row) -> float:
     return amount if row["direction"] == "credit" else -amount
 
 
+PMS_SOURCES = frozenset({"guesty"})
+
+
+def effective_lines(conn: sqlite3.Connection, reservation_key: str) -> list[sqlite3.Row]:
+    """Current, non-reversed ledger lines for a stay, with one source of money per stay.
+
+    The PMS reports a stay's money at booking (pending); accounting reports the
+    money that actually moved, under its own keys and its own categories (it may
+    bundle cleaning into lodging, or settle in parts). Mixing the two by entry
+    type double-counts or under-counts (2026-10-16 audit). So once *any* line from
+    a non-PMS source exists for the stay, every PMS line is dropped and the
+    accounting lines — pending and settled alike — are the stay's money.
+    """
+    rows = [r for r in current_rows(conn, "fact_financial_ledger", "t.reservation_key = ?", (reservation_key,))
+            if r["settlement_state"] != "reversed"]
+    if any(r["source_system"] not in PMS_SOURCES for r in rows):
+        rows = [r for r in rows if r["source_system"] not in PMS_SOURCES]
+    return rows
+
+
 def owner_net_for_reservation(conn: sqlite3.Connection, reservation_key: str,
                               assumptions: list[Assumption] | None = None) -> OwnerNet:
-    lines = [r for r in current_rows(conn, "fact_financial_ledger", "t.reservation_key = ?",
-                                     (reservation_key,))
-             if r["settlement_state"] != "reversed" and r["direction"] in _ECONOMIC]
+    lines = [r for r in effective_lines(conn, reservation_key) if r["direction"] in _ECONOMIC]
     res = current_rows(conn, "fact_reservation_version", "t.entity_key = ?", (reservation_key,))
     channel = res[-1]["channel"] if res else (lines[0]["channel"] if lines else "other")
     status_cancelled = bool(res) and res[-1]["status"] == "cancelled"

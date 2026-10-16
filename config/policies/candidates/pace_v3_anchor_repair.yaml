@@ -1,0 +1,79 @@
+extends: default
+note: >
+  Candidate EXP-PACE-V3 (2026-10-16): pace_learned_owner_net with the repaired
+  competitor anchor (per-comp latest good quote, own comp set only, 42-day age cap,
+  3-comp minimum; scripts/anchor_rule_study.py). Everything else is unchanged from
+  the 2026-10-14 candidate. The comparator is current_practice, so the screen grades
+  the whole candidate, not the repair alone.
+  Original note: Candidate only (2026-10-14 overhaul, Phase 4). Peak pricing from booking pace plus
+  learned elasticity, optimized for owner net on the all-in price. Keeps the confirmed
+  seasonal base anchor. Removes the hard peak caps, which sit below even the 25th
+  percentile of what the homes really list at peak (preflight rate-cap check).
+  Evaluate on calibration v2 with --allow-models; never on v1 alone.
+
+# Confirmed 2026-10-09 (stops the off-peak floor spiral).
+seasonal_base_anchor:
+  enabled: true
+  price_ref_min_ratio: 1.00
+  ceiling_min_ratio: 1.00
+
+ceiling:
+  # null removes a cap (deep merge). The ceiling stays a safety bound built from
+  # history and comps; the hard owner caps were tuned in a market 2-3x too cheap.
+  property_season_ceiling:
+    cloud_9:
+      peak_ski: null
+    overlook_ridge:
+      peak_ski: null
+
+booking_probability:
+  # Priors for learning. -1.0 is neutral: with no evidence the owner-net optimum sits
+  # at the market reference adjusted for pace. -0.65 (default) is a market-level
+  # number; one listing among substitutes is more elastic. Literature spans
+  # Canina & Carvell (individual hotels fairly inelastic) to -1.7..-11 (lodging tax
+  # studies), so the prior is weak and learned_elasticity moves it with data.
+  elasticity_by_season:
+    peak_ski:        -1.00
+    early_winter:    -1.10
+    shoulder_spring: -1.10
+    shoulder_fall:   -1.10
+
+models:
+  learned_elasticity:
+    enabled: true
+  pace_pricing:
+    enabled: true
+    beta_is_all_in: true
+    # Repaired anchor (2026-10-16): see ANCHOR_* in src/pricing/pace.py.
+    min_comp_quotes: 3
+    anchor_max_age_days: 42
+    # Per-home premium over the comp median (1.0 = market). Calibrate from data;
+    # Cloud 9 lists ~1.06x the twins at peak.
+    premium:
+      cloud_9: 1.05
+    # Own sold prices blended into the reference: REJECTED 2026-10-14. A home sells
+    # at what it lists, so its sales are the engine's own prices again; the v2
+    # screen lost $7.9k/season (peak ADR $2,052 -> $1,947). Kept off.
+    own_evidence: false
+    # The search may reach reference x headroom; guardrails still bound the result.
+    ceiling_headroom: 1.25
+    window_days: 3
+    min_history: 60
+    sensitivity: 0.30
+    min_multiplier: 0.85
+    max_multiplier: 1.25
+
+# Owner economics for the objective. Fees: operator (2026-10-14). Rates: see
+# proving_ground_exam/market/calibration_v2.yaml for sources; all assumed except fees.
+owner_economics:
+  guest_fees:
+    cleaning_per_stay: 600
+    per_guest: 75
+    insurance_per_stay: 80
+  channel_fee: 0.155
+  management_fee: 0.25
+  turnover_cost_per_stay: 350
+  consumables_cost_per_guest: 75
+  insurance_cost_per_stay: 80
+  typical_party: 10
+  typical_los: 4

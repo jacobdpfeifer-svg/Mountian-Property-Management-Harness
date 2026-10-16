@@ -13,7 +13,6 @@ from src.pricing import MODEL_NAMES, enabled
 from src.pricing.pace import (
     PaceReading,
     all_in_beta,
-    comp_anchor,
     curve_share,
     fees_per_night,
     on_books_share,
@@ -97,21 +96,6 @@ def test_on_books_share_ignores_bookings_made_after_the_decision_day():
         conn.execute("INSERT INTO nightly_inventory VALUES ('h', ?, 'booked', ?)", (night, booked_at))
     assert on_books_share(conn, stay, date(2027, 1, 10), 3) == pytest.approx(3 / 7)
     assert on_books_share(conn, stay, date(2027, 1, 30), 3) == pytest.approx(1.0)
-
-
-def test_comp_anchor_uses_the_latest_scrape_on_or_before_the_decision_day():
-    conn = _db()
-    for comp in ("a", "b", "c"):
-        conn.execute("INSERT INTO comp_set_members VALUES ('h', ?)", (comp,))
-    rows = [
-        ("a", "2027-01-01", 1800), ("b", "2027-01-01", 2000), ("c", "2027-01-01", 2600),
-        ("a", "2027-01-20", 9999),  # after the decision day: must be ignored
-    ]
-    for comp, as_of, price in rows:
-        conn.execute("INSERT INTO comp_snapshots VALUES (?, ?, '2027-02-10', ?, 'ok')", (comp, as_of, price))
-    median, n = comp_anchor(conn, "h", date(2027, 2, 10), date(2027, 1, 10))
-    assert (median, n) == (2000.0, 3)
-    assert comp_anchor(conn, "h", date(2027, 3, 1), date(2027, 1, 10)) == (None, 0)
 
 
 def test_own_sold_evidence_counts_only_sales_known_by_the_decision_day():

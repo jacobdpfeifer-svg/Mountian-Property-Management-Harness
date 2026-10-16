@@ -138,18 +138,46 @@ def pace_multiplier(reading: PaceReading, cfg: dict[str, Any]) -> float:
     return float(min(hi, max(lo, 1.0 + k * (reading.index - 1.0))))
 
 
-def comp_anchor(conn: sqlite3.Connection, property_id: str, stay: date, as_of: date) -> tuple[float | None, int]:
-    """Median competitor quote for the night from the latest scrape on or before as_of."""
+# How old a comp's last good quote may be and still count, and how many comps an
+# anchor needs. Chosen by scripts/anchor_rule_study.py (minimax regret over 24
+# simulated worlds fitted to the real Sep-Oct 2026 scrapes; see
+# docs/reports/anchor_rule_study/REPORT.md). A quote drifts ~1% in two days and
+# ~9% in three weeks, but the comps in one set differ by 28-41%, so dropping a
+# comp costs more than keeping its old quote; and a median of fewer than three
+# comps is too exposed to one odd listing. Re-run the study as history grows:
+# nothing older than 21 days has been observed yet.
+ANCHOR_MAX_AGE_DAYS = 42
+ANCHOR_MIN_COMPS = 3
+
+
+def comp_anchor(conn: sqlite3.Connection, property_id: str, stay: date, as_of: date,
+                *, max_age_days: int = ANCHOR_MAX_AGE_DAYS) -> tuple[float | None, int]:
+    """Median of each own-set comp's latest good quote for the night, as of the decision day.
+
+    Each active comp in this property's comp set contributes its most recent
+    `ok`, positive quote for `stay` scraped on or before `as_of` and no more than
+    `max_age_days` old. A failed or blocked scrape never hides an earlier good
+    quote, and neither does another property's comp set or a partial scrape
+    that reached only some comps (the 2026-10-16 audit: picking one global
+    latest scrape date left the anchor empty whenever any later scrape failed).
+    `as_of` is compared on its date part, so a quote stamped with a time on the
+    decision day counts. The caller decides how many quotes are enough.
+    """
+    oldest = (as_of - timedelta(days=max_age_days)).isoformat()
     rows = conn.execute(
         """
-        SELECT s.listed_price FROM comp_snapshots s
-        JOIN comp_set_members m ON m.comp_id = s.comp_id AND m.property_id = ?
-        WHERE s.stay_date = ? AND s.scrape_status = 'ok' AND s.listed_price > 0
-          AND s.as_of = (
-              SELECT MAX(as_of) FROM comp_snapshots WHERE stay_date = ? AND as_of <= ?
-          )
+        SELECT s.listed_price FROM comp_set_members m
+        JOIN comps c ON c.comp_id = m.comp_id AND c.active = 1
+        JOIN comp_snapshots s ON s.id = (
+            SELECT s2.id FROM comp_snapshots s2
+            WHERE s2.comp_id = m.comp_id AND s2.stay_date = ?
+              AND s2.scrape_status = 'ok' AND s2.listed_price > 0
+              AND substr(s2.as_of, 1, 10) <= ? AND substr(s2.as_of, 1, 10) >= ?
+            ORDER BY s2.as_of DESC, s2.id DESC LIMIT 1
+        )
+        WHERE m.property_id = ?
         """,
-        (property_id, stay.isoformat(), stay.isoformat(), as_of.isoformat()),
+        (stay.isoformat(), as_of.isoformat(), oldest, property_id),
     ).fetchall()
     prices = sorted(float(r["listed_price"]) for r in rows)
     if not prices:

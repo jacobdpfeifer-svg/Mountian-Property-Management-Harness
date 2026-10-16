@@ -251,11 +251,13 @@ def cmd_proving_ground_market(args: argparse.Namespace) -> int:
             calibration_path=calibration_path if args.calibration else None,
             approval_rate=args.approval_rate,
             allow_models=args.allow_models,
+            seed_start=args.seed_start,
         )
     except (RuntimeError, FileExistsError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    print(f"Market sim {args.scenario} policy={','.join(policies)} seeds={args.seeds}")
+    print(f"Market sim {args.scenario} policy={','.join(policies)} "
+          f"seeds={args.seed_start}..{args.seed_start + args.seeds - 1}")
     print(f"  manifest: {paths['manifest']}")
     print(f"  scoreboard: {paths['csv']}")
     print(f"  report: {paths['report']}")
@@ -864,6 +866,8 @@ def build_parser() -> argparse.ArgumentParser:
     s = pg_sub.add_parser("market", help="Run the shopper-market simulator")
     s.add_argument("--scenario", help="Scenario name, or all. Required unless --stop.")
     s.add_argument("--seeds", type=int, default=30)
+    s.add_argument("--seed-start", type=int, default=1, dest="seed_start",
+                   help="First seed (default 1). Preregistered experiments need unexposed seeds.")
     s.add_argument("--workers", type=int, default=1)
     s.add_argument("--policy", default="engine", choices=[
         "engine", "flat", "comp_median", "tool", "property_flat", "comp_property", "premium_cap",
@@ -1209,6 +1213,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sig_sub.add_parser("promote", help="Apply promotion ladder from latest scores")
     s.set_defaults(func=cmd_signals_promote)
+
+    from src.cli.delivery import register as register_delivery
+    register_delivery(sub)
 
     return p
 

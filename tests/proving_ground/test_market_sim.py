@@ -73,9 +73,10 @@ def test_calibration_rejects_a_value_without_a_source():
         assert_sources({"segments": {"families": {"share": {}}}})
 
 
-def test_fifteen_scenarios_and_held_out_names():
+def test_sixteen_scenarios_and_held_out_names():
+    # 16th (2026-10-16): scrape_degraded, the real scraper's partial-failure pattern.
     names = set(list_scenarios())
-    assert len(names) == 15
+    assert len(names) == 16
     held = {name for name in names if load_scenario(name).get("held_out")}
     assert held == HELD_OUT
 
@@ -146,6 +147,25 @@ def test_scrape_outage_hides_competitor_prices(tmp_path: Path):
         assert all(row["priced"] == 0 for row in rows)
     finally:
         conn.close()
+
+
+def test_scrape_degraded_mixes_dead_days_and_partial_days(tmp_path: Path):
+    db = tmp_path / "degraded.db"
+    run_market_job("scrape_degraded", 1, "flat", db_path=db, max_days=30)
+    conn = connect(db)
+    try:
+        days = conn.execute(
+            "SELECT as_of, COUNT(DISTINCT CASE WHEN scrape_status='ok' THEN comp_id END) AS ok_comps, "
+            "COUNT(DISTINCT comp_id) AS comps FROM comp_snapshots GROUP BY as_of").fetchall()
+        ok = [d["ok_comps"] for d in days]
+        assert any(n == 0 for n in ok), "some days have no good quote"
+        assert any(0 < d["ok_comps"] < d["comps"] for d in days), "some days are partial"
+        assert any(n > 0 for n in ok)
+    finally:
+        conn.close()
+    again = run_market_job("scrape_degraded", 1, "flat", db_path=tmp_path / "again.db", max_days=30)
+    first = run_market_job("scrape_degraded", 1, "flat", db_path=tmp_path / "first.db", max_days=30)
+    assert again.content_hash == first.content_hash
 
 
 def test_world_columns_are_a_subset_of_the_live_writers():

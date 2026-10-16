@@ -265,7 +265,7 @@ class GuestyClient:
         # leak-free cutoff for ceiling history. guestsCount is reporting-only.
         fields = (
             "_id listingId checkIn checkOut nightsCount status source "
-            "confirmedAt createdAt guestsCount "
+            "confirmedAt createdAt lastUpdatedAt guestsCount money.currency "
             "money.fareAccommodation money.fareCleaning money.hostPayout "
             "money.hostServiceFee money.hostServiceFeeTax money.hostServiceFeeIncTax"
         )

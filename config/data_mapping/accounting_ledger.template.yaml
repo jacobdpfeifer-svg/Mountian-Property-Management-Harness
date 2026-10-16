@@ -1,0 +1,38 @@
+# TEMPLATE — inactive until a real accounting export arrives (docs/data/INGESTION_MAPPING.md).
+# Copy to accounting_ledger.yaml and replace every column name with the export's header.
+# Value maps are exhaustive: a label not listed is quarantined (BAD_ENUM), never guessed.
+contract: financial_ledger
+source_system: accounting_export        # e.g. guesty_accounting, quickbooks
+columns:
+  entry_key: "Transaction ID"
+  reservation_key: "Reservation ID"     # must match guesty:<_id>; see prefix below
+  property_id: "Listing"
+  channel: "Channel"
+  entry_type: "Category"
+  amount: "Amount"
+  currency: "Currency"
+  settlement_state: "Status"
+  settled_at: "Settled Date"
+  statement_key: "Statement ID"
+values:
+  property_id: {}                       # "<listing nickname>": summit_haus | overlook_ridge | cloud_9
+  channel: {"Airbnb": airbnb, "Vrbo": vrbo, "Booking.com": booking_com, "Direct": direct, "Owner": owner}
+  entry_type:
+    "Accommodation": gross_lodging
+    "Cleaning Fee": cleaning_fee_income
+    "Channel Commission": channel_fee
+    "Payment Processing": payment_processing_fee
+    "Management Commission": management_fee
+    "Cleaning Expense": cleaning_cost
+    "Supplies": consumables
+    "Refund": refund
+    "Maintenance": maintenance
+    "Damage Recovery": damage_recovery
+    "Tax Collected": tax_collected
+    "Tax Remitted": tax_remitted
+    "Owner Payout": owner_payout
+  settlement_state: {"Paid": settled, "Settled": settled, "Pending": pending, "Void": reversed}
+constants:
+  basis: actual
+reservation_key_prefix: "guesty:"
+dates_are_utc_midnight: true
