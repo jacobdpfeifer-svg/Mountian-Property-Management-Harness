@@ -1,0 +1,143 @@
+{
+  "completeness": {
+    "complete": true,
+    "duplicates": [],
+    "expected_rows": 20,
+    "missing": [],
+    "missing_count": 0,
+    "scenario_count_ok": true
+  },
+  "engine_minus_comp_median": {
+    "normal": {
+      "bootstrap_95": {
+        "hi": -216197.83,
+        "lo": -260353.19
+      },
+      "max": -213279.72,
+      "mean": -236693.04,
+      "median": -218896.53,
+      "min": -275238.52,
+      "n": 5,
+      "nonnegative": 0
+    }
+  },
+  "engine_minus_flat": {
+    "normal": {
+      "bootstrap_95": {
+        "hi": -217201.36,
+        "lo": -247629.27
+      },
+      "max": -212859.43,
+      "mean": -229472.26,
+      "median": -223714.25,
+      "min": -263679.36,
+      "n": 5,
+      "nonnegative": 0
+    }
+  },
+  "engine_minus_tool": {
+    "normal": {
+      "bootstrap_95": {
+        "hi": -7879.49,
+        "lo": -23379.06
+      },
+      "max": -2487.18,
+      "mean": -15629.28,
+      "median": -15045.28,
+      "min": -25507.04,
+      "n": 5,
+      "nonnegative": 0
+    }
+  },
+  "gates": {
+    "complete": true,
+    "held_out_scenarios_present": false,
+    "normal_beats_flat": false,
+    "normal_ci_excludes_loss": false,
+    "scenarios_beating_flat": 0
+  },
+  "held_out_scenarios": [],
+  "policies": [
+    "comp_median",
+    "comp_property",
+    "current_practice",
+    "engine",
+    "flat",
+    "premium_cap",
+    "property_flat",
+    "tool"
+  ],
+  "provenance": {
+    "argv": [
+      "/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Harness for my wonderful Mother/src/cli/main.py",
+      "proving-ground",
+      "market",
+      "--calibration",
+      "v2",
+      "--scenario",
+      "normal",
+      "--seeds",
+      "5",
+      "--workers",
+      "7",
+      "--grid",
+      "--diagnostics",
+      "--retain-dbs",
+      "normal",
+      "--output-dir",
+      "/Users/jacobpfeifer/wp-price-runs/full_sim_20261015_d291c60/v2_screen_benchmarks"
+    ],
+    "completed_jobs": 40,
+    "config": {
+      "approval_rate": null,
+      "calibration_file_sha256": "05db7358e51153141906392331db7075970992fc03e9f774750bc101de6d4c07",
+      "calibration_path": "/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Harness for my wonderful Mother/proving_ground_exam/market/calibration_v2.yaml",
+      "calibration_sha256": "05db7358e51153141906392331db7075970992fc03e9f774750bc101de6d4c07",
+      "calibration_version": 2,
+      "engine_policy_effective_sha256": "c404c496ea0b40ec525ee9ea543d895f40a94f2bfbeaeda9abc3aef4e55ec232",
+      "engine_policy_path": "/Users/jacobpfeifer/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Harness for my wonderful Mother/config/policies/default.yaml",
+      "engine_policy_sha256": "6f9a9d05fa1f9b475f37dc6a691a19f251fa4c1e38357cc503b27d99dbb97700",
+      "git_commit": "d291c60e005548906356e3b5014986bee3862687",
+      "git_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_dirty": false,
+      "git_dirty_tracked": false,
+      "git_status": "",
+      "git_untracked": [],
+      "incremental": false,
+      "max_days": null,
+      "models_allowed": false,
+      "models_enabled": [],
+      "policies": [
+        "engine",
+        "flat",
+        "comp_median",
+        "tool",
+        "current_practice",
+        "property_flat",
+        "comp_property",
+        "premium_cap"
+      ],
+      "retained_scenarios": [
+        "normal"
+      ],
+      "scenarios": [
+        "normal"
+      ],
+      "scenarios_sha256": "b127185ff8031b7f57c8d1a7ca37485af71b175618bc117332d639fad2adadaa",
+      "seeds": 5,
+      "sensitivity_label": null,
+      "sensitivity_sha256": null
+    },
+    "elapsed_seconds_this_invocation": 150.2,
+    "expected_jobs": 40,
+    "finished_at": "2026-10-15T22:50:21.410429+00:00",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.14 (main, Aug 12 2026, 13:57:54) [Clang 21.0.0 (clang-2100.1.1.101)]",
+    "resumed_jobs": 0,
+    "started_at": "2026-10-15T22:47:51.152559+00:00",
+    "workers": 7
+  },
+  "row_count": 40,
+  "scenario_count": 1,
+  "seeds_from": 1
+}
