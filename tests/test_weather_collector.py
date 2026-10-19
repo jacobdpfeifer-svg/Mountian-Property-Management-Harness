@@ -112,68 +112,74 @@ class _FakeResponse:
 
 
 class _FakeSession:
-    """Stands in for requests.Session, returning canned archive/forecast JSON."""
+    """Stands in for requests.Session. The live path is NWS points, then the grid."""
 
-    def __init__(self, archive_payload: dict, forecast_payload: dict):
-        self.archive_payload = archive_payload
-        self.forecast_payload = forecast_payload
+    def __init__(self, points_payload: dict, grid_payload: dict):
+        self.points_payload = points_payload
+        self.grid_payload = grid_payload
         self.calls: list[str] = []
-        self.params: list[dict] = []
+        self.headers: list[dict] = []
 
-    def get(self, url: str, params=None, timeout=None):
+    def get(self, url: str, headers=None, params=None, timeout=None):
         self.calls.append(url)
-        self.params.append(dict(params or {}))
-        if "archive" in url:
-            return _FakeResponse(self.archive_payload)
-        return _FakeResponse(self.forecast_payload)
+        self.headers.append(dict(headers or {}))
+        if "/points/" in url:
+            return _FakeResponse(self.points_payload)
+        return _FakeResponse(self.grid_payload)
 
 
-def test_live_session_merges_archive_and_forecast_without_duplicate_days(store: SignalStore):
+def test_live_session_reads_nws_grid_and_converts_metres_per_second(store: SignalStore):
     market_id = store.list_markets()[0]["market_id"]
     as_of = date(2025, 12, 20)
-    overlap_day = as_of.isoformat()
-    archive = {
-        "daily": {
-            "time": [overlap_day],
-            "snowfall_sum": [5.0],
-            "temperature_2m_mean": [-3.0],
-            "relative_humidity_2m_mean": [70.0],
-            "wind_gusts_10m_max": [10.0],  # m/s
+    day = as_of.isoformat()
+    points = {"properties": {"forecastGridData": "https://api.weather.gov/gridpoints/BOU/1,2"}}
+    grid = {
+        "properties": {
+            "snowfallAmount": {
+                "uom": "wmoUnit:mm",
+                "values": [{"validTime": f"{day}T18:00:00+00:00/PT6H", "value": 200.0}],
+            },
+            "temperature": {
+                "uom": "wmoUnit:degC",
+                "values": [{"validTime": f"{day}T18:00:00+00:00/PT6H", "value": -8.0}],
+            },
+            "relativeHumidity": {
+                "uom": "wmoUnit:percent",
+                "values": [{"validTime": f"{day}T18:00:00+00:00/PT6H", "value": 80.0}],
+            },
+            "windGust": {
+                "uom": "wmoUnit:m_s-1",
+                "values": [{"validTime": f"{day}T18:00:00+00:00/PT1H", "value": 10.0}],
+            },
         }
     }
-    forecast_day = date(2025, 12, 21).isoformat()
-    forecast = {
-        "daily": {
-            "time": [overlap_day, forecast_day],  # overlap must be skipped
-            "snowfall_sum": [999.0, 20.0],
-            "temperature_2m_max": [-1.0, -2.0],
-            "temperature_2m_min": [-9.0, -6.0],
-            "wind_gusts_10m_max": [5.0, 8.0],
-        }
-    }
-    session = _FakeSession(archive, forecast)
+    session = _FakeSession(points, grid)
     coll = get_collector("weather")(store, session=session, sleep=lambda _s: None)
     result = coll.run(as_of, market_id)
     assert result.status == "ok"
     assert len(session.calls) == 2
-    assert all(p["wind_speed_unit"] == "ms" for p in session.params)
+    assert "open-meteo.com" not in " ".join(session.calls)
+    assert "wp-price-signals" in session.headers[0].get("User-Agent", "")
 
     rows = list(store.read_observations(
         as_of=as_of.isoformat(), market_id=market_id, signal_key="weather.snowfall_sum_cm",
         qualities=["ok"],
     ))
     by_date = {r["effective_date"]: float(r["value"]) for r in rows}
-    # Archive value wins for the overlap day (forecast's 999.0 must be dropped).
-    assert by_date[overlap_day] == pytest.approx(5.0)
-    assert by_date[forecast_day] == pytest.approx(20.0)
+    # 200 mm = 20 cm. The old Open-Meteo path is not called.
+    assert by_date[day] == pytest.approx(20.0)
 
     gust_rows = list(store.read_observations(
         as_of=as_of.isoformat(), market_id=market_id, signal_key="weather.wind_gust_max_mph",
         qualities=["ok"],
     ))
-    gust_by_date = {r["effective_date"]: float(r["value"]) for r in gust_rows}
-    # 10 m/s * 2.237 = 22.37 mph — unit conversion must actually happen.
-    assert gust_by_date[overlap_day] == pytest.approx(22.37, abs=0.01)
+    # 10 m/s * 2.237 = 22.37 mph.
+    assert float(gust_rows[0]["value"]) == pytest.approx(22.37, abs=0.01)
+
+
+def test_unrecognised_wind_unit_is_omitted_not_stored_as_mph(store: SignalStore):
+    from src.signals.collectors.weather import wind_to_mph
+    assert wind_to_mph(10.0, "wmoUnit:furlong_per_fortnight") is None
 
 
 def test_request_exception_degrades_to_unavailable_not_raise(store: SignalStore, monkeypatch):
