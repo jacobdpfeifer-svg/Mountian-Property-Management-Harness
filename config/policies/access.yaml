@@ -1,0 +1,19 @@
+# CDOT access segments for Winter Park. Experimental I-70 flags are stored
+# and are not read by the price path (src/signals/features/access.py reads
+# only cdot.access_risk, which is the US-40 segment).
+
+us40_berthoud:
+  # West edge sits east of the Fraser town restriction observed at linearReference
+  # 227 on the CARS feed on 2026-10-19, and includes the "between Winter Park and
+  # Empire" event at 233.1. East edge is the published end of OTIS continuous
+  # station 000223 ("SH 40 E/O Henderson Mine Rd"), the Empire-side approach.
+  # Source: R7 §2 and https://dtdapps.codot.gov/otis/TrafficData
+  min_milepost: 230.0
+  max_milepost: 254.3
+
+i70:
+  # I-70 exit 232 is the US-40 junction at Empire. Mileposts increase toward Denver.
+  # East of Empire (Idaho Springs, Floyd Hill) blocks the shared Denver approach.
+  # West of Empire (Georgetown, Eisenhower-Johnson tunnel, Vail Pass) is a
+  # substitute corridor. Source: CDOT exit numbering; R5 X04 / S1 roadmap item.
+  empire_junction_milepost: 232.0

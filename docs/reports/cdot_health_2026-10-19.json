@@ -1,0 +1,14 @@
+{
+  "fetched_on": "2026-10-19",
+  "source": "https://api-511x-co.carsprogram.org/events/map-features",
+  "receipt": {
+    "status": "ok",
+    "feature_count": 4.0,
+    "berthoud_closed": 0.0,
+    "chain_law": 0.0,
+    "access_risk": 0.25,
+    "i70_east_shared_negative": 1.0,
+    "i70_west_substitution": 0.0,
+    "reason": null
+  }
+}

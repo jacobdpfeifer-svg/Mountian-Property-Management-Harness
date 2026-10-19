@@ -67,25 +67,95 @@ def test_cotrip_non_json_payload_is_unavailable():
     assert out["quality"] == "unavailable"
 
 
-def test_cotrip_geojson_uses_berthoud_route_and_milepoint():
-    payload = {
-        "features": [{
-            "type": "Feature",
-            "properties": {
-                "route": "US 40",
-                "title": "US 40 closed near Berthoud Pass",
-                "description": "Road closed due to avalanche control",
-                "eventReport": {"location": {
-                    "routeDesignator": "US 40",
-                    "primaryPoint": {"linearReference": 238.4},
-                }},
+def _feature(route: str, milepost: float, category: int, code: int, title: str, *,
+             active: bool = True, quantities: list | None = None) -> dict:
+    return {
+        "type": "Feature",
+        "properties": {
+            "active": active,
+            "title": title,
+            "eventReport": {
+                "active": active,
+                "headlinePhrase": {"category": category, "code": code},
+                "quantities": quantities or [],
+                "location": {
+                    "routeDesignator": route,
+                    "primaryPoint": {"linearReference": milepost},
+                },
             },
-        }]
+        },
     }
+
+
+def test_cotrip_geojson_uses_berthoud_route_and_milepoint():
+    payload = {"features": [_feature(
+        "US 40", 238.4, 48, 28, "US 40 both directions: Road closed.",
+    )]}
     out = parse_cotrip_payload(payload)
     assert out["quality"] == "ok"
     assert out["berthoud_closed"] == 1.0
     assert out["access_risk"] == 1.0
+
+
+def test_shoulder_closure_does_not_set_berthoud_closed():
+    """Live shape, 2026-10-19: category 3 code 131 is 'Right shoulder closed'."""
+    payload = {"features": [_feature(
+        "US 40", 238.0, 3, 131, "US 40 eastbound: Right shoulder closed.",
+    )]}
+    out = parse_cotrip_payload(payload)
+    assert out["quality"] == "ok"
+    assert out["berthoud_closed"] == 0.0
+    assert out["chain_law"] == 0.0
+    assert out["access_risk"] == pytest.approx(0.25)
+
+
+def test_east_side_closure_without_the_word_berthoud():
+    """OTIS 000223 is MP 248.7–254.3. The title never says Berthoud."""
+    payload = {"features": [_feature(
+        "US 40", 250.1, 48, 28, "US 40 both directions: Road closed.",
+    )]}
+    out = parse_cotrip_payload(payload)
+    assert out["berthoud_closed"] == 1.0
+    assert out["feature_count"] == 1.0
+
+
+def test_fraser_town_event_is_outside_the_pass_window():
+    payload = {"features": [_feature(
+        "US 40", 227.0, 48, 28, "US 40 both directions: Road closed.",
+    )]}
+    out = parse_cotrip_payload(payload)
+    assert out["berthoud_closed"] == 0.0
+    assert out["reason"] == "no_matching_events"
+
+
+def test_chain_law_comes_from_quantity_label_not_prose():
+    payload = {"features": [_feature(
+        "US 40", 242.0, 49, 1, "US 40: Width limit in effect. Chains mentioned in prose.",
+        quantities=[{"label": "Chain Law", "value": "code 16"}],
+    )]}
+    out = parse_cotrip_payload(payload)
+    assert out["berthoud_closed"] == 0.0
+    assert out["chain_law"] == 1.0
+
+
+def test_i70_east_of_empire_is_shared_and_west_is_substitution():
+    payload = {"features": [
+        _feature("I-70", 243.0, 48, 28, "I-70 both directions: Road closed."),
+        _feature("I-70", 213.0, 48, 28, "I-70 both directions: Road closed."),
+        _feature("I-70", 241.0, 3, 131, "I-70: Right shoulder closed."),
+    ]}
+    out = parse_cotrip_payload(payload)
+    assert out["berthoud_closed"] == 0.0
+    assert out["i70_east_shared_negative"] == 1.0
+    assert out["i70_west_substitution"] == 1.0
+
+
+def test_inactive_full_closure_is_ignored():
+    payload = {"features": [_feature(
+        "US 40", 238.0, 48, 28, "US 40: Road closed.", active=False,
+    )]}
+    out = parse_cotrip_payload(payload)
+    assert out["berthoud_closed"] == 0.0
 
 
 def test_cdot_non_json_result_writes_unavailable(store: SignalStore):
@@ -99,7 +169,8 @@ def test_cdot_non_json_result_writes_unavailable(store: SignalStore):
     assert result.status in {"ok", "degraded"}
     rows = store.read_observations(as_of="2026-01-15", market_id=market_id)
     assert {r["signal_key"] for r in rows} == {
-        "cdot.berthoud_closed", "cdot.chain_law", "cdot.access_risk"
+        "cdot.berthoud_closed", "cdot.chain_law", "cdot.access_risk",
+        "cdot.i70_east_shared_negative", "cdot.i70_west_substitution",
     }
     assert all(r["quality"] == "unavailable" and r["value"] is None for r in rows)
 
