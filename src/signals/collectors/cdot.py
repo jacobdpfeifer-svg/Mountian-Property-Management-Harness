@@ -15,7 +15,7 @@ from src.signals.collector import Collector, CollectorSchema, FieldSpec, registe
 from src.signals.extractors.cotrip import fetch_cotrip_access
 from src.signals.store import Observation, QUALITY_OK, QUALITY_UNAVAILABLE
 
-COTRIP_URL = "https://www.cotrip.org/"
+COTRIP_URL = "https://api-511x-co.carsprogram.org/events/map-features"
 
 
 @register_collector
@@ -57,6 +57,24 @@ class CdotCollector(Collector):
         else:
             try:
                 parsed = self.fetch_fn()
+                if parsed.get("quality") != "ok":
+                    return [
+                        Observation(
+                            signal_key=key,
+                            market_id=market_id,
+                            observed_at=as_of.isoformat(),
+                            effective_date=as_of.isoformat(),
+                            value=None,
+                            quality=QUALITY_UNAVAILABLE,
+                            provenance_url=COTRIP_URL,
+                            meta={"reason": parsed.get("reason", "cotrip_unavailable")},
+                        )
+                        for key in (
+                            "cdot.berthoud_closed",
+                            "cdot.chain_law",
+                            "cdot.access_risk",
+                        )
+                    ]
                 closed = float(parsed["berthoud_closed"])
                 chain = float(parsed["chain_law"])
                 risk = float(parsed["access_risk"])

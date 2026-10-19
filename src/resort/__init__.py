@@ -42,7 +42,7 @@ def seed_resort_reference(store: SignalStore, *, force_events: bool = False) -> 
                 resort_id=resort_id,
                 event_date=blk["start"],
                 event_type="ikon_blackout",
-                entity_name="Ikon Pass",
+                entity_name=blk.get("pass_product", "Ikon Pass"),
                 notes=blk.get("notes"),
             )
             counts["events"] += 1

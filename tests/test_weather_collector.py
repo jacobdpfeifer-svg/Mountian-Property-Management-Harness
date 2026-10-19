@@ -118,9 +118,11 @@ class _FakeSession:
         self.archive_payload = archive_payload
         self.forecast_payload = forecast_payload
         self.calls: list[str] = []
+        self.params: list[dict] = []
 
     def get(self, url: str, params=None, timeout=None):
         self.calls.append(url)
+        self.params.append(dict(params or {}))
         if "archive" in url:
             return _FakeResponse(self.archive_payload)
         return _FakeResponse(self.forecast_payload)
@@ -154,6 +156,7 @@ def test_live_session_merges_archive_and_forecast_without_duplicate_days(store: 
     result = coll.run(as_of, market_id)
     assert result.status == "ok"
     assert len(session.calls) == 2
+    assert all(p["wind_speed_unit"] == "ms" for p in session.params)
 
     rows = list(store.read_observations(
         as_of=as_of.isoformat(), market_id=market_id, signal_key="weather.snowfall_sum_cm",

@@ -24,12 +24,14 @@ sqi:
   # Confidence penalty per missing weight fraction.
   missing_confidence_scale: 0.85
 
-# f(SQI) → price multiplier. Must be able to flatten to 1.0 (falsifiable).
+# f(SQI) → price multiplier. Until a season-block calibration proves a
+# directional price effect, snow is a state/uncertainty input and this curve
+# stays neutral. This removes the unvalidated 22% drought cut.
 # Points are (sqi, multiplier). Linear interpolation between knots.
 price_multiplier_curve:
-  - {sqi: 0.50, mult: 0.72}
-  - {sqi: 0.62, mult: 0.78}   # ~2025-26 drought Christmas
-  - {sqi: 0.80, mult: 0.90}
+  - {sqi: 0.50, mult: 1.00}
+  - {sqi: 0.62, mult: 1.00}   # ~2025-26 drought Christmas: hold neutral
+  - {sqi: 0.80, mult: 1.00}
   - {sqi: 1.00, mult: 1.00}
   - {sqi: 1.20, mult: 1.12}
   - {sqi: 1.30, mult: 1.18}

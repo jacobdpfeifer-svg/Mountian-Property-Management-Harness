@@ -62,6 +62,48 @@ def test_cotrip_chain_law_without_closure_is_partial_risk():
     assert out["access_risk"] == pytest.approx(0.4)
 
 
+def test_cotrip_non_json_payload_is_unavailable():
+    out = parse_cotrip_payload("<!doctype html><html>app shell</html>")
+    assert out["quality"] == "unavailable"
+
+
+def test_cotrip_geojson_uses_berthoud_route_and_milepoint():
+    payload = {
+        "features": [{
+            "type": "Feature",
+            "properties": {
+                "route": "US 40",
+                "title": "US 40 closed near Berthoud Pass",
+                "description": "Road closed due to avalanche control",
+                "eventReport": {"location": {
+                    "routeDesignator": "US 40",
+                    "primaryPoint": {"linearReference": 238.4},
+                }},
+            },
+        }]
+    }
+    out = parse_cotrip_payload(payload)
+    assert out["quality"] == "ok"
+    assert out["berthoud_closed"] == 1.0
+    assert out["access_risk"] == 1.0
+
+
+def test_cdot_non_json_result_writes_unavailable(store: SignalStore):
+    market_id = store.list_markets()[0]["market_id"]
+    coll = get_collector("cdot")(
+        store,
+        fetch_fn=lambda: {"quality": "unavailable", "reason": "non_json_payload"},
+        sleep=lambda _s: None,
+    )
+    result = coll.run(date(2026, 1, 15), market_id)
+    assert result.status in {"ok", "degraded"}
+    rows = store.read_observations(as_of="2026-01-15", market_id=market_id)
+    assert {r["signal_key"] for r in rows} == {
+        "cdot.berthoud_closed", "cdot.chain_law", "cdot.access_risk"
+    }
+    assert all(r["quality"] == "unavailable" and r["value"] is None for r in rows)
+
+
 # ---------------------------------------------------------------- regulatory
 
 def test_regulatory_no_fixture_is_unavailable_not_estimated(store: SignalStore):

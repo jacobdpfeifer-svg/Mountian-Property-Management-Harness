@@ -18,11 +18,11 @@ compose:
   # The operator's current listed price is itself evidence — they set it deliberately
   # and with context the model does not have. When our own confidence is low, the model
   # must not override that judgement wholesale.
-  # Measured motivation: last Christmas these listings averaged an earlier seasonal level; this
-  # Christmas they average a higher seasonal level and converted at a private realized price. A model fitted on that history
-  # wanted a -35% cut on the strongest nights of the year — i.e. to restore last
-  # season's underpricing. Deference makes low-confidence recommendations advisory
-  # nudges rather than confident reversals.
+  # Measured motivation: the strongest holiday nights have historically cleared the
+  # prior seasonal anchor by a wide margin. A model fitted on that history wanted a
+  # large cut on the strongest nights of the year — i.e. to restore prior underpricing.
+  # Deference makes low-confidence recommendations advisory nudges rather than
+  # confident reversals.
   deference:
     enabled: true
     below_confidence: 0.80

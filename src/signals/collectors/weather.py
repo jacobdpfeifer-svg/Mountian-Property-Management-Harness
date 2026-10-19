@@ -193,6 +193,9 @@ class WeatherCollector(Collector):
             "end_date": as_of.isoformat(),
             "daily": "snowfall_sum,temperature_2m_mean,relative_humidity_2m_mean,wind_gusts_10m_max",
             "timezone": "America/Denver",
+            # Open-Meteo defaults wind speed to km/h. Request m/s explicitly so
+            # the conversion below is stable if the provider default changes.
+            "wind_speed_unit": "ms",
         }
         archive = self.session.get(ARCHIVE_URL, params=archive_params, timeout=60)
         archive.raise_for_status()
@@ -204,6 +207,7 @@ class WeatherCollector(Collector):
             "daily": "snowfall_sum,temperature_2m_max,temperature_2m_min,wind_gusts_10m_max",
             "forecast_days": 16,
             "timezone": "America/Denver",
+            "wind_speed_unit": "ms",
         }
         forecast = self.session.get(FORECAST_URL, params=forecast_params, timeout=60)
         forecast.raise_for_status()

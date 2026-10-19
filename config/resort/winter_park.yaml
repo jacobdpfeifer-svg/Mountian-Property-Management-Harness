@@ -80,14 +80,21 @@ lifts:
     type: triple
     wind_sensitive: false
 
-# Ikon Pass blackout dates for Winter Park (verify annually against ikonpass.com).
+# Product-specific blackout dates. The full Ikon Pass, Ikon Base Pass, and Winter
+# Park Season Pass have no Winter Park blackouts; Session Pass dates are distinct.
 ikon_blackouts:
-  - start: "2025-12-26"
-    end: "2025-12-27"
-    notes: "Christmas week blackout — verify against current Ikon calendar"
-  - start: "2026-01-17"
-    end: "2026-01-17"
-    notes: "MLK weekend Saturday — verify against current Ikon calendar"
+  - pass_product: "Ikon Session Pass"
+    start: "2026-12-26"
+    end: "2026-12-30"
+    notes: "Product-specific Session Pass blackout; verify annually against ikonpass.com"
+  - pass_product: "Ikon Session Pass"
+    start: "2027-01-16"
+    end: "2027-01-17"
+    notes: "Product-specific Session Pass blackout; verify annually against ikonpass.com"
+  - pass_product: "Ikon Session Pass"
+    start: "2027-02-13"
+    end: "2027-02-14"
+    notes: "Product-specific Session Pass blackout; verify annually against ikonpass.com"
 
 # Snow packing tendencies by calendar month (declared priors).
 packing_rules:
