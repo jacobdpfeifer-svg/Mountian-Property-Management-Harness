@@ -277,3 +277,24 @@ def hindsight_revenue(
             best = max(best, revenue)
     gap = (best - assign(subset)) / best if best else 0.0
     return round(greedy, 2), round(gap, 4)
+
+
+# Current owner share under the fee stack in the shared context. The management
+# fee base (nightly rate only, versus the all-in guest total) is not confirmed.
+OWNER_SHARE_ASSUMED = 0.595
+
+
+def owner_net_of_gross(gross: float, *, owner_share: float = OWNER_SHARE_ASSUMED) -> dict:
+    """Owner-net view of a gross hindsight bound.
+
+    This is not realized owner net. `fee_base_confirmed` stays false until the
+    operator says whether the 25% fee applies to the nightly rate only.
+    """
+    if owner_share < 0 or owner_share > 1:
+        raise ValueError("owner_share must be between 0 and 1")
+    return {
+        "owner_net": round(float(gross) * owner_share, 2),
+        "owner_share": owner_share,
+        "fee_base_confirmed": False,
+        "label": "simulated owner-net hindsight, not realized revenue",
+    }
