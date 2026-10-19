@@ -195,6 +195,25 @@ CREATE TABLE IF NOT EXISTS comp_snapshots (
     UNIQUE (comp_id, as_of, stay_date)
 );
 
+-- Per-day calendar returned by the provider. A failed fetch is its own row
+-- and does not replace an earlier quoted_ok row for the same comp and night.
+CREATE TABLE IF NOT EXISTS comp_calendar (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    comp_id         TEXT NOT NULL REFERENCES comps(comp_id),
+    stay_date       TEXT NOT NULL,
+    fetched_at      TEXT NOT NULL,
+    available       INTEGER,
+    min_nights      INTEGER,
+    restrictions    TEXT,
+    source_status   TEXT NOT NULL
+        CHECK (source_status IN (
+            'quoted_ok', 'calendar_unavailable', 'not_returned', 'fetch_failed'
+        )),
+    payload_quality TEXT NOT NULL,
+    source          TEXT NOT NULL,
+    UNIQUE (comp_id, stay_date, fetched_at)
+);
+
 -- Full-market distribution per swept window. One search sweep returns every
 -- bookable listing in the bounding box, so the market percentile is free and does
 -- not depend on the curated comp set being complete.

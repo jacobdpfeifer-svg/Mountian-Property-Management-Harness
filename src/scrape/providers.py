@@ -224,8 +224,8 @@ class PyAirbnbProvider(CompProvider):
         self._throttle()
         try:
             months = pyairbnb.get_calendar(api_key=self._key(), room_id=str(room_id))
-        except Exception:  # noqa: BLE001
-            return {}
+        except (OSError, ValueError, RuntimeError, TypeError) as exc:
+            raise RuntimeError(f"calendar_fetch_failed:{exc.__class__.__name__}") from exc
         out: dict[str, dict[str, Any]] = {}
         for month in months or []:
             for day in month.get("days", []) or []:

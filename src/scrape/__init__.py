@@ -322,15 +322,35 @@ def _mark_failed(conn: sqlite3.Connection, comp_ids, as_of: date,
 
 def _enrich_min_nights(conn: sqlite3.Connection, provider: CompProvider,
                        comps: dict[str, str], as_of: date) -> None:
-    """One calendar call per comp adds min-stay + availability for a full year."""
+    """One calendar call per comp stores the full day, and still fills min_nights.
+
+    A failed call is fetch_failed. It does not mark the nights unavailable and
+    does not overwrite an earlier good calendar row.
+    """
+    from src.scrape.calendar_store import calendar_from_provider
+
+    stamp = as_of.isoformat() + "T00:00:00Z"
     for room_id, comp_id in comps.items():
-        cal = provider.calendar(room_id)
+        try:
+            cal = provider.calendar(room_id)
+        except (OSError, ValueError, RuntimeError) as exc:
+            calendar_from_provider(
+                conn, comp_id, None, source=getattr(provider, "name", "scrape"),
+                fetched_at=stamp, error=str(exc),
+            )
+            continue
+        if not cal:
+            continue
         for iso, info in cal.items():
             conn.execute(
                 "UPDATE comp_snapshots SET min_nights = ? "
                 "WHERE comp_id = ? AND stay_date = ? AND as_of = ?",
                 (info.get("min_nights"), comp_id, iso, as_of.isoformat()),
             )
+        calendar_from_provider(
+            conn, comp_id, cal, source=getattr(provider, "name", "scrape"),
+            fetched_at=stamp,
+        )
     conn.commit()
 
 
