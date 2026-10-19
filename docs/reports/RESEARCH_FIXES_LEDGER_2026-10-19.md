@@ -24,31 +24,31 @@ Commit `4e304aa` Commit the October deep research pack with listed peak rates.
 
 | ID | Status | What changed | Audit |
 |---|---|---|---|
-| P2.1 | done | CARS headline codes. Shoulder/lane does not set `berthoud_closed`. | Self-audit below. No separate reviewer agent. |
-| P2.2 | done | Window 230.0–254.3 in `config/policies/access.yaml`. Fraser MP 227 excluded. East-side fixture at 250. | Same. |
-| P2.3 | done | I-70 east/west of MP 232 stored on `cdot.i70_*`. `access_risk` does not read them. | Same. |
-| P2.4 | done | Live receipt `docs/reports/cdot_health_2026-10-19.json`: ok, feature_count 4, berthoud_closed 0, access_risk 0.25, i70 east 1. | Same. |
-| P2.5 | done | Forecast path is NWS. Open-Meteo removed. m/s → mph tested at 2.237. Historical fields are not filled. | Operator question: archive weather has no licence-clean source in this collector. |
-| P2.6 | done | Curve is 1.00 at SQI 1.2 and 1.3. Direct uplift versus the old 1.12/1.18 knots is removed. No paired market-sim seeds were run; the multiplier itself is identically 1, so the curve contributes no owner-net difference from a neutral snow state. | Same. |
-| P2.7 | done | Federal windows generated. Christmas ends 2 Jan (R7), not 4 Jan. Test requires 2027, 2028 and 2029. | Same. |
-| P2.8 | partial | File exists. Every row is UNVERIFIED. Verified rows are the only ones a caller may use, and today that set is empty, so school breaks do not move price. | Official district pages tried on 2026-10-19 returned 404. |
-| P2.9 | partial | Base Pass re-read: Winter Park is on the unlimited-access list with blackouts 26–30 Dec 2026, 16–17 Jan 2027, 13–14 Feb 2027. Session Pass URL 404; those rows stay dated 2026-10-16. | Operator question: which pass guests hold. |
-| P3.1 | partial | `proving_ground_exam/worlds/misspecified.py` has kinked, lognormal, gamma-frailty, waiter, and channel-lag shapes. They are not wired into the market-sim runner. | Not a full world runner. |
+| P2.1 | done | CARS headline codes. Shoulder/lane does not set `berthoud_closed`. | `65b37b6`. Self-audit in this file. No separate reviewer agent. |
+| P2.2 | done | Window 230.0–254.3 in `config/policies/access.yaml`. Fraser MP 227 excluded. East-side fixture at 250. | `65b37b6`. |
+| P2.3 | done | I-70 east/west of MP 232 stored on `cdot.i70_*`. `access_risk` does not read them. | `65b37b6`. |
+| P2.4 | done | Live receipt `docs/reports/cdot_health_2026-10-19.json`: ok, feature_count 4, berthoud_closed 0, access_risk 0.25, i70 east 1. | `65b37b6`. |
+| P2.5 | done | Forecast path is NWS. Open-Meteo removed. m/s → mph tested at 2.237. Historical fields are not filled. | `140462a`. Operator question: archive weather has no licence-clean source in this collector. |
+| P2.6 | done | Curve is 1.00 at SQI 1.2 and 1.3. Direct uplift versus the old 1.12/1.18 knots is removed. No paired market-sim seeds were run; the multiplier itself is identically 1, so the curve contributes no owner-net difference from a neutral snow state. | `d31049a`. |
+| P2.7 | done | Federal windows generated. Christmas ends 2 Jan (R7), not 4 Jan. Test requires 2027, 2028 and 2029. | `d31049a`. |
+| P2.8 | partial | File exists. Every row is UNVERIFIED. Verified rows are the only ones a caller may use, and today that set is empty, so school breaks do not move price. | `d31049a`. Official district pages tried on 2026-10-19 returned 404. |
+| P2.9 | partial | Base Pass re-read: Winter Park is on the unlimited-access list with blackouts 26–30 Dec 2026, 16–17 Jan 2027, 13–14 Feb 2027. Session Pass URL 404; those rows stay dated 2026-10-16. | `d31049a`. Operator question: which pass guests hold. |
+| P3.1 | partial | `proving_ground_exam/worlds/misspecified.py` has kinked, lognormal, gamma-frailty, waiter, and channel-lag shapes. They are not wired into the market-sim runner. | `d40376e`. Not a full world runner. |
 | P3.2 | not done | Multi-season burn-in was not built. | Needs a simulator design pass. |
-| P3.3 | partial | `owner_net_of_gross` applies 0.595 and flags the fee base unconfirmed. It does not replace `hindsight_revenue`. | Operator question: fee base. |
+| P3.3 | partial | `owner_net_of_gross` applies 0.595 and flags the fee base unconfirmed. It does not replace `hindsight_revenue`. | `d40376e`. Operator question: fee base. |
 | P3.4 | not done | No rank-stability run on over-dispersed worlds. | Depends on P3.2. |
-| P4.1 | partial | Stored run errors are mostly DNS failures resolving www.airbnb.com, plus timeouts. `classify_scrape_error` names dns and timeout. The calendar call no longer swallows a fetch error into an empty dict. No live scrape was run. | The DNS failures are an environment/network cause, not a parser bug. |
-| P4.2–P4.3 | done | `comp_calendar` stores available, min-stay, restrictions, status, quality. Failure does not replace `quoted_ok`. Re-runs with the same stamp are idempotent. | Tested on a fresh database, not applied to `data/wp_pricing.db`. |
+| P4.1 | partial | Stored run errors are mostly DNS failures resolving www.airbnb.com, plus timeouts. `classify_scrape_error` names dns and timeout. The calendar call no longer swallows a fetch error into an empty dict. No live scrape was run. | `c9771e9`. The DNS failures are an environment/network cause, not a parser bug. |
+| P4.2–P4.3 | done | `comp_calendar` stores available, min-stay, restrictions, status, quality. Failure does not replace `quoted_ok`. Re-runs with the same stamp are idempotent. | `c9771e9`. Tested on a fresh database, not applied to `data/wp_pricing.db`. |
 | P4.4 | not done | No comps were added. Coverage is unchanged: 8.3% / 0% / 0%. | Adding comps changes the comp set. Left for the operator because it is a market-definition choice even with pace off. |
 | P4.5 | not done | Block-inference was not scored. | Would read the operator database against public calendars. Not run. |
 | P4.6 | done as baseline | Receipt is the P0.1 coverage and 67.5% failure rate. Unchanged. | |
-| P5.1 | done | `hit_rate` centres the signal and divides by non-zero centred pairs only. | Tested. |
-| P5.2 | done | `score_signal_against_outcomes` scores outcome residuals at the call's horizon. | Pearson IC is invariant to subtracting the mean; the hit rate is not. |
-| P5.3 | partial | Benjamini-Hochberg and a null Monte Carlo live in `promotion.py`. The Monte Carlo's uncorrected rate is above 25% and the BH rate is lower and under 20%. It is not the production ladder yet. | The 27–31% figure is the uncorrected noise rate in that simulation, not a re-run of the historical screen. |
-| P6 | partial | `src/pricing/pickup_shadow.py` shrinks a residual and bounds one booking. Not in `default.yaml`. No paired-seed gate. | |
+| P5.1 | done | `hit_rate` centres the signal and divides by non-zero centred pairs only. | `96d3b4b`. |
+| P5.2 | done | `score_signal_against_outcomes` scores outcome residuals at the call's horizon. | `96d3b4b`. Pearson IC is invariant to subtracting the mean; the hit rate is not. |
+| P5.3 | partial | Benjamini-Hochberg and a null Monte Carlo live in `promotion.py`. The Monte Carlo's uncorrected rate is above 25% and the BH rate is lower and under 20%. It is not the production ladder yet. | `96d3b4b`. The 27–31% figure is the uncorrected noise rate in that simulation, not a re-run of the historical screen. |
+| P6 | partial | `src/pricing/pickup_shadow.py` shrinks a residual and bounds one booking. Not in `default.yaml`. No paired-seed gate. | `d40376e`. |
 | P7.1–P7.4 | not done | Mountain-state bands, finite WTP, bid price, and stay displacement were not built. | They need the Phase 3 runner. |
 | P7.5 | not done | `shadow_daily` was not populated. | |
-| P7.6 | partial | `src/eval/field_test.py` assigns by check-in week and prints a power table. It is not activated. A 2% effect has power under 0.2 at the table's assumptions. | |
+| P7.6 | partial | `src/eval/field_test.py` assigns by check-in week and prints a power table. It is not activated. A 2% effect has power under 0.2 at the table's assumptions. | `d40376e`. |
 | P7.7 | not done | No gate run. | |
 | P1.1–P1.5 | not done | No fresh reviewer opened 15 URLs per dossier. | Operator question: commission that review. |
 | P8.1–P8.8 | not done | Literature gaps listed in the 2026-10-19 audit section 6 are unchanged. | Same. |
