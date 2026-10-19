@@ -63,6 +63,17 @@ pass. This section records what changed and what is still open. It does not auth
 | `config/policies/conditions.yaml` cut price to 0.78 at drought snow | Neutral (1.00) at or below normal snow | Still ×1.12–1.18 at SQI 1.2–1.3; unvalidated upside |
 | A `default.yaml` comment, and later a `src/pms/sync.py` docstring, printed a booked price | Removed; `bcef02b` removed the last reference. `main` and `origin/main` contain no commit with the figure on any ref (checked 2026-10-19) | Clones and provider-side caches made before the rewrite may still hold it |
 
+### 2.2a Code status after the research-fixes branch (2026-10-19)
+
+The residuals in the table above were closed in code on branch `research-fixes-2026-10-19`. The historical table stays as the record of what the morning audit found.
+
+- CoTrip classification uses CARS `headlinePhrase` category and code, plus quantity labels. A category-3 shoulder or lane phrase does not set `berthoud_closed`. The US-40 window is 230.0–254.3 in `config/policies/access.yaml` (OTIS station 000223 east end; Fraser at milepost 227 is outside). I-70 full closures east and west of milepost 232 are stored as experimental signals and are not read by `access_risk`. A live read on 2026-10-19 returned `ok` with a shoulder/lane access risk and no full US-40 closure (`docs/reports/cdot_health_2026-10-19.json`).
+- Forecasts come from `api.weather.gov`. Open-Meteo is not called. Historical days are not filled by this collector; SNOTEL remains the snow record. Wind in `wmoUnit:m_s-1` converts by 2.237.
+- The SQI curve is 1.00 at 1.2 and at 1.3 as well as below 1.0.
+- Federal holiday windows are generated (Christmas 20 Dec–2 Jan, MLK and Presidents Friday–Monday, Thanksgiving Wednesday–Sunday). School-break rows in `config/calendars/school_breaks.csv` are unverified and are not a price input. Ikon Base Pass blackouts at Winter Park were re-read on the Ikon product page on 2026-10-19; the Session Pass page URL returned 404.
+
+Phases 1 and 8 of the build prompt (fresh dossier re-reviews and the unfinished literature fixes) are not done. They are listed as operator questions in `docs/reports/RESEARCH_FIXES_LEDGER_2026-10-19.md`.
+
 ## 3. Hypothesis verdicts H1–H7
 
 The wording below is the post-review wording. It is not softened and it is not upgraded.
