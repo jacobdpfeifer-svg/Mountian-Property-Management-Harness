@@ -96,15 +96,26 @@ def _pearson(xs: list[float], ys: list[float]) -> float | None:
 
 
 def hit_rate(pairs: list[tuple[float, float]]) -> float | None:
-    """Share of pairs where sign(signal) matches sign(outcome delta)."""
+    """Share of non-zero pairs where sign(centred signal) matches sign(outcome).
+
+    Zero signals and zero outcomes are not hits and are not in the denominator.
+    The signal is centred across the pairs so a always-positive series is not
+    scored as if every point agreed with a positive outcome.
+    """
     if len(pairs) < 5:
         return None
+    centre = sum(s for s, _o in pairs) / len(pairs)
     hits = 0
+    denom = 0
     for s, o in pairs:
-        if s == 0 or o == 0:
+        centred = s - centre
+        if centred == 0 or o == 0:
             continue
-        hits += 1 if (s > 0) == (o > 0) else 0
-    return hits / len(pairs) if pairs else None
+        denom += 1
+        hits += 1 if (centred > 0) == (o > 0) else 0
+    if denom < 5:
+        return None
+    return hits / denom
 
 
 def run_backtest(
@@ -220,8 +231,16 @@ def score_signal_against_outcomes(
         if row and row["rev"] is not None:
             pairs.append((sig, float(row["rev"])))
 
-    ic, lo, hi, n = information_coefficient(pairs)
-    hr = hit_rate(pairs)
+    # Score the residual at this lead, not the raw revenue level. Every pair
+    # in this call shares one horizon, so the residual is the outcome minus
+    # the mean outcome at that lead.
+    if pairs:
+        mean_outcome = sum(outcome for _sig, outcome in pairs) / len(pairs)
+        scored = [(sig, outcome - mean_outcome) for sig, outcome in pairs]
+    else:
+        scored = pairs
+    ic, lo, hi, n = information_coefficient(scored)
+    hr = hit_rate(scored)
     if n < 20 or ic is None:
         decision = "insufficient"
     elif ic >= 0.05 and (hr or 0) >= 0.52:

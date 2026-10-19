@@ -102,6 +102,68 @@ def apply_promotions(store: SignalStore, policy: dict[str, Any] | None = None) -
     return actions
 
 
+def benjamini_hochberg(p_values: list[float], q: float = 0.10) -> list[bool]:
+    """Which hypotheses are rejected at false-discovery rate `q`.
+
+    p-values that are missing or outside [0, 1] are not rejected.
+    """
+    m = len(p_values)
+    reject = [False] * m
+    usable = [(i, p) for i, p in enumerate(p_values) if p is not None and 0.0 <= p <= 1.0]
+    if not usable:
+        return reject
+    order = sorted(usable, key=lambda item: item[1])
+    cutoff = 0
+    k = len(order)
+    for rank, (_i, p) in enumerate(order, start=1):
+        if p <= q * rank / k:
+            cutoff = rank
+    for rank, (i, _p) in enumerate(order, start=1):
+        if rank <= cutoff:
+            reject[i] = True
+    return reject
+
+
+def null_promotion_rates(
+    *,
+    n_signals: int = 30,
+    n_seasons: int = 8,
+    n_sims: int = 300,
+    q: float = 0.10,
+    seed: int = 20261019,
+) -> dict[str, float]:
+    """False-promotion rate under a null, uncorrected versus season-block BH.
+
+    Each season contributes one standard-normal draw. The uncorrected rule
+    promotes a signal when its mean exceeds 0.05, which on this noise scale
+    fires often. The controlled rule converts the season-block mean to a
+    two-sided normal p-value and applies Benjamini-Hochberg across the screen.
+    """
+    import math
+    import random
+
+    rng = random.Random(seed)
+    raw_promotions = 0
+    bh_promotions = 0
+    trials = n_signals * n_sims
+    for _ in range(n_sims):
+        p_values = []
+        for _signal in range(n_signals):
+            blocks = [rng.gauss(0.0, 1.0) for _ in range(n_seasons)]
+            mean = sum(blocks) / n_seasons
+            if mean > 0.05:
+                raw_promotions += 1
+            se = 1.0 / math.sqrt(n_seasons)
+            z = abs(mean) / se
+            p_values.append(math.erfc(z / math.sqrt(2.0)))
+        bh_promotions += sum(1 for flag in benjamini_hochberg(p_values, q) if flag)
+    return {
+        "uncorrected": raw_promotions / trials,
+        "bh": bh_promotions / trials,
+        "q": q,
+    }
+
+
 def demote_on_source_break(store: SignalStore, signal_key: str) -> None:
     """Broken source → deprecated; features must fall back without price discontinuity."""
     store.set_status(signal_key, "deprecated")
