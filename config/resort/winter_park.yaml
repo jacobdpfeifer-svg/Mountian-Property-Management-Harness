@@ -80,21 +80,56 @@ lifts:
     type: triple
     wind_sensitive: false
 
-# Product-specific blackout dates. The full Ikon Pass, Ikon Base Pass, and Winter
-# Park Season Pass have no Winter Park blackouts; Session Pass dates are distinct.
+# Product-specific blackouts. Re-checked 2026-10-19 against the Ikon Base page:
+# Winter Park Resort is in the unlimited-access list, and that list's blackouts
+# are Dec 26–30 2026, Jan 16–17 2027 and Feb 13–14 2027.
+# https://www.ikonpass.com/en/shop-passes/ikon-base-pass
+# The Winter Park season-pass URL returned 404 the same day, so the Session Pass
+# row keeps the research dates but is not freshly verified.
+# Which product guests hold is an operator question. These dates are not a price input.
 ikon_blackouts:
-  - pass_product: "Ikon Session Pass"
+  - pass_product: "Ikon Base Pass"
+    season: "2026-27"
     start: "2026-12-26"
     end: "2026-12-30"
-    notes: "Product-specific Session Pass blackout; verify annually against ikonpass.com"
-  - pass_product: "Ikon Session Pass"
+    source_url: "https://www.ikonpass.com/en/shop-passes/ikon-base-pass"
+    verified_on: "2026-10-19"
+    notes: "Unlimited-access list on the Base Pass page includes Winter Park Resort, with these blackouts."
+  - pass_product: "Ikon Base Pass"
+    season: "2026-27"
     start: "2027-01-16"
     end: "2027-01-17"
-    notes: "Product-specific Session Pass blackout; verify annually against ikonpass.com"
-  - pass_product: "Ikon Session Pass"
+    source_url: "https://www.ikonpass.com/en/shop-passes/ikon-base-pass"
+    verified_on: "2026-10-19"
+    notes: "Same page, same unlimited-access blackout set."
+  - pass_product: "Ikon Base Pass"
+    season: "2026-27"
     start: "2027-02-13"
     end: "2027-02-14"
-    notes: "Product-specific Session Pass blackout; verify annually against ikonpass.com"
+    source_url: "https://www.ikonpass.com/en/shop-passes/ikon-base-pass"
+    verified_on: "2026-10-19"
+    notes: "Same page, same unlimited-access blackout set."
+  - pass_product: "Ikon Session Pass"
+    season: "2026-27"
+    start: "2026-12-26"
+    end: "2026-12-30"
+    source_url: "https://www.winterparkresort.com/plan-your-trip/season-passes"
+    verified_on: "2026-10-16"
+    notes: "Research dates. The Winter Park pass URL returned 404 on 2026-10-19, so this row was not re-verified."
+  - pass_product: "Ikon Session Pass"
+    season: "2026-27"
+    start: "2027-01-16"
+    end: "2027-01-17"
+    source_url: "https://www.winterparkresort.com/plan-your-trip/season-passes"
+    verified_on: "2026-10-16"
+    notes: "Research dates. Not re-verified on 2026-10-19."
+  - pass_product: "Ikon Session Pass"
+    season: "2026-27"
+    start: "2027-02-13"
+    end: "2027-02-14"
+    source_url: "https://www.winterparkresort.com/plan-your-trip/season-passes"
+    verified_on: "2026-10-16"
+    notes: "Research dates. Not re-verified on 2026-10-19."
 
 # Snow packing tendencies by calendar month (declared priors).
 packing_rules:

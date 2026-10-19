@@ -207,7 +207,7 @@ def test_conditional_ceiling_plumbing_and_honesty(store: SignalStore):
     ceil = compute_ceiling(conn, feat, policy, as_of=date(2025, 12, 1))
     assert ceil.ceiling_price > 482
     assert ceil.confidence < 0.80
-    assert price_multiplier(1.30) > price_multiplier(1.0)
+    assert price_multiplier(1.30) == price_multiplier(1.0) == 1.0
 
 
 def test_kill_switch_reverts_stationary(store: SignalStore, monkeypatch, tmp_path: Path):

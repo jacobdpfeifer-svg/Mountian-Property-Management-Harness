@@ -1,0 +1,5 @@
+district,state,season,start,end,status,source_url,verified_on,notes
+Denver Public Schools,CO,2026-27,2027-03-22,2027-03-26,UNVERIFIED,https://calendarstates.com/colorado/denver-public-schools/,2026-10-19,"Aggregator. R5 §3.8: a second aggregator says Mar 29-Apr 2 and the district URL 404'd. Not a price input."
+Dallas ISD,TX,2026-27,2027-03-15,2027-03-19,UNVERIFIED,https://publicschoolscalendar.com/dallas-isd-calendar-2026-2027/,2026-10-19,"R5 marks Texas dates UNVERIFIED against the district page."
+Austin ISD,TX,2026-27,2027-03-15,2027-03-19,UNVERIFIED,https://publicschoolscalendar.com/dallas-isd-calendar-2026-2027/,2026-10-19,"Same aggregator family as Dallas. UNVERIFIED."
+Houston ISD,TX,2026-27,2027-03-08,2027-03-12,UNVERIFIED,https://publicschoolscalendar.com/dallas-isd-calendar-2026-2027/,2026-10-19,"R5 aggregator window. UNVERIFIED."

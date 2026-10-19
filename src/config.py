@@ -69,12 +69,24 @@ def load_policy_overlay(path: Path | None = None) -> dict[str, Any]:
     return deep_merge(load_policy(), overlay)
 
 
-def load_events(path: Path | None = None) -> list[dict[str, Any]]:
+def load_events(path: Path | None = None, *, today: date | None = None) -> list[dict[str, Any]]:
+    """Dated local events from YAML, plus rule-generated federal windows.
+
+    Federal names in the YAML are ignored so a hand-typed holiday cannot
+    override the rule. `today` is injectable for tests.
+    """
+    from datetime import date as date_cls
+
+    from src.signals.calendars import FEDERAL_RULES, federal_windows, season_january_years
+
     data = load_yaml(path or EVENTS_PATH)
     signals = data.get("signals", [])
     if not isinstance(signals, list):
         raise ValueError("events.yaml must contain a 'signals' list")
-    return signals
+    federal_names = {rule["event_name"] for rule in FEDERAL_RULES}
+    dated = [row for row in signals if row.get("event_name") not in federal_names]
+    years = season_january_years(today or date_cls.today(), ahead=2)
+    return dated + federal_windows(years)
 
 
 CONDITIONS_PATH = ROOT / "config" / "policies" / "conditions.yaml"
