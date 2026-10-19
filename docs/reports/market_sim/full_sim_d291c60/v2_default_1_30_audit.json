@@ -1,0 +1,185 @@
+{
+  "completeness": {
+    "complete": true,
+    "duplicates": [],
+    "expected_rows": 480,
+    "missing": [],
+    "missing_count": 0,
+    "scenario_count_ok": true
+  },
+  "engine_minus_comp_median": {
+    "holiday_shift": {
+      "bootstrap_95": {
+        "hi": -229401.31,
+        "lo": -244758.62
+      },
+      "max": -195932.75,
+      "mean": -237012.38,
+      "median": -235103.37,
+      "min": -278515.79,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "normal": {
+      "bootstrap_95": {
+        "hi": -213201.66,
+        "lo": -230606.7
+      },
+      "max": -165032.43,
+      "mean": -221507.98,
+      "median": -220063.16,
+      "min": -275238.52,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "pandemic_collapse": {
+      "bootstrap_95": {
+        "hi": -12231.15,
+        "lo": -29291.78
+      },
+      "max": 27185.59,
+      "mean": -20656.47,
+      "median": -19882.88,
+      "min": -80675.1,
+      "n": 30,
+      "nonnegative": 6
+    },
+    "price_war": {
+      "bootstrap_95": {
+        "hi": -214415.04,
+        "lo": -231701.09
+      },
+      "max": -172183.92,
+      "mean": -222744.38,
+      "median": -227296.64,
+      "min": -287274.95,
+      "n": 30,
+      "nonnegative": 0
+    }
+  },
+  "engine_minus_flat": {
+    "holiday_shift": {
+      "bootstrap_95": {
+        "hi": -219904.56,
+        "lo": -235207.54
+      },
+      "max": -191511.16,
+      "mean": -227333.32,
+      "median": -225994.8,
+      "min": -279058.2,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "normal": {
+      "bootstrap_95": {
+        "hi": -205525.41,
+        "lo": -223496.37
+      },
+      "max": -140535.04,
+      "mean": -214296.29,
+      "median": -214444.46,
+      "min": -267631.75,
+      "n": 30,
+      "nonnegative": 0
+    },
+    "pandemic_collapse": {
+      "bootstrap_95": {
+        "hi": -16147.8,
+        "lo": -32975.66
+      },
+      "max": 22345.0,
+      "mean": -24402.99,
+      "median": -22539.0,
+      "min": -87555.0,
+      "n": 30,
+      "nonnegative": 3
+    },
+    "price_war": {
+      "bootstrap_95": {
+        "hi": -215371.65,
+        "lo": -232017.17
+      },
+      "max": -167953.73,
+      "mean": -223761.77,
+      "median": -225658.71,
+      "min": -270463.52,
+      "n": 30,
+      "nonnegative": 0
+    }
+  },
+  "engine_minus_tool": {
+    "holiday_shift": {
+      "bootstrap_95": {
+        "hi": -4035.57,
+        "lo": -16783.63
+      },
+      "max": 25078.64,
+      "mean": -10321.77,
+      "median": -11473.01,
+      "min": -62831.6,
+      "n": 30,
+      "nonnegative": 8
+    },
+    "normal": {
+      "bootstrap_95": {
+        "hi": -5336.67,
+        "lo": -14540.65
+      },
+      "max": 24651.57,
+      "mean": -9940.44,
+      "median": -9280.33,
+      "min": -34573.4,
+      "n": 30,
+      "nonnegative": 6
+    },
+    "pandemic_collapse": {
+      "bootstrap_95": {
+        "hi": 9393.23,
+        "lo": 2659.34
+      },
+      "max": 25146.98,
+      "mean": 5975.9,
+      "median": 6439.07,
+      "min": -13941.61,
+      "n": 30,
+      "nonnegative": 22
+    },
+    "price_war": {
+      "bootstrap_95": {
+        "hi": 9975.65,
+        "lo": 1161.01
+      },
+      "max": 26711.84,
+      "mean": 5551.43,
+      "median": 5887.14,
+      "min": -22432.18,
+      "n": 30,
+      "nonnegative": 21
+    }
+  },
+  "gates": {
+    "complete": true,
+    "held_out_scenarios_present": true,
+    "normal_beats_flat": false,
+    "normal_ci_excludes_loss": false,
+    "scenarios_beating_flat": 0
+  },
+  "held_out_scenarios": [
+    "holiday_shift",
+    "pandemic_collapse"
+  ],
+  "policies": [
+    "comp_median",
+    "comp_property",
+    "current_practice",
+    "engine",
+    "flat",
+    "premium_cap",
+    "property_flat",
+    "tool"
+  ],
+  "provenance": null,
+  "row_count": 960,
+  "scenario_count": 4,
+  "seeds_from": 1
+}
