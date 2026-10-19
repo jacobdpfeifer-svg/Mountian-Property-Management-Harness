@@ -1,7 +1,7 @@
 """Guesty sync + small-data safety tests.
 
 The regression that motivates most of this file: on the live tenant, last Christmas
-averaged an earlier seasonal level and this Christmas averages a higher seasonal level (realised $a much higher realized price). A model
+averaged an earlier seasonal level and this Christmas averages a higher seasonal level. A model
 fitted on that history wanted a -35% cut on the strongest nights of the year — i.e.
 to restore last season's underpricing. Everything below pins the behaviour that
 stops a thin-history model from overruling the operator.
@@ -96,7 +96,7 @@ def test_parse_guesty_date_handles_iso_timestamps():
 
 def test_base_price_seed_is_only_provisional():
     """Guesty basePrice is a STARTING rate, not a ceiling. The seed must be treated as
-    provisional or a $420 base caps a property that sells at $a much higher realized price."""
+    provisional or a low base caps a property that sells at a much higher rate."""
     floor, base_ceiling, _ = _floor_and_ceiling(_listing())
     assert base_ceiling < 800, "seed is intentionally low; recalibrate_bounds must fix it"
     assert floor < base_ceiling

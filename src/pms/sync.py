@@ -97,8 +97,8 @@ def _floor_and_ceiling(listing: GuestyListing) -> tuple[float, float, float]:
 
     WARNING: Guesty's `basePrice` is a STARTING rate that dynamic pricing adjusts
     upward; it is not a ceiling. Seeding a ceiling from it understates reality badly
-    (measured: basePrice $420/$618 on properties whose calendar carries $2,600-2,841
-    at Christmas and which realised $a much higher realized price/night). `recalibrate_bounds` overwrites
+    (measured: base rates on properties whose calendar carries much higher holiday
+    prices). `recalibrate_bounds` overwrites
     these from observed prices as soon as the calendar is synced.
     """
     base = float(listing.base_price or 0) or 400.0
