@@ -25,7 +25,7 @@ def _ok(_d):
 
 def _fns(**over):
     fns = {n: _ok for n in ("snapshot", "pms_sync", "comp_collection", "signals", "ops_import",
-                            "recommendation", "review_artifact", "outcome_reconciliation")}
+                            "recommendation", "review_artifact", "shadow", "outcome_reconciliation")}
     fns.update(over)
     return fns
 
@@ -78,6 +78,21 @@ def test_partial_ingest_degrades_authority(tmp_path):
     r = _orch(tmp_path, pms_sync=lambda d: JobOutcome("degraded", "2 of 3 listings")).run(DAY)
     assert r.receipts["recommendation"]["status"] == "ok"   # may run, on flagged input
     assert r.autonomy == "suggest"
+
+
+def test_degraded_shadow_lowers_autonomy_and_records_a_receipt(tmp_path):
+    _seed_history(tmp_path)
+    r = _orch(tmp_path, shadow=lambda d: JobOutcome("degraded", "stale comps")).run(DAY)
+    assert r.receipts["shadow"]["status"] == "degraded"
+    assert r.receipts["shadow"]["run_id"]
+    assert r.autonomy == "suggest"
+
+
+def test_failed_shadow_forces_observe_and_an_incident(tmp_path):
+    _seed_history(tmp_path)
+    r = _orch(tmp_path, shadow=lambda d: JobOutcome("failed", "malformed calendar")).run(DAY)
+    assert r.receipts["shadow"]["status"] == "failed"
+    assert r.autonomy == "observe" and r.incidents
 
 
 def test_retry_with_backoff_then_success(tmp_path):

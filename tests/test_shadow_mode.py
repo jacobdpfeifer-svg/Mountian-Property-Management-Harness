@@ -16,7 +16,7 @@ from src.eval.shadow import GuestyWriteForbidden
 from src.guardrails import assess_data_health
 from src.ingest import CsvIngestAdapter
 from src.review import act
-from src.shadow import capture_outcomes, run_shadow_day, scorecard
+from src.shadow import capture_outcomes, execute_shadow_day, run_shadow_day, scorecard, shadow_report
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = ROOT / "data" / "sample"
@@ -103,7 +103,7 @@ def test_human_decisions_are_recorded_and_scored_but_not_applied(conn):
     assert conn.execute("SELECT COUNT(*) FROM rate_changes").fetchone()[0] == 0
 
 
-def test_outcomes_are_captured_once_after_the_night_passes(conn):
+def test_outcomes_append_actual_metrics_once_after_the_night_passes(conn):
     _day(conn)
     assert capture_outcomes(conn, as_of=DAY) == 0                     # nothing has passed yet
     later = DAY + timedelta(days=30)
@@ -111,13 +111,22 @@ def test_outcomes_are_captured_once_after_the_night_passes(conn):
     assert n > 0 and capture_outcomes(conn, as_of=later) == 0
     statuses = {r[0] for r in conn.execute("SELECT night_status FROM shadow_outcome")}
     assert statuses <= {"booked", "available", "blocked", "unknown"}
+    metrics = conn.execute("SELECT * FROM shadow_outcome_observation").fetchall()
+    assert len(metrics) == n
+    for metric in metrics:
+        if metric["night_status"] == "available":
+            assert metric["actual_revpan"] == 0.0 and metric["actual_adr"] is None
+        if metric["night_status"] == "booked":
+            assert metric["actual_adr"] is not None and metric["actual_revpan"] == metric["actual_adr"]
 
 
 def test_shadow_tables_are_append_only(conn):
     _day(conn)
     capture_outcomes(conn, as_of=DAY + timedelta(days=30))
     for sql in ("UPDATE shadow_run SET nights = 0", "DELETE FROM shadow_run",
-                "UPDATE shadow_outcome SET night_status = 'booked'", "DELETE FROM shadow_outcome"):
+                "UPDATE shadow_outcome SET night_status = 'booked'", "DELETE FROM shadow_outcome",
+                "UPDATE shadow_night SET listed_rate = 0", "DELETE FROM shadow_night",
+                "UPDATE shadow_outcome_observation SET actual_revpan = 0", "DELETE FROM shadow_outcome_observation"):
         with pytest.raises(sqlite3.DatabaseError, match="append-only"):
             conn.execute(sql)
 
@@ -134,3 +143,54 @@ def test_the_shadow_module_holds_no_pms_client():
     text = (ROOT / "src" / "shadow" / "__init__.py").read_text()
     assert "GuestyClient" not in text and "set_rate" not in text
     assert "push_rate" not in text
+
+
+def test_shadow_night_records_distance_and_the_report_is_not_causal(conn):
+    out = _day(conn)
+    night = conn.execute("SELECT * FROM shadow_night LIMIT 1").fetchone()
+    assert night["autonomy_level"] == "observe"
+    assert night["listed_rate"] is not None and night["recommended_price"] is not None
+    assert night["price_distance"] == pytest.approx(night["recommended_price"] - night["listed_rate"])
+    assert night["adr"] is None and night["revpan"] is None
+    assert night["price_basis_confidence"] in ("unknown", "uncertified")
+    report = shadow_report(conn)
+    assert report["shadow_gate"] == "NOT_PASSED" and report["shadow_days"] == 1
+    assert report["nights"] == out.nights
+    assert "cannot establish causal revenue lift" in report["limitation"]
+    assert {s["segment"] for s in report["segments"]} >= {
+        "property", "season", "lead_time", "length_of_stay", "channel", "price_distance",
+        "weak_ceiling", "comp_state", "outcome", "refund_status"}
+    assert all("actual_revpan" in s and "settled_owner_net_per_night" in s for s in report["segments"])
+
+
+def test_execute_shadow_day_degrades_without_a_rate_write(conn):
+    health = assess_data_health(conn, load_policy(), property_ids=[PID], as_of=DAY)
+    health.failures.append("malformed calendar")
+    status, detail = execute_shadow_day(
+        conn, as_of=DAY, property_ids=[PID], health_for=lambda _p: health,
+        policy_sha256="p" * 64, code_sha256="c" * 64, scope=SCOPE, horizon_days=14)
+    assert status == "degraded" and "Guesty writes 0" in detail
+    again, _ = execute_shadow_day(
+        conn, as_of=DAY, property_ids=[PID], health_for=lambda _p: health,
+        policy_sha256="p" * 64, code_sha256="c" * 64, scope=SCOPE, horizon_days=14)
+    assert again == "degraded"
+    assert conn.execute("SELECT COUNT(*) FROM rate_changes WHERE result='applied'").fetchone()[0] == 0
+
+
+def test_execute_shadow_day_fails_closed_on_an_unrelated_integrity_error(conn):
+    """A shadow_night collision is not an idempotent shadow_run duplicate."""
+    stay = conn.execute(
+        "SELECT stay_date FROM nightly_inventory WHERE property_id=? AND status='available' AND stay_date>? "
+        "ORDER BY stay_date LIMIT 1", (PID, DAY.isoformat())).fetchone()["stay_date"]
+    conn.execute(
+        """INSERT INTO shadow_night (as_of, property_id, stay_date, decision_key, availability, reasons_json,
+               health_level, autonomy_level, price_basis_confidence, weak_ceiling, created_at)
+           VALUES (?, ?, ?, 'preexisting-collision', 'available', '[]', 'observe', 'observe', 'unknown', 0, 'now')""",
+        (DAY.isoformat(), PID, stay))
+    conn.commit()
+    health = assess_data_health(conn, load_policy(), property_ids=[PID], as_of=DAY)
+    status, detail = execute_shadow_day(
+        conn, as_of=DAY, property_ids=[PID], health_for=lambda _p: health,
+        policy_sha256="p" * 64, code_sha256="c" * 64, scope=SCOPE, horizon_days=14)
+    assert status == "failed" and "integrity failure" in detail
+    assert conn.execute("SELECT COUNT(*) FROM shadow_run").fetchone()[0] == 0

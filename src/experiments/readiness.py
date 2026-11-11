@@ -186,3 +186,104 @@ def validated_signoff(readiness: Readiness, signoff_path: Path) -> dict[str, Any
     if hashlib.sha256(raw).hexdigest() != readiness.signoff_sha256:
         raise PermissionError("sign-off changed after the readiness check; re-run it")
     return dict(json.loads(raw))
+
+
+PACKET_READY = "READY_FOR_HUMAN_AUTHORIZATION"
+PACKET_BLOCKED = "BLOCKED"
+
+
+def canary_signoff_packet(*, conn: sqlite3.Connection, ledger: Path, register_path: Path, plan_path: Path,
+                          signoff_path: Path, permit_path: Path, deployed_sha_path: Path,
+                          alert_destination: str | None, backup_destination: str | None,
+                          now: datetime | None = None) -> dict[str, Any]:
+    """Readiness list for a future canary. Does not create authorization, a permit, or a credential.
+
+    Status is READY_FOR_HUMAN_AUTHORIZATION only when every required artifact is
+    already present. Otherwise it is BLOCKED with the missing item, its owner,
+    and the acceptance test.
+    """
+    from src.security.environment import CredentialPurpose, MissingSecret, current_environment, resolve_credential
+
+    now = now or datetime.now(timezone.utc)
+    blockers: list[dict[str, str]] = []
+
+    def block(item_id: str, owner: str, artifact: str, acceptance: str, detail: str) -> None:
+        blockers.append({"id": item_id, "owner": owner, "artifact": artifact,
+                         "acceptance": acceptance, "detail": detail})
+
+    env = current_environment()
+    if env.value != "production":
+        block("environment", "operator", "WP_PRICE_ENV=production",
+              "process environment is production and matches the database identity",
+              f"environment is {env.value}")
+    try:
+        write = resolve_credential(CredentialPurpose.WRITE)
+        try:
+            read = resolve_credential(CredentialPurpose.READ)
+            same = write.client_id == read.client_id
+        except MissingSecret:
+            same = False
+        if same:
+            block("write_credential", "Guesty admin", "GUESTY_WRITE_CLIENT_ID distinct from the read credential",
+                  "write client id differs from the read client id",
+                  "write credential matches the read credential")
+    except MissingSecret:
+        block("write_credential", "Guesty admin", "separate GUESTY_WRITE_CLIENT_ID and GUESTY_WRITE_CLIENT_SECRET",
+              "resolve_credential(WRITE) succeeds and the client id differs from the read credential",
+              "write credential is absent")
+    if not Path(signoff_path).is_file():
+        block("signed_scope", "owner and operator", "canary_signoff.json naming one property, dates, floors, "
+              "max dollar and percent moves, max writes, approver, rollback owner, expiry, and emergency stop",
+              "canary_readiness signoff gate passes on the operator-written file",
+              "signed scope file is absent")
+    if not Path(permit_path).is_file():
+        block("write_permit", "operator", "write_permit.json in the control directory",
+              "kill switch permits a write only while this file exists and KILL is absent",
+              "write permit is absent")
+    sha = ""
+    sha_path = Path(deployed_sha_path)
+    if sha_path.is_file():
+        sha = sha_path.read_text(encoding="utf-8").strip()
+    if not sha or any(c not in "0123456789abcdef" for c in sha.lower()) or not 7 <= len(sha) <= 40:
+        block("deployed_sha", "operator", "DEPLOYED_SHA from a verified release",
+              "release.py verify prints the same sha the runtime is serving",
+              "no deployed sha")
+    if not alert_destination:
+        block("alerts", "operator", "external alert destination",
+              "a failed shadow or canary job is delivered outside the laptop",
+              "alert destination is not configured")
+    if not backup_destination:
+        block("backup", "operator", "encrypted off-host backup target",
+              "a restore drill succeeds from the off-host copy",
+              "off-host backup is not configured")
+    try:
+        plan = load_plan(plan_path)
+        if plan.get("status") == "draft":
+            block("field_plan", "operator", "frozen field-test plan",
+                  "wp-price field-freeze has been run and the plan file verifies",
+                  "field plan is still a draft")
+    except Exception as exc:
+        block("field_plan", "operator", "frozen field-test plan with stop rules and missing-data treatment",
+              "load_plan succeeds on a frozen plan", f"no frozen plan: {exc}")
+    try:
+        reg = load_register(register_path)
+        verdicts = [e for e in _entries(ledger, reg["experiment_id"]) if e["type"] == "evaluation_decision"
+                    and e.get("register_sha256") == reg["register_sha256"]]
+        decision = verdicts[-1]["decision"] if verdicts else "no evaluation verdict"
+        if decision != "PASS":
+            block("evaluation", "model owner", "preregistered evaluation PASS for this frozen register",
+                  "evaluation_gate records PASS and open_evaluation happened only after the screen advanced",
+                  decision)
+    except Exception as exc:
+        block("evaluation", "model owner", "frozen register with an evaluation PASS",
+              "load_register and the ledger agree", f"register unreadable: {exc}")
+    card = scorecard(conn)
+    if card["shadow_days"] < 30:
+        block("shadow", "operator", "30 calendar days of real read-only shadow rows",
+              "shadow_report shadow_gate is passed and rate_writes is 0",
+              f"{card['shadow_days']} shadow days")
+    if card["rate_writes"]:
+        block("shadow_writes", "operator", "a shadow database with zero Guesty writes",
+              "scorecard rate_writes is 0", f"{card['rate_writes']} rate writes")
+    return {"status": PACKET_READY if not blockers else PACKET_BLOCKED, "blockers": blockers,
+            "authorization_created": False}

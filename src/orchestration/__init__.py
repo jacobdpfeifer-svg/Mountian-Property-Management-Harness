@@ -61,6 +61,7 @@ DAILY_DAG: tuple[tuple[str, tuple[str, ...], bool], ...] = (
     ("ops_import", (), False),
     ("recommendation", ("snapshot", "pms_sync"), True),
     ("review_artifact", ("recommendation",), True),
+    ("shadow", ("recommendation",), True),
     ("outcome_reconciliation", ("pms_sync",), False),
 )
 

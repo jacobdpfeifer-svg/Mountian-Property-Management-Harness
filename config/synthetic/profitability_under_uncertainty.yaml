@@ -1,0 +1,49 @@
+model_id: profitability-under-uncertainty-v1
+data_classification: ASSUMPTION-BASED
+purpose: Conservative investment decision aid; it is not a statement of portfolio profitability.
+source_register:
+  - id: public_market_2026_10
+    classification: PUBLIC-AGGREGATE
+    claim: Winter Park aggregate trailing-12-month occupancy is 43%, ADR is $379, RevPAR is $163, and active listings are 1,632. This is a broad-market anchor only, not a luxury-home forecast.
+    url: https://www.airdna.co/vacation-rental-data/app/us/colorado/winter-park/overview
+  - id: airbnb_fee_2026_10
+    classification: PUBLIC-AGGREGATE
+    claim: Airbnb says most hosts under the single-fee structure pay 15.5%; actual channel mix and fee structure for this portfolio are unknown.
+    url: https://www.airbnb.com/help/article/1857
+  - id: skyrun_denver_fee_2026_10
+    classification: PUBLIC-AGGREGATE
+    claim: One Colorado STR manager publishes a 20% management fee and separates property-specific physical costs. This is not the portfolio contract.
+    url: https://skyrun.com/denver/blog/faq/what-are-your-fees/
+  - id: colorado_tourism_2025
+    classification: PUBLIC-AGGREGATE
+    claim: Colorado visitation increased 1.4% to 96.8 million in 2025; statewide demand does not identify portfolio demand.
+    url: https://www.colorado.com/news/tourism-industry-contributed-292-billion-to-colorado-economy-in-2025
+  - id: den_2025
+    classification: PUBLIC-AGGREGATE
+    claim: DEN served 82.4 million passengers in 2025. This is directional arrival context, not a property booking predictor.
+    url: https://www.flydenver.com/press-release/denver-international-airport-sees-slight-growth-in-passenger-traffic-over-previous-year/
+  - id: berthoud_snotel
+    classification: PUBLIC-AGGREGATE
+    claim: NRCS publishes daily snow depth and snow-water-equivalent observations for Berthoud Summit SNOTEL. Weather can define stress worlds but cannot identify a dollar price response.
+    url: https://www.wcc.nrcs.usda.gov/ftpref/support/states/CO/products/faq/
+  - id: cdot_i70
+    classification: PUBLIC-AGGREGATE
+    claim: CDOT provides real-time I-70 mountain-corridor road conditions. Access disruption belongs in downside stress testing, not as a fitted booking coefficient.
+    url: https://www.codot.gov/travel/i70mountain
+  - id: fraser_permit_2025
+    classification: PUBLIC-AGGREGATE
+    claim: Fraser publishes $350 per bedroom for STR registration after October 2025; each property's jurisdiction remains unconfirmed.
+    url: https://www.frasercolorado.com/DocumentCenter/View/1577/Ordinance-No-488-Short-Term-Registration-Fees
+limitations:
+  - No source establishes these homes' actual occupancy, ADR, fee terms, costs, sellable nights, or pricing lift.
+  - Aggregate market data includes other sizes, channels, fee treatments, and availability choices; it is not comp-set evidence.
+  - Price elasticity and incremental owner-net lift are sensitivity assumptions, not portfolio estimates.
+  - The modeled owner-net context excludes taxes, mortgage, depreciation, property tax, and broad ownership costs.
+  - This output must never be imported into the data spine, owner reports, shadow outcomes, experiment gates, or canary authorization.
+scenarios:
+  downside:
+    inputs: {occupancy: 0.30, adr_usd: 550, price_elasticity: -1.80, channel_fee_pct: 0.160, management_fee_pct: 0.250, cleaning_turn_per_stay_usd: 600, maintenance_per_booked_night_usd: 35, annual_system_cost_usd: 60000, sellable_nights: 900, incremental_owner_net_per_available_night_usd: -5, average_length_of_stay_nights: 3.0}
+  base:
+    inputs: {occupancy: 0.43, adr_usd: 750, price_elasticity: -1.30, channel_fee_pct: 0.155, management_fee_pct: 0.200, cleaning_turn_per_stay_usd: 475, maintenance_per_booked_night_usd: 25, annual_system_cost_usd: 40000, sellable_nights: 1000, incremental_owner_net_per_available_night_usd: 8, average_length_of_stay_nights: 3.7}
+  upside:
+    inputs: {occupancy: 0.55, adr_usd: 1000, price_elasticity: -0.90, channel_fee_pct: 0.140, management_fee_pct: 0.150, cleaning_turn_per_stay_usd: 375, maintenance_per_booked_night_usd: 15, annual_system_cost_usd: 25000, sellable_nights: 1080, incremental_owner_net_per_available_night_usd: 30, average_length_of_stay_nights: 4.5}
