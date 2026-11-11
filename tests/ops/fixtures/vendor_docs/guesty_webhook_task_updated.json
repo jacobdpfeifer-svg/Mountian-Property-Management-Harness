@@ -1,0 +1,628 @@
+{
+  "_provenance": {
+    "doc_url": "https://open-api-docs.guesty.com/docs/webhooks-tasks",
+    "retrieved": "2026-10-06",
+    "doc_updatedAt": "2026-09-30T17:31:00Z",
+    "shape": "from-docs",
+    "values": "verbatim doc example JSON (unmodified)"
+  },
+  "payload": {
+    "task": {
+      "assigneeGroup": [],
+      "checklistFinished": [],
+      "checklist": [
+        "ITEM 1",
+        "ITEM 2",
+        "ETC."
+      ],
+      "tags": [],
+      "status": "pending",
+      "editedFields": [
+        "attachments",
+        "startTime",
+        "checklistAggregated",
+        "reservationId",
+        "ownerReservationId",
+        "endTime",
+        "updatedAt",
+        "dateForSort",
+        "description"
+      ],
+      "_id": "630f3316653ed00034a606d9",
+      "accountId": "62a8a2be2e53190032102a6e",
+      "createdBy": "630be5decca8c10032ee203d",
+      "plannedDuration": 3,
+      "description": "<NEW TASK DETAILS>",
+      "assigneeId": "63066dbe1688e9003780b538",
+      "supervisorId": "62a8a2be2e53190032102a77",
+      "attachments": [
+        {
+          "_id": "630f35e90ee14700331f5aaf",
+          "mimetype": "image/jpeg",
+          "size": 262207,
+          "client": "cbt",
+          "title": "top-secret-1726358_1920",
+          "url": "http://res.cloudinary.com/guesty/raw/upload/v1661940446/production/62a8a2be2e53190032102a6e/znqzadqog7clwvcrjonc.jpeg"
+        }
+      ],
+      "priority": 3,
+      "title": "Regular Cleaning",
+      "startTime": "2022-09-04T08:00:00.000Z",
+      "canStartAfter": null,
+      "mustFinishBefore": null,
+      "listingId": "62e17bddae108b003b1f87d7",
+      "checklistAggregated": [
+        {
+          "name": "ITEM 1",
+          "finished": false
+        },
+        {
+          "name": "ITEM 2",
+          "finished": false
+        },
+        {
+          "name": "ETC.",
+          "finished": false
+        }
+      ],
+      "afterEffects": [],
+      "comments": [],
+      "log": [
+        {
+          "at": "2022-08-31T10:08:22.718Z",
+          "changes": [],
+          "trigger": "api",
+          "_id": "630f3316e2668c0032ad5fa0",
+          "event": "Task was created",
+          "by": ""
+        },
+        {
+          "at": "2022-08-31T10:19:30.366Z",
+          "changes": [
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e523",
+                  "added": true,
+                  "value": "attachments"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e522",
+              "field": "editedFields 0"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e521",
+                  "added": true,
+                  "value": "startTime"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e520",
+              "field": "editedFields 1"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e51f",
+                  "added": true,
+                  "value": "checklistAggregated"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e51e",
+              "field": "editedFields 2"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e51d",
+                  "added": true,
+                  "value": "reservationId"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e51c",
+              "field": "editedFields 3"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e51b",
+                  "added": true,
+                  "value": "ownerReservationId"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e51a",
+              "field": "editedFields 4"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e519",
+                  "added": true,
+                  "value": "endTime"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e518",
+              "field": "editedFields 5"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e517",
+                  "added": true,
+                  "value": "updatedAt"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e516",
+              "field": "editedFields 6"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e515",
+                  "added": true,
+                  "value": "dateForSort"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e514",
+              "field": "editedFields 7"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e513",
+                  "removed": true,
+                  "value": "630f3316653ed00034a606da"
+                },
+                {
+                  "_id": "630f35b2ce7b8f003b38e512",
+                  "added": true,
+                  "value": "630f35b28461df003441c2b6"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e511",
+              "field": "attachments 0 _id"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e510",
+                  "removed": true,
+                  "value": "2022-09-04T10:00:00.000Z"
+                },
+                {
+                  "_id": "630f35b2ce7b8f003b38e50f",
+                  "added": true,
+                  "value": "2022-09-04T08:00:00.000Z"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e50e",
+              "field": "startTime"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e50d",
+                  "added": true,
+                  "value": "ITEM 1"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e50c",
+              "field": "checklistAggregated 0 name"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e50b",
+                  "added": true,
+                  "value": "false"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e50a",
+              "field": "checklistAggregated 0 finished"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e509",
+                  "added": true,
+                  "value": "ITEM 2"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e508",
+              "field": "checklistAggregated 1 name"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e507",
+                  "added": true,
+                  "value": "false"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e506",
+              "field": "checklistAggregated 1 finished"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e505",
+                  "added": true,
+                  "value": "ETC."
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e504",
+              "field": "checklistAggregated 2 name"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e503",
+                  "added": true,
+                  "value": "false"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e502",
+              "field": "checklistAggregated 2 finished"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e501",
+                  "removed": true,
+                  "value": "2022-09-04T10:00:00.000Z"
+                },
+                {
+                  "_id": "630f35b2ce7b8f003b38e500",
+                  "added": true,
+                  "value": "2022-09-04T08:00:00.000Z"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e4ff",
+              "field": "dateForSort"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e4fe",
+                  "removed": true,
+                  "value": "2022-09-04T13:00:00.000Z"
+                },
+                {
+                  "_id": "630f35b2ce7b8f003b38e4fd",
+                  "added": true,
+                  "value": "2022-09-04T11:00:00.000Z"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e4fc",
+              "field": "endTime"
+            }
+          ],
+          "trigger": "api",
+          "_id": "630f35b2ce7b8f003b38e4fb",
+          "event": "Task was updated",
+          "by": ""
+        }
+      ],
+      "createdAt": "2022-08-31T10:08:22.654Z",
+      "updatedAt": "2022-08-31T10:20:25.497Z",
+      "enumeratedStatus": 6,
+      "dateForSort": "2022-09-04T08:00:00.000Z",
+      "endTime": "2022-09-04T11:00:00.000Z",
+      "assigneeFullName": "Belle Perez",
+      "__v": 2,
+      "timezone": "Europe/Athens",
+      "ownerReservationId": null,
+      "reservationId": null
+    },
+    "taskBefore": {
+      "assigneeGroup": [],
+      "checklistFinished": [],
+      "checklist": [
+        "ITEM 1",
+        "ITEM 2",
+        "ETC."
+      ],
+      "tags": [],
+      "status": "pending",
+      "editedFields": [
+        "attachments",
+        "startTime",
+        "checklistAggregated",
+        "reservationId",
+        "ownerReservationId",
+        "endTime",
+        "updatedAt",
+        "dateForSort"
+      ],
+      "_id": "630f3316653ed00034a606d9",
+      "accountId": "62a8a2be2e53190032102a6e",
+      "createdBy": "630be5decca8c10032ee203d",
+      "plannedDuration": 3,
+      "description": "<TASK DETAILS>",
+      "assigneeId": "63066dbe1688e9003780b538",
+      "supervisorId": "62a8a2be2e53190032102a77",
+      "attachments": [
+        {
+          "_id": "630f35b28461df003441c2b6",
+          "mimetype": "image/jpeg",
+          "size": 262207,
+          "client": "cbt",
+          "title": "top-secret-1726358_1920",
+          "url": "http://res.cloudinary.com/guesty/raw/upload/v1661940446/production/62a8a2be2e53190032102a6e/znqzadqog7clwvcrjonc.jpeg"
+        }
+      ],
+      "priority": 3,
+      "title": "Regular Cleaning",
+      "startTime": "2022-09-04T08:00:00.000Z",
+      "canStartAfter": null,
+      "mustFinishBefore": null,
+      "listingId": "62e17bddae108b003b1f87d7",
+      "checklistAggregated": [
+        {
+          "name": "ITEM 1",
+          "finished": false
+        },
+        {
+          "name": "ITEM 2",
+          "finished": false
+        },
+        {
+          "name": "ETC.",
+          "finished": false
+        }
+      ],
+      "afterEffects": [],
+      "comments": [],
+      "log": [
+        {
+          "at": "2022-08-31T10:08:22.718Z",
+          "changes": [],
+          "trigger": "api",
+          "_id": "630f3316e2668c0032ad5fa0",
+          "event": "Task was created",
+          "by": ""
+        },
+        {
+          "at": "2022-08-31T10:19:30.366Z",
+          "changes": [
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e523",
+                  "added": true,
+                  "value": "attachments"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e522",
+              "field": "editedFields 0"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e521",
+                  "added": true,
+                  "value": "startTime"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e520",
+              "field": "editedFields 1"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e51f",
+                  "added": true,
+                  "value": "checklistAggregated"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e51e",
+              "field": "editedFields 2"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e51d",
+                  "added": true,
+                  "value": "reservationId"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e51c",
+              "field": "editedFields 3"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e51b",
+                  "added": true,
+                  "value": "ownerReservationId"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e51a",
+              "field": "editedFields 4"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e519",
+                  "added": true,
+                  "value": "endTime"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e518",
+              "field": "editedFields 5"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e517",
+                  "added": true,
+                  "value": "updatedAt"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e516",
+              "field": "editedFields 6"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e515",
+                  "added": true,
+                  "value": "dateForSort"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e514",
+              "field": "editedFields 7"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e513",
+                  "removed": true,
+                  "value": "630f3316653ed00034a606da"
+                },
+                {
+                  "_id": "630f35b2ce7b8f003b38e512",
+                  "added": true,
+                  "value": "630f35b28461df003441c2b6"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e511",
+              "field": "attachments 0 _id"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e510",
+                  "removed": true,
+                  "value": "2022-09-04T10:00:00.000Z"
+                },
+                {
+                  "_id": "630f35b2ce7b8f003b38e50f",
+                  "added": true,
+                  "value": "2022-09-04T08:00:00.000Z"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e50e",
+              "field": "startTime"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e50d",
+                  "added": true,
+                  "value": "ITEM 1"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e50c",
+              "field": "checklistAggregated 0 name"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e50b",
+                  "added": true,
+                  "value": "false"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e50a",
+              "field": "checklistAggregated 0 finished"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e509",
+                  "added": true,
+                  "value": "ITEM 2"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e508",
+              "field": "checklistAggregated 1 name"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e507",
+                  "added": true,
+                  "value": "false"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e506",
+              "field": "checklistAggregated 1 finished"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e505",
+                  "added": true,
+                  "value": "ETC."
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e504",
+              "field": "checklistAggregated 2 name"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e503",
+                  "added": true,
+                  "value": "false"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e502",
+              "field": "checklistAggregated 2 finished"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e501",
+                  "removed": true,
+                  "value": "2022-09-04T10:00:00.000Z"
+                },
+                {
+                  "_id": "630f35b2ce7b8f003b38e500",
+                  "added": true,
+                  "value": "2022-09-04T08:00:00.000Z"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e4ff",
+              "field": "dateForSort"
+            },
+            {
+              "diff": [
+                {
+                  "_id": "630f35b2ce7b8f003b38e4fe",
+                  "removed": true,
+                  "value": "2022-09-04T13:00:00.000Z"
+                },
+                {
+                  "_id": "630f35b2ce7b8f003b38e4fd",
+                  "added": true,
+                  "value": "2022-09-04T11:00:00.000Z"
+                }
+              ],
+              "_id": "630f35b2ce7b8f003b38e4fc",
+              "field": "endTime"
+            }
+          ],
+          "trigger": "api",
+          "_id": "630f35b2ce7b8f003b38e4fb",
+          "event": "Task was updated",
+          "by": ""
+        }
+      ],
+      "createdAt": "2022-08-31T10:08:22.654Z",
+      "updatedAt": "2022-08-31T10:19:30.293Z",
+      "enumeratedStatus": 6,
+      "dateForSort": "2022-09-04T08:00:00.000Z",
+      "endTime": "2022-09-04T11:00:00.000Z",
+      "assigneeFullName": "Belle Perez",
+      "__v": 1,
+      "timezone": "Europe/Athens",
+      "ownerReservationId": null,
+      "reservationId": null
+    },
+    "by": "",
+    "event": "task.updated"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "_provenance": {
+    "doc_url": "https://developer.breezeway.io/docs/task-webhooks",
+    "retrieved": "2026-10-06",
+    "shape": "from-docs-schema",
+    "values": "assumed values; field names/nesting from the 'Task Webhook Open API Spec' (task-webhook / TaskWebhookTask). Doc gives no example payload. event_type value 'task-updated' from the doc's event list."
+  },
+  "payload": {
+    "event_type": "task-updated",
+    "last_updated": "2024-09-25T20:45:05+00:00",
+    "task": {
+      "id": 74589947,
+      "name": "Departure Clean",
+      "home": {
+        "id": 279892,
+        "name": "Example property"
+      },
+      "department": {
+        "code": "housekeeping",
+        "id": 1,
+        "name": "Housekeeping"
+      },
+      "status": {
+        "code": "finished",
+        "id": 3,
+        "name": "Finished"
+      },
+      "started_at": "2024-09-25T18:58:33",
+      "finished_at": "2024-09-25T20:45:00",
+      "total_time": "1:46:27",
+      "total_cost": 260.5,
+      "rate_paid": 250.0,
+      "costs": [
+        {
+          "id": 2063470,
+          "cost": 10.5,
+          "type_cost": {
+            "code": "material",
+            "id": 2,
+            "name": "Materials"
+          }
+        }
+      ],
+      "assignments": [
+        {
+          "id": 7172,
+          "full_name": "Jennifer Brooks"
+        }
+      ],
+      "updated_at": "2024-09-25T19:07:27+00:00"
+    }
+  }
+}

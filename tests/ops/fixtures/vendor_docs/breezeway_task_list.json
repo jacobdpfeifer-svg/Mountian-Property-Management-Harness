@@ -1,0 +1,136 @@
+{
+  "_provenance": {
+    "doc_url": "https://developer.breezeway.io/reference/list-tasks",
+    "retrieved": "2026-10-06",
+    "shape": "from-docs",
+    "values": "verbatim doc example; the doc JSON is invalid as published, so three repairs were made: supplies[0].bill_to None->null, supplies[1].bill_to unterminated string closed, trailing commas after supplies[*].bill_to removed. No field names or values changed."
+  },
+  "payload": {
+    "limit": 100,
+    "page": 1,
+    "results": [
+      {
+        "assignments": [
+          {
+            "assignee_id": 7172,
+            "employee_code": null,
+            "expires_at": null,
+            "id": 97937522,
+            "name": "Jennifer Brooks",
+            "type_task_user_status": "assigned"
+          },
+          {
+            "assignee_id": 47634,
+            "employee_code": null,
+            "expires_at": null,
+            "id": 97937481,
+            "name": "Kelsey Liversidge",
+            "type_task_user_status": "assigned"
+          }
+        ],
+        "bill_to": "multiple",
+        "costs": [
+          {
+            "cost": 10.5,
+            "created_at": "2024-09-25T18:57:57+00:00",
+            "description": "Shower curtain",
+            "id": 2063470,
+            "type_cost": {
+              "code": "material",
+              "id": 2,
+              "name": "Materials"
+            },
+            "updated_at": "2024-09-25T18:57:57+00:00",
+            "bill_to": "guest"
+          }
+        ],
+        "created_at": "2024-09-25T17:10:46",
+        "created_by": null,
+        "description": "Standard departure clean completed by Breezeway staff members. \nPlease Start and Complete the task from the Breezeway app to log your time.",
+        "finished_at": "2024-09-25T20:45:00",
+        "finished_by": {
+          "id": 7172,
+          "name": "Jennifer Brooks"
+        },
+        "home_id": 279892,
+        "id": 74589947,
+        "name": "Departure Clean",
+        "paused": false,
+        "photos": [],
+        "rate_paid": "250.00 USD",
+        "rate_type": "piece",
+        "reference_property_id": null,
+        "report_url": "https://portal.breezeway.io/task/report/c279762b-e958-4b72-8433-86ddade1fc8d",
+        "requested_by": "property_services",
+        "scheduled_date": "2024-09-25",
+        "scheduled_time": null,
+        "started_at": "2024-09-25T18:58:33",
+        "supplies": [
+          {
+            "billable": true,
+            "description": "Duracell",
+            "id": 11269633,
+            "markup_pricing_type": "flat_rate",
+            "markup_rate": 11,
+            "name": "AA Battery",
+            "quantity": 1,
+            "size": "",
+            "supply_id": 96142,
+            "total_price": 12.85,
+            "unit_cost": 1.85,
+            "bill_to": null
+          },
+          {
+            "billable": true,
+            "description": "Tide",
+            "id": 11269635,
+            "markup_pricing_type": "percent",
+            "markup_rate": 0,
+            "name": "Powder Laundry Detergent",
+            "quantity": 1,
+            "size": "Individual Packet",
+            "supply_id": 96157,
+            "total_price": 3.5,
+            "unit_cost": 3.5,
+            "bill_to": "guest"
+          },
+          {
+            "billable": true,
+            "description": "Softsoap",
+            "id": 11269637,
+            "markup_pricing_type": "percent",
+            "markup_rate": 20,
+            "name": "Pump Soap",
+            "quantity": 2,
+            "size": "7.5 oz",
+            "supply_id": 96153,
+            "total_price": 3,
+            "unit_cost": 2.5,
+            "bill_to": "owner"
+          }
+        ],
+        "tags": [
+          "Clean Linens Delivery"
+        ],
+        "task_tags": [
+          {
+            "id": 25033,
+            "name": "Clean Linens Delivery"
+          }
+        ],
+        "template_id": 23027,
+        "total_time": "1:46:27",
+        "type_department": "housekeeping",
+        "type_priority": "normal",
+        "type_task_status": {
+          "code": "finished",
+          "name": "Finished",
+          "stage": "finished"
+        },
+        "updated_at": "2024-09-25T19:07:27+00:00"
+      }
+    ],
+    "total_pages": 1,
+    "total_results": 1
+  }
+}

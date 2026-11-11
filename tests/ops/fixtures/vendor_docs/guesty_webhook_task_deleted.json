@@ -1,0 +1,68 @@
+{
+  "_provenance": {
+    "doc_url": "https://open-api-docs.guesty.com/docs/webhooks-tasks",
+    "retrieved": "2026-10-06",
+    "doc_updatedAt": "2026-09-30T17:31:00Z",
+    "shape": "from-docs",
+    "values": "verbatim doc example JSON (unmodified)"
+  },
+  "payload": {
+    "task": {
+      "assigneeGroup": [],
+      "checklistFinished": [],
+      "checklist": [
+        "<ITEM 1>",
+        "<ITEM 2>",
+        "<ETC>"
+      ],
+      "tags": [],
+      "status": "pending",
+      "editedFields": [],
+      "_id": "630f3484653ed00034a606db",
+      "accountId": "62a8a2be2e53190032102a6e",
+      "createdBy": "630be5decca8c10032ee203d",
+      "plannedDuration": 2,
+      "description": "<TASK DETAILS>",
+      "assigneeId": "63066dbe1688e9003780b538",
+      "supervisorId": "62a8a2be2e53190032102a77",
+      "attachments": [
+        {
+          "_id": "630f3484653ed00034a606dc",
+          "mimetype": "image/png",
+          "size": 938707,
+          "client": "cbt",
+          "title": "top-secret-2054429_1920",
+          "url": "http://res.cloudinary.com/guesty/raw/upload/v1661940849/production/62a8a2be2e53190032102a6e/totrxvefzhicwubudrst.png"
+        }
+      ],
+      "priority": 3,
+      "title": "Resupply Bathroom Toiletries",
+      "startTime": null,
+      "canStartAfter": "2022-09-13T10:00:00.000Z",
+      "mustFinishBefore": "2022-09-14T14:00:00.000Z",
+      "listingId": "62e17bddae108b003b1f87d7",
+      "checklistAggregated": [],
+      "afterEffects": [],
+      "comments": [],
+      "log": [
+        {
+          "at": "2022-08-31T10:14:28.864Z",
+          "changes": [],
+          "trigger": "api",
+          "_id": "630f3484e2668c0032ad6056",
+          "event": "Task was created",
+          "by": ""
+        }
+      ],
+      "createdAt": "2022-08-31T10:14:28.810Z",
+      "updatedAt": "2022-08-31T10:14:32.286Z",
+      "enumeratedStatus": 6,
+      "dateForSort": "2022-09-14T14:00:00.000Z",
+      "assigneeFullName": "Belle Perry",
+      "__v": 0,
+      "timezone": "Europe/Athens"
+    },
+    "by": "Moshe",
+    "event": "task.deleted"
+  }
+}

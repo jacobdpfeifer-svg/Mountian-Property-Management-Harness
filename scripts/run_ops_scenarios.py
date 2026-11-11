@@ -26,10 +26,11 @@ from pathlib import Path
 from src.proving_ground.ops_scenarios import (
     ARMS,
     OPS_SCENARIOS,
+    SHARED,
     WINDOW_DAYS,
     WORLDS,
     result_row,
-    run_ops_job,
+    run_ops_jobs,
 )
 
 METRICS = ("revenue", "net_revenue", "turns", "turn_cost", "violations", "unserviceable",
@@ -37,11 +38,11 @@ METRICS = ("revenue", "net_revenue", "turns", "turn_cost", "violations", "unserv
            "escalations_raised", "escalations_needed", "min_stay_refusals")
 
 
-def _job(args: tuple[str, str, int, str, str]) -> dict:
-    world, scenario, seed, arm, out = args
-    db = Path(out) / "dbs" / f"{world}_{scenario}_{seed}_{arm}.db"
+def _job(args: tuple[str, tuple[str, ...], int, str, str]) -> list[dict]:
+    world, scenarios, seed, arm, out = args
+    db = Path(out) / "dbs" / f"{world}_{scenarios[0]}_{seed}_{arm}.db"
     try:
-        return result_row(run_ops_job(world, scenario, seed, arm, db))
+        return [result_row(r) for r in run_ops_jobs(world, scenarios, seed, arm, db)]
     finally:
         for suffix in ("", "-wal", "-shm"):
             Path(f"{db}{suffix}").unlink(missing_ok=True)
@@ -57,14 +58,21 @@ def run(out: Path, seeds: int, workers: int) -> None:
     done = set()
     if results.exists():
         done = {_key(json.loads(line)) for line in results.read_text().splitlines() if line.strip()}
-    jobs = [(w, s, seed, arm, str(out)) for w in WORLDS for s in OPS_SCENARIOS
-            for seed in range(1, seeds + 1) for arm in ARMS
-            if (w, s, seed, arm) not in done]
+    groups = [SHARED, *((s,) for s in OPS_SCENARIOS if s not in SHARED)]
+    jobs = []
+    for w in WORLDS:
+        for group in groups:
+            for seed in range(1, seeds + 1):
+                for arm in ARMS:
+                    todo = tuple(s for s in group if (w, s, seed, arm) not in done)
+                    if todo:
+                        jobs.append((w, todo, seed, arm, str(out)))
     config = {
         "worlds": WORLDS, "scenarios": OPS_SCENARIOS, "seeds": seeds, "arms": ARMS,
         "window_days": WINDOW_DAYS, "workers": workers,
         "git": subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(),
         "started": datetime.now(timezone.utc).isoformat(), "pending_jobs": len(jobs),
+        "shared_runs": list(SHARED),
         "label": "SIMULATED - shopper-market world; not realized revenue",
     }
     (out / "run_config.json").write_text(json.dumps(config, indent=2))
@@ -72,8 +80,9 @@ def run(out: Path, seeds: int, workers: int) -> None:
     # Cheap arms first so partial results are still paired.
     jobs.sort(key=lambda j: (j[2], j[3] == "stay"))
     with Pool(workers) as pool, results.open("a") as fh:
-        for i, row in enumerate(pool.imap_unordered(_job, jobs), 1):
-            fh.write(json.dumps(row) + "\n")
+        for i, rows in enumerate(pool.imap_unordered(_job, jobs), 1):
+            for row in rows:
+                fh.write(json.dumps(row) + "\n")
             fh.flush()
             if i % 50 == 0:
                 print(f"{i}/{len(jobs)}", flush=True)

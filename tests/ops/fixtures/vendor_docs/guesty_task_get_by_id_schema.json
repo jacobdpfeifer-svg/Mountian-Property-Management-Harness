@@ -1,0 +1,30 @@
+{
+  "_provenance": {
+    "doc_url": "https://open-api-docs.guesty.com/reference/get_tasks-open-api-taskid",
+    "retrieved": "2026-10-06",
+    "shape": "from-docs-schema",
+    "values": "assumed values; field names/nesting from the 200 schema (timing.*, apply.listingId). No doc example exists. The adapter does not call this endpoint today; included because the webhook guide tells receivers to re-fetch the object."
+  },
+  "payload": {
+    "_id": "630f3316653ed00034a606d9",
+    "type": "cleaning",
+    "status": "completed",
+    "title": "Regular Cleaning",
+    "assigneeId": "63066dbe1688e9003780b538",
+    "timezone": "America/Denver",
+    "timing": {
+      "type": "specific",
+      "startTime": "2022-09-04T10:00:00.000Z",
+      "canStartAfter": null,
+      "mustFinishBefore": null
+    },
+    "apply": {
+      "type": "listing",
+      "listingId": "62e17bddae108b003b1f87d7",
+      "reservationId": null
+    },
+    "plannedDuration": 3,
+    "pendingExpenses": [],
+    "postedExpenses": []
+  }
+}

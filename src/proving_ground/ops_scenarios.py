@@ -437,18 +437,35 @@ def _unserviceable(conn, world: OpsMarketWorld, truth: Truth, nights: list[date]
                                                      "owner_turns": owner_turns}
 
 
+# Scenarios whose observed side never reaches pricing (a capacity row, a feed
+# run, a credential) share one market run per world/seed/arm and are scored
+# against their own truths. The audit verified on 39 world/seed/arm groups that
+# running them separately gives identical outcomes.
+SHARED = ("saturday_cleaner_noshow", "stale_task_feed", "crew_double_booked",
+          "permit_expires_midseason")
+# Scenarios that record readiness events. Only these differ between the off
+# and on arms; for the rest the gate is byte-identical to off (compose matrix,
+# and 55 simulated pairs).
+EVENTFUL = ("hot_tub_failure", "sensor_false_positive", "storm_road_closure")
+
+
 def run_ops_job(world_name: str, scenario: str, seed: int, arm: str, db_path: Path,
                 window_days: int = WINDOW_DAYS) -> OpsResult:
+    return run_ops_jobs(world_name, (scenario,), seed, arm, db_path, window_days)[0]
+
+
+def run_ops_jobs(world_name: str, scenarios: tuple[str, ...], seed: int, arm: str, db_path: Path,
+                 window_days: int = WINDOW_DAYS) -> list[OpsResult]:
     from src.db import DB_KIND_DEMO, connect, init_db, mark_db_identity
 
     cal = load_calibration()
     world_doc = load_scenario(world_name)
-    spec = SPECS[scenario]
+    specs = [SPECS[name] for name in scenarios]
     start = date.fromisoformat(cal["season_start"])
     nights = [start + timedelta(days=i) for i in range(window_days)]
     end = nights[-1]
-    rng = random.Random(f"{world_name}|{scenario}|{seed}")
-    truth = spec.build(rng)
+    truths = {spec.name: spec.build(random.Random(f"{world_name}|{spec.name}|{seed}"))
+              for spec in specs}
     db_path.parent.mkdir(parents=True, exist_ok=True)
     for suffix in ("", "-wal", "-shm"):
         Path(f"{db_path}{suffix}").unlink(missing_ok=True)
@@ -462,7 +479,8 @@ def run_ops_job(world_name: str, scenario: str, seed: int, arm: str, db_path: Pa
         seed_market_db(conn, cal, start, end)
         store_profiles(conn, load_profiles())
         world = OpsMarketWorld(cal, world_doc, seed, conn, season_start=start, season_end=end)
-        spec.preseason(world)
+        for spec in specs:
+            spec.preseason(world)
         policy = arm_policy(arm) if arm != "flat" else None
         violations = closures = 0
         restricted_seen: set[tuple[str, date]] = set()
@@ -474,7 +492,8 @@ def run_ops_job(world_name: str, scenario: str, seed: int, arm: str, db_path: Pa
             world.begin_day(day)
             take_snapshot(conn, as_of=day)
             if arm != "flat":
-                spec.observe(conn, day, truth)
+                for spec in specs:
+                    spec.observe(conn, day, truths[spec.name])
                 conn.commit()
             if arm in ("on", "stay"):
                 closures += _human_closures(world, conn, day)
@@ -483,7 +502,7 @@ def run_ops_job(world_name: str, scenario: str, seed: int, arm: str, db_path: Pa
 
                 scan_signal_risk(conn, day, ops_policy, list(world.properties))
                 incident_ids |= {c.incident_id for c in incident_scan(conn, day, ops_policy)}
-                if scenario == "permit_expires_midseason" and not compliance_flagged:
+                if "permit_expires_midseason" in scenarios and not compliance_flagged:
                     from src.compliance import check
 
                     rep = check(conn, day, property_ids=["cloud_9"])
@@ -527,25 +546,33 @@ def run_ops_job(world_name: str, scenario: str, seed: int, arm: str, db_path: Pa
                 world.set_own_prices(prices)
             world.end_day(day)
         scores = realized(conn, list(world.properties))
-        short, broken_arrivals, n_turns, cost, extra = _unserviceable(conn, world, truth, nights,
-                                                                     ops_policy)
-        false_restricted = sum(1 for prop, night in restricted_seen
-                               if not truth.is_broken(prop, night))
-        raised = len(incident_ids) + len({p for p, _ in escalated}) + int(compliance_flagged)
-        return OpsResult(
-            world=world_name, scenario=scenario, seed=seed, arm=arm,
-            held_out=bool(world_doc.get("held_out")),
-            revenue=float(scores["revenue"]), confirmed_stays=int(scores["confirmed"]),
-            occupancy=float(scores["occupancy"]),
-            turns=n_turns, turn_cost=round(cost, 2), net_revenue=round(float(scores["revenue"]) - cost, 2),
-            violations=violations, unserviceable=short, arrivals_on_broken_nights=broken_arrivals,
-            false_restricted_nights=false_restricted, closures=closures,
-            escalations_raised=raised, escalations_needed=len(truth.needs_human),
-            min_stay_refusals=world.min_stay_refusals, ops_min_stay_nights=ops_min_nights,
-            detail={**extra, "truth": {k: (sorted(d.isoformat() for d in v) if isinstance(v, set) else v)
-                                       for k, v in truth.notes.items() if k != "event"},
-                    "incidents": sorted(incident_ids), "compliance_flagged": compliance_flagged},
-        )
+        out = []
+        for spec in specs:
+            truth = truths[spec.name]
+            short, broken_arrivals, n_turns, cost, extra = _unserviceable(conn, world, truth, nights,
+                                                                         ops_policy)
+            false_restricted = sum(1 for prop, night in restricted_seen
+                                   if not truth.is_broken(prop, night))
+            flagged = compliance_flagged and spec.name == "permit_expires_midseason"
+            raised = len(incident_ids) + len({p for p, _ in escalated}) + int(flagged)
+            out.append(OpsResult(
+                world=world_name, scenario=spec.name, seed=seed, arm=arm,
+                held_out=bool(world_doc.get("held_out")),
+                revenue=float(scores["revenue"]), confirmed_stays=int(scores["confirmed"]),
+                occupancy=float(scores["occupancy"]),
+                turns=n_turns, turn_cost=round(cost, 2),
+                net_revenue=round(float(scores["revenue"]) - cost, 2),
+                violations=violations, unserviceable=short, arrivals_on_broken_nights=broken_arrivals,
+                false_restricted_nights=false_restricted, closures=closures,
+                escalations_raised=raised, escalations_needed=len(truth.needs_human),
+                min_stay_refusals=world.min_stay_refusals, ops_min_stay_nights=ops_min_nights,
+                detail={**extra, "truth": {k: (sorted(d.isoformat() for d in v)
+                                               if isinstance(v, set) else v)
+                                           for k, v in truth.notes.items() if k != "event"},
+                        "incidents": sorted(incident_ids), "compliance_flagged": flagged,
+                        "shared_run": list(scenarios) if len(scenarios) > 1 else None},
+            ))
+        return out
     finally:
         conn.close()
 

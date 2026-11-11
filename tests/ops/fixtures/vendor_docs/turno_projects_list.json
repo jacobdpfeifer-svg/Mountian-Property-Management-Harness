@@ -1,0 +1,68 @@
+{
+  "_provenance": {
+    "doc_url": "https://apidocs.turnoverbnb.com/ (Postman collection JSON: https://apidocs.turnoverbnb.com/api/collections/18953218/UVXomuDo)",
+    "retrieved": "2026-10-06",
+    "doc_publishDate": "2025-11-20T18:57:39Z",
+    "shape": "from-docs",
+    "values": "verbatim 'List projects' 200 example response"
+  },
+  "payload": {
+    "data": {
+      "items": [
+        {
+          "id": 1,
+          "assignment": {
+            "id": 2,
+            "contractor": {
+              "id": 5,
+              "created_at": "2022-01-01 00:00:01",
+              "updated_at": "2022-01-01 00:00:01",
+              "first_name": "Rosey",
+              "last_name": "Jetson",
+              "image_full_url": "https://turnoverbnb.s3.us-west-2.amazonaws.com/pictures/sMBdAvXBXkDKUTTLgrOeJg2uggCW4CGobl3kdXCt.jpeg"
+            },
+            "started_at": "2022-04-04T16:10:44.000000Z",
+            "completed_at": "2022-04-04T20:16:24.000000Z",
+            "created_at": "2022-04-03T22:41:35.000000Z",
+            "project_id": 7,
+            "payment_status": "succeeded",
+            "charged_amount": 63,
+            "images": [
+              {
+                "id": 1,
+                "full_image": "https://via.placeholder.com/1000x1000"
+              }
+            ]
+          },
+          "completed": 1,
+          "paid": 1,
+          "property_alias": "Leonard's apartment",
+          "summary": "Short text",
+          "booking": {
+            "id": 47,
+            "created_at": "2022-06-02T20:46:00.000000Z",
+            "updated_at": "2022-06-02T20:46:00.000000Z",
+            "property_id": 1,
+            "summary": "Short text",
+            "description": "Short text",
+            "begin": "2022-06-01",
+            "end": "2022-06-04",
+            "integration_id": null
+          },
+          "property_address": "2311 N Los Robles Ave, Pasadena, CA 91104, EUA",
+          "integration_id": null,
+          "property_id": 1,
+          "published": 1,
+          "start": "2022-06-04T10:00:00-04:00",
+          "end": "2022-06-04T15:00:00-04:00",
+          "time_zone": "America/Los_Angeles",
+          "quality_controlled": true
+        }
+      ],
+      "current_page": 1,
+      "last_page": 1,
+      "per_page": 15,
+      "total": 1
+    }
+  }
+}

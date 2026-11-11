@@ -1,0 +1,48 @@
+{
+  "_provenance": {
+    "doc_url": "https://open-api-docs.guesty.com/reference/get_tasks-open-api-tasks",
+    "retrieved": "2026-10-06",
+    "shape": "from-docs-schema",
+    "values": "assumed: the page has NO response example; field names, nesting and types follow the 200 schema literally (top-level array; status/taskTitle as objects with 'children'; endTime/canStartAfter/mustFinishBefore as objects with 'date'; times under scheduledFor; listing.listingId). Values borrowed from the webhook example."
+  },
+  "payload": [
+    {
+      "id": "630f3316653ed00034a606d9",
+      "status": {
+        "children": "completed"
+      },
+      "taskTitle": {
+        "children": "Regular Cleaning"
+      },
+      "type": "cleaning",
+      "shortTaskId": [
+        "A1B2"
+      ],
+      "listing": {
+        "listingId": "62e17bddae108b003b1f87d7",
+        "img": "",
+        "title": "Summit Haus"
+      },
+      "reservation": {},
+      "scheduledFor": {
+        "startTime": "2022-09-04T10:00:00.000Z",
+        "canStartAfter": null,
+        "mustFinishBefore": null
+      },
+      "endTime": {
+        "date": "2022-09-04T13:00:00.000Z"
+      },
+      "canStartAfter": {
+        "date": null
+      },
+      "mustFinishBefore": {
+        "date": null
+      },
+      "assignee": {
+        "taskId": "630f3316653ed00034a606d9",
+        "assigneeId": "63066dbe1688e9003780b538",
+        "picture": ""
+      }
+    }
+  ]
+}

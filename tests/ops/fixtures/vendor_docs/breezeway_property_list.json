@@ -1,0 +1,46 @@
+{
+  "_provenance": {
+    "doc_url": "https://developer.breezeway.io/reference/list-properties",
+    "retrieved": "2026-10-06",
+    "shape": "from-docs",
+    "values": "verbatim doc example; repairs: photos[] item wrapped in {} (doc omits braces), trailing junk 'y\\t\"' after the closing brace removed. Note total_results=2 but results has 1 item, as in the doc."
+  },
+  "payload": {
+    "limit": 100,
+    "page": 1,
+    "results": [
+      {
+        "address1": "Example Address 123",
+        "address2": "Unit 1",
+        "building": null,
+        "city": "example city",
+        "company_id": 4,
+        "country": "us",
+        "display": "",
+        "groups": [],
+        "id": 328858,
+        "latitude": 32.3182314,
+        "longitude": -86.902298,
+        "name": "Example property",
+        "notes": {},
+        "photos": [
+          {
+            "id": 1,
+            "url": "http:breezeway.com/image.jpg",
+            "default": true,
+            "caption": "Kitchen doors",
+            "original_url": ""
+          }
+        ],
+        "reference_company_id": null,
+        "reference_external_property_id": null,
+        "reference_property_id": null,
+        "state": "AL",
+        "status": "active",
+        "zipcode": "14100"
+      }
+    ],
+    "total_pages": 1,
+    "total_results": 2
+  }
+}

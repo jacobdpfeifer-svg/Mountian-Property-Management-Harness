@@ -1,0 +1,58 @@
+{
+  "_provenance": {
+    "doc_url": "https://open-api-docs.guesty.com/docs/webhooks-tasks",
+    "retrieved": "2026-10-06",
+    "shape": "from-docs",
+    "values": "doc 'Fixed Task Payload Example' with task.status changed pending->completed and event->task.updated; every other field verbatim. Docs give no completed-task example."
+  },
+  "payload": {
+    "task": {
+      "assigneeGroup": [],
+      "checklistFinished": [],
+      "checklist": [
+        "<ITEM 1>",
+        "<ITEM >2",
+        "<ETC.>"
+      ],
+      "tags": [],
+      "status": "completed",
+      "editedFields": [],
+      "_id": "630f3316653ed00034a606d9",
+      "accountId": "62a8a2be2e53190032102a6e",
+      "createdBy": "630be5decca8c10032ee203d",
+      "plannedDuration": 3,
+      "description": "<TASK DETAILS>",
+      "assigneeId": "63066dbe1688e9003780b538",
+      "supervisorId": "62a8a2be2e53190032102a77",
+      "attachments": [
+        {
+          "_id": "630f3316653ed00034a606da",
+          "mimetype": "image/jpeg",
+          "size": 262207,
+          "client": "cbt",
+          "title": "top-secret-1726358_1920",
+          "url": "http://res.cloudinary.com/guesty/raw/upload/v1661940446/production/62a8a2be2e53190032102a6e/znqzadqog7clwvcrjonc.jpeg"
+        }
+      ],
+      "priority": 3,
+      "title": "Regular Cleaning",
+      "startTime": "2022-09-04T10:00:00.000Z",
+      "canStartAfter": null,
+      "mustFinishBefore": null,
+      "listingId": "62e17bddae108b003b1f87d7",
+      "checklistAggregated": [],
+      "afterEffects": [],
+      "comments": [],
+      "log": [],
+      "createdAt": "2022-08-31T10:08:22.654Z",
+      "updatedAt": "2022-08-31T10:08:22.654Z",
+      "enumeratedStatus": 6,
+      "dateForSort": "2022-09-04T10:00:00.000Z",
+      "endTime": "2022-09-04T13:00:00.000Z",
+      "assigneeFullName": "Belle Perry",
+      "__v": 0
+    },
+    "by": "Moshe",
+    "event": "task.updated"
+  }
+}
