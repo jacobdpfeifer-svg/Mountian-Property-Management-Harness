@@ -26,6 +26,8 @@ values:
     "Cleaning Expense": cleaning_cost
     "Supplies": consumables
     "Refund": refund
+    "Concession": concession
+    "Chargeback": chargeback
     "Maintenance": maintenance
     "Damage Recovery": damage_recovery
     "Tax Collected": tax_collected

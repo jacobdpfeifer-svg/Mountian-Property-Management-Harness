@@ -30,6 +30,10 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
+# The editable install provides the `wp-price` command.  If you are running
+# directly from an uninstalled checkout, use the module form instead:
+python -m src.cli.main --help
+
 # Init DB + load sample data
 wp-price init-db
 wp-price seed-sample

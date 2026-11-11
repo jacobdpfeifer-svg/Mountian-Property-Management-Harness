@@ -172,12 +172,14 @@ def test_accounting_export_is_the_stays_money_and_rejects_unknown_labels(conn, t
 
 
 def test_mapping_files_are_validated(tmp_path):
-    for template in ("accounting_ledger.template.yaml", "owner_statement.template.yaml", "ops_tasks.template.yaml"):
+    for template in ("accounting_ledger.template.yaml", "owner_statement.template.yaml", "ops_tasks.template.yaml",
+                     "calendar_observation.template.yaml", "reservation.template.yaml",
+                     "market_observation.template.yaml"):
         load_mapping(MAPPING_DIR / template)
     bad = _mapping(tmp_path, "ops_tasks.template.yaml", columns={"guest_email": "Email"})
     with pytest.raises(ValueError, match="does not have"):
         load_mapping(bad)
-    bad = _mapping(tmp_path, "ops_tasks.template.yaml", contract="reservation")
+    bad = _mapping(tmp_path, "ops_tasks.template.yaml", contract="not_a_contract")
     with pytest.raises(ValueError, match="must be one of"):
         load_mapping(bad)
 

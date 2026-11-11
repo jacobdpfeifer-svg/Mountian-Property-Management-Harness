@@ -54,25 +54,88 @@ def cmd_shadow_day(args: argparse.Namespace) -> int:
     from src.experiments import code_sha256
     from src.experiments.field import arm_for, load_plan
     from src.guardrails import assess_data_health
-    from src.shadow import capture_outcomes, file_sha256, run_shadow_day, scorecard
+    from src.shadow import capture_outcomes, execute_shadow_day, file_sha256, scorecard, shadow_report
 
     as_of = date.fromisoformat(args.as_of) if args.as_of else date.today()
     conn = _conn(args)
     policy = load_policy()
     arm = arm_for(load_plan(Path(args.plan))) if args.plan else None
     props = [p.strip() for p in args.property.split(",")] if args.property else sorted(EXPECTED_PROPERTY_IDS)
-    for pid in props:
-        health = assess_data_health(conn, policy, property_ids=[pid], as_of=as_of)
-        day = run_shadow_day(conn, as_of=as_of, property_id=pid, health=health,
-                             policy_sha256=file_sha256(Path(args.policy_file or DEFAULT_POLICY_PATH)),
-                             code_sha256=code_sha256(ROOT),
-                             scope=EXPECTED_PROPERTY_IDS, arm_for=arm)
-        print(f"{pid}: {day.queued} nights queued, {day.stale} skipped as stale (run `recommend` first), "
-              f"health {day.health_level}, anchored {day.anchored_share if day.anchored_share is not None else 'n/a'}")
+
+    def health_for(pid: str):
+        return assess_data_health(conn, policy, property_ids=[pid], as_of=as_of)
+
+    status, detail = execute_shadow_day(
+        conn, as_of=as_of, property_ids=props, health_for=health_for,
+        policy_sha256=file_sha256(Path(args.policy_file or DEFAULT_POLICY_PATH)),
+        code_sha256=code_sha256(ROOT), scope=EXPECTED_PROPERTY_IDS, arm_for=arm)
+    print(detail)
     print(f"outcomes captured: {capture_outcomes(conn, as_of=as_of)}")
     print(json.dumps(scorecard(conn), indent=1))
-    print("Guesty writes: 0")
+    report = shadow_report(conn)
+    print(report["limitation"])
+    print(f"shadow_gate: {report['shadow_gate']} ({report['shadow_days']} days)")
+    return 0 if status == "ok" else 2 if status == "degraded" else 1
+
+
+def cmd_owner_net_month(args: argparse.Namespace) -> int:
+    from src.data_spine.owner_net import load_system_cost, property_month, render_owner_month
+
+    cost = load_system_cost(Path(args.system_cost))
+    values = cost["values"]
+    annual_cost = args.annual_cost if args.annual_cost is not None else values.get("annual_system_operating_cost")
+    sellable_nights = args.sellable_nights if args.sellable_nights is not None else values.get("annual_sellable_nights")
+
+    report = property_month(
+        _conn(args), args.property, args.start, args.end,
+        annual_system_operating_cost=annual_cost, annual_sellable_nights=sellable_nights,
+        cost_share_by_property=values.get("cost_share_by_property"),
+        nights_by_property=values.get("nights_by_property"), allocation_method=values.get("allocation_method"))
+    print(render_owner_month(report))
+    return 0 if report["result_label"] == "settled" else 1
+
+
+def cmd_shadow_report(args: argparse.Namespace) -> int:
+    from src.shadow import shadow_report
+
+    print(json.dumps(shadow_report(_conn(args)), indent=1))
     return 0
+
+
+def cmd_profitability_uncertainty(args: argparse.Namespace) -> int:
+    """Render a synthetic investment-case report; it cannot touch a database."""
+    from src.profitability.uncertainty import ModelError, evaluate_model, load_model, render_markdown
+
+    try:
+        path = Path(args.config)
+        result = evaluate_model(load_model(path))
+    except ModelError as exc:
+        print(f"profitability-uncertainty: {exc}", file=sys.stderr)
+        return 2
+    report = render_markdown(result, model_path=path)
+    if args.out:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(report, encoding="utf-8")
+        print(f"Wrote {out}")
+    else:
+        print(report, end="")
+    print("Guesty writes: 0. Data-spine writes: 0. Classification: ASSUMPTION-BASED.")
+    return 0 if result["decision"] == "CLEAR_DOWNSIDE_HURDLE" else 3
+
+
+def cmd_canary_packet(args: argparse.Namespace) -> int:
+    import os
+    from src.experiments.readiness import canary_signoff_packet
+
+    packet = canary_signoff_packet(
+        conn=_conn(args), ledger=Path(args.ledger), register_path=Path(args.register),
+        plan_path=Path(args.plan), signoff_path=Path(args.signoff).expanduser(),
+        permit_path=Path(args.permit).expanduser(), deployed_sha_path=Path(args.deployed_sha).expanduser(),
+        alert_destination=os.environ.get("WP_PRICE_ALERT_DESTINATION"),
+        backup_destination=os.environ.get("WP_PRICE_BACKUP_DESTINATION"))
+    print(json.dumps(packet, indent=1))
+    return 0 if packet["status"] == "READY_FOR_HUMAN_AUTHORIZATION" else 1
 
 
 def cmd_field_freeze(args: argparse.Namespace) -> int:
@@ -140,6 +203,25 @@ def register(sub: argparse._SubParsersAction) -> None:
     s.add_argument("--policy-file", help="Policy the day's `recommend` run used (recorded by hash)")
     s.set_defaults(func=cmd_shadow_day)
 
+    s = sub.add_parser("owner-net-month", help="Spine owner-net rollup for one property and month")
+    s.add_argument("--property", required=True)
+    s.add_argument("--start", required=True)
+    s.add_argument("--end", required=True)
+    s.add_argument("--annual-cost", type=float, default=None)
+    s.add_argument("--sellable-nights", type=int, default=None)
+    s.add_argument("--system-cost", default="config/local/system_cost.yaml",
+                   help="Gitignored operator cost inputs; explicit CLI values override its portfolio totals")
+    s.set_defaults(func=cmd_owner_net_month)
+
+    s = sub.add_parser("shadow-report", help="Segmented read-only shadow report")
+    s.set_defaults(func=cmd_shadow_report)
+
+    s = sub.add_parser("profitability-uncertainty",
+                       help="Synthetic economic sensitivity; never touches owner data")
+    s.add_argument("--config", default="config/synthetic/profitability_under_uncertainty.yaml")
+    s.add_argument("--out", help="Optional Markdown output; never use an owner-report path")
+    s.set_defaults(func=cmd_profitability_uncertainty)
+
     s = sub.add_parser("field-freeze", help="Freeze a field-test plan (before any canary)")
     s.add_argument("--spec", required=True)
     s.add_argument("--out", required=True)
@@ -160,3 +242,12 @@ def register(sub: argparse._SubParsersAction) -> None:
     s.add_argument("--plan", required=True)
     s.add_argument("--signoff", default="~/.wp-price/control/canary_signoff.json")
     s.set_defaults(func=cmd_canary_readiness)
+
+    s = sub.add_parser("canary-packet", help="List canary blockers. Does not authorize anything")
+    s.add_argument("--ledger", default="docs/reports/final_delivery/experiments/decisions.jsonl")
+    s.add_argument("--register", default="docs/reports/final_delivery/experiments/EXP-PACE-V3-001.register.json")
+    s.add_argument("--plan", default="docs/field_test/plan.draft.json")
+    s.add_argument("--signoff", default="~/.wp-price/control/canary_signoff.json")
+    s.add_argument("--permit", default="~/.wp-price/control/write_permit.json")
+    s.add_argument("--deployed-sha", default="~/wp-price-runtime/current/DEPLOYED_SHA")
+    s.set_defaults(func=cmd_canary_packet)

@@ -1,4 +1,5 @@
 data/*.db
+data/*.db-*
 data/*.db.archived
 data/*.db.icloud-backup
 data/exports/
@@ -38,3 +39,9 @@ data/cloud9/
 data/dec2023/
 config/local/*
 !config/local/*.example.yaml
+
+# Filled import mappings and private exports. Track only the templates.
+config/data_mapping/*
+!config/data_mapping/*.template.yaml
+imports/private/*
+!imports/private/README.md

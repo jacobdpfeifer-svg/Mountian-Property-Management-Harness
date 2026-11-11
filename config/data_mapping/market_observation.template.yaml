@@ -1,0 +1,23 @@
+# TEMPLATE — capacity-matched comp observations.
+# An unlabeled nightly / stay-total / all-in price is not in the value map on purpose.
+# Leave it unmapped so ingest quarantines it as AMBIGUOUS_PRICE_BASIS.
+contract: market_observation
+source_system: comp_vendor_export
+columns:
+  comp_key: "Comp ID"
+  stay_date: "Stay date"
+  los: "Length of stay"
+  guests: "Sleeps"
+  price: "Price"
+  price_basis: "Price basis"
+  currency: "Currency"
+  source_updated_at: "Observed at"
+values:
+  price_basis:
+    "nightly before fees": nightly_ex_fees
+    "nightly all-in": nightly_all_in
+    "stay total before fees": stay_total_ex_fees
+    "stay total all-in": stay_total_all_in
+  currency: {"USD": USD}
+constants: {}
+dates_are_utc_midnight: false

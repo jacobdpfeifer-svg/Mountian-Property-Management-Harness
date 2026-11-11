@@ -38,6 +38,8 @@ LEDGER_ENTRY_DIRECTION = {
     "cleaning_cost": "debit",
     "consumables": "debit",
     "refund": "debit",
+    "concession": "debit",
+    "chargeback": "debit",
     "maintenance": "debit",
     "damage_recovery": "credit",
     "tax_collected": "passthrough",
@@ -58,6 +60,7 @@ class Reason:
     UNKNOWN_IDENTITY = "UNKNOWN_IDENTITY"
     INCONSISTENT = "INCONSISTENT"
     OUT_OF_ORDER_VERSION = "OUT_OF_ORDER_VERSION"
+    UNLINKED_MONEY = "UNLINKED_MONEY"
 
 
 @dataclass(frozen=True)
@@ -177,6 +180,9 @@ def _ledger_checks(r: dict[str, Any]) -> list[tuple[str, str]]:
         out.append((Reason.INCONSISTENT, "direction"))
     if r["settlement_state"] == "settled" and not r.get("settled_at"):
         out.append((Reason.MISSING_FIELD, "settled_at"))
+    # A property id alone cannot place money on a stay or a statement period.
+    if not r.get("reservation_key") and not r.get("statement_key"):
+        out.append((Reason.UNLINKED_MONEY, "reservation_key"))
     return out
 
 

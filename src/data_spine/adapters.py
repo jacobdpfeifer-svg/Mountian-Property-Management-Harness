@@ -42,8 +42,10 @@ STATUS_MAP = {"confirmed": "confirmed", "reserved": "confirmed", "checked_in": "
 NOT_A_STAY = frozenset({"inquiry", "declined", "expired", "awaiting_payment", "closed"})
 
 # Spine contracts that may be loaded from an operator CSV through a mapping file.
-CSV_CONTRACTS = frozenset({"financial_ledger", "owner_statement", "ops_task", "listing_constraint",
-                           "market_observation"})
+CSV_CONTRACTS = frozenset({
+    "financial_ledger", "owner_statement", "ops_task", "listing_constraint",
+    "market_observation", "calendar_observation", "reservation",
+})
 
 
 class ReadOnlyGuesty:

@@ -1,0 +1,29 @@
+# TEMPLATE — inactive until a de-identified reservation export arrives.
+# Stable reservation keys only. Do not add guest name, email, phone, or payment columns.
+contract: reservation
+source_system: guesty_reservation_export
+columns:
+  reservation_key: "Reservation ID"
+  property_id: "Listing"
+  channel: "Channel"
+  status: "Status"
+  check_in: "Check in"
+  check_out: "Check out"
+  nights: "Nights"
+  booked_at: "Booked at"
+  price_basis: "Price basis"
+  currency: "Currency"
+  gross_lodging: "Lodging total"
+  guest_fees: "Guest fees"
+  source_updated_at: "Updated at"
+values:
+  property_id: {}
+  channel: {"Airbnb": airbnb, "Vrbo": vrbo, "Booking.com": booking_com, "Direct": direct, "Owner": owner}
+  status: {"confirmed": confirmed, "modified": modified, "cancelled": cancelled}
+  price_basis:
+    "stay total before fees": stay_total_ex_fees
+    "stay total all-in": stay_total_all_in
+  currency: {"USD": USD}
+constants: {}
+reservation_key_prefix: "guesty:"
+dates_are_utc_midnight: false

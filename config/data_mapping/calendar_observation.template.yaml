@@ -1,0 +1,26 @@
+# TEMPLATE — inactive until a real calendar export arrives.
+# Copy to a gitignored file under imports/private/ and replace column names.
+# price_basis must be one of nightly_ex_fees, nightly_all_in, stay_total_ex_fees,
+# stay_total_all_in. Do not map an ambiguous total to a nightly rate.
+contract: calendar_observation
+source_system: guesty_calendar_export
+columns:
+  property_id: "Listing"
+  stay_date: "Date"
+  status: "Status"
+  listed_price: "Nightly rate"
+  min_stay: "Minimum stay"
+  price_basis: "Price basis"
+  currency: "Currency"
+  source_updated_at: "Observed at"
+values:
+  property_id: {}
+  status: {"available": available, "booked": booked, "blocked": blocked}
+  price_basis:
+    "nightly before fees": nightly_ex_fees
+    "nightly all-in": nightly_all_in
+    "stay total before fees": stay_total_ex_fees
+    "stay total all-in": stay_total_all_in
+  currency: {"USD": USD}
+constants: {}
+dates_are_utc_midnight: false

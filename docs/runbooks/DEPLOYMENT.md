@@ -76,3 +76,16 @@ Secrets stay in the environment or an OS keychain, never in the repository or a
 release. Rotation: issue the new credential in Guesty, update the environment,
 confirm a read, then revoke the old credential in Guesty. A managed secret store
 is BLOCKED on the operator's choice of service.
+
+## 6. Daily read-only shadow
+
+The orchestrator DAG includes a `shadow` job after `recommendation`. It appends
+local rows only (`wp-price shadow-day`). A degraded shadow lowers autonomy to
+`suggest`. A failed shadow forces `observe` and opens an incident. The same
+calendar day is idempotent.
+
+This job is not on a managed scheduler yet. Cutting it over means repointing
+launchd at the verified release and running it once per Denver day for 30
+calendar days. Until those rows exist, the shadow gate is not passed. Shadow
+output is calibration and traceability evidence. It is not a measurement of
+revenue lift, and it never calls a Guesty write.

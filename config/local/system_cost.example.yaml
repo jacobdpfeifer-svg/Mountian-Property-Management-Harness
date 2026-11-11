@@ -1,0 +1,14 @@
+# Copy to config/local/system_cost.yaml (gitignored) only after the operator
+# writes the real annual figures. Do not invent amounts here.
+# annual_system_operating_cost_usd covers data/vendor, cloud/hosting,
+# support/labor, and allocated implementation cost.
+# annual_sellable_nights is the portfolio's sellable available nights.
+# cost_share_by_property and nights_by_property are both required before a
+# per-property hurdle is reported. allocation_method names how the shares
+# were chosen. Mortgage, depreciation, property tax, and broad ownership
+# costs stay out of this file.
+annual_system_operating_cost_usd: null
+annual_sellable_nights: null
+allocation_method: null
+cost_share_by_property: null
+nights_by_property: null
